@@ -59,7 +59,9 @@ export type MemberPage =
   | 'downline-report'
   | 'invest-now'
   | 'my-investments'
-  | 'earning-wallet';
+  | 'earning-wallet'
+  | 'incentive-report'
+  | 'create-ticket';
 
 export type MemberShellData = {
   page: MemberPage;
@@ -227,12 +229,23 @@ export type EarningWalletBoot = MemberShellData & {
     totalCredit: string | number;
     totalDebit: string | number;
     availableBalance: string | number;
-    roiWallet: string | number;
-    workingWallet: string | number;
-    communityWallet: string | number;
-    totalEarnings: string | number;
+    roiWallet?: string | number;
+    workingWallet?: string | number;
+    communityWallet?: string | number;
+    totalEarnings?: string | number;
   };
   transactions: WalletTxnRow[];
+};
+
+export type IncentiveReportBoot = MemberShellData & {
+  page: 'incentive-report';
+  reportTitle: string;
+  logType: string | number;
+  records: WalletTxnRow[];
+};
+
+export type SupportTicketBoot = MemberShellData & {
+  page: 'create-ticket';
 };
 
 export type MemberBoot =
@@ -242,7 +255,9 @@ export type MemberBoot =
   | DownlineReportBoot
   | InvestNowBoot
   | MyInvestmentsBoot
-  | EarningWalletBoot;
+  | EarningWalletBoot
+  | IncentiveReportBoot
+  | SupportTicketBoot;
 
 declare global {
   interface Window {

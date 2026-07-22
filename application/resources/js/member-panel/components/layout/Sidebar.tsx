@@ -73,7 +73,11 @@ function buildNav(links: MemberShellData['links']): NavItem[] {
 }
 
 function normalizePath(path: string) {
-  return path.replace(/\/+$/, '') || '/';
+  try {
+    return decodeURIComponent(path.replace(/\/+$/, '')) || '/';
+  } catch {
+    return path.replace(/\/+$/, '') || '/';
+  }
 }
 
 export function Sidebar({ data, open, onClose }: SidebarProps) {

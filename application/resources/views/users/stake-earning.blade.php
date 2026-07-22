@@ -5,10 +5,6 @@
             'totalCredit' => isset($cradit) ? $cradit : '0.0000',
             'totalDebit' => isset($debit) ? $debit : '0.0000',
             'availableBalance' => isset($balance) ? $balance : '0.0000',
-            'roiWallet' => '0.0000',
-            'workingWallet' => '0.0000',
-            'communityWallet' => '0.0000',
-            'totalEarnings' => isset($cradit) ? $cradit : '0.0000',
         ],
         'transactions' => [],
     ];
