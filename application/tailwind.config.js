@@ -59,6 +59,14 @@ export default {
           '0%': { opacity: '0', transform: 'translateY(10px)' },
           '100%': { opacity: '1', transform: 'translateY(0)' },
         },
+        'dropdown-in': {
+          '0%': { opacity: '0', transform: 'translateY(-6px) scale(0.96)' },
+          '100%': { opacity: '1', transform: 'translateY(0) scale(1)' },
+        },
+        'dropdown-out': {
+          '0%': { opacity: '1', transform: 'translateY(0) scale(1)' },
+          '100%': { opacity: '0', transform: 'translateY(-6px) scale(0.96)' },
+        },
         'pulse-dot': {
           '0%, 100%': { opacity: '1', transform: 'scale(1)' },
           '50%': { opacity: '0.45', transform: 'scale(0.85)' },
@@ -70,6 +78,8 @@ export default {
       },
       animation: {
         'fade-in': 'fade-in 0.55s ease-out both',
+        'dropdown-in': 'dropdown-in 200ms ease-out both',
+        'dropdown-out': 'dropdown-out 180ms ease-in both',
         'pulse-dot': 'pulse-dot 1.8s ease-in-out infinite',
         'glow-breathe': 'glow-breathe 5s ease-in-out infinite',
       },
