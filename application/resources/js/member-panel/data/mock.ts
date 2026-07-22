@@ -1,9 +1,11 @@
 import type {
+  AuthBoot,
   DashboardBoot,
   DownlineReportBoot,
   EarningWalletBoot,
   IncentiveReportBoot,
   InvestNowBoot,
+  InvestPackageBoot,
   MyInvestmentsBoot,
   MyReferralsBoot,
   ProfileBoot,
@@ -256,4 +258,69 @@ export const mockCreateTicketData: SupportTicketBoot = {
   user: sharedUser,
   wallet: sharedWallet,
   links: sharedLinks,
+};
+
+const signupPackages: InvestPackageBoot[] = [
+  { amount: 50, label: '$50', multiplier: '4X Max', buys: 0, maxBuys: 2, locked: false },
+  { amount: 100, label: '$100', multiplier: '4X Max', buys: 0, maxBuys: 2, locked: true },
+  { amount: 300, label: '$300', multiplier: '4X Max', buys: 0, maxBuys: 2, locked: true },
+  { amount: 500, label: '$500', multiplier: '4X Max', buys: 0, maxBuys: 2, locked: true },
+  { amount: 1000, label: '$1000', multiplier: '4X Max', buys: 0, maxBuys: 2, locked: true },
+  { amount: 3000, label: '$3000', multiplier: '4X Max', buys: 0, maxBuys: 2, locked: true },
+  { amount: 5000, label: '$5000', multiplier: '4X Max', buys: 0, maxBuys: 2, locked: true },
+  {
+    amount: 10000,
+    label: '$10000',
+    multiplier: '4X Max',
+    buys: 0,
+    maxBuys: 2,
+    locked: true,
+    unlimited: true,
+  },
+];
+
+const authLinks = {
+  home: '/',
+  signIn: '/sign-in',
+  signUp: '/sign-up',
+  forgotPassword: '/forgot-password',
+  dashboard: '/dashboard',
+};
+
+export const mockLoginData: AuthBoot = {
+  page: 'login',
+  baseUrl: '/',
+  assetsUrl: '/assets',
+  csrfToken: '',
+  currentPath: '/sign-in',
+  links: authLinks,
+};
+
+export const mockSignupData: AuthBoot = {
+  page: 'signup',
+  baseUrl: '/',
+  assetsUrl: '/assets',
+  csrfToken: '',
+  currentPath: '/sign-up',
+  referralCode: '',
+  links: authLinks,
+  packages: signupPackages,
+};
+
+export const mockRegistrationSuccessData: AuthBoot = {
+  page: 'registration-success',
+  baseUrl: '/',
+  assetsUrl: '/assets',
+  csrfToken: '',
+  currentPath: '/sign-up',
+  links: authLinks,
+  successDefaults: {
+    memberId: '0x68de...480f',
+    walletAddress: '0x68de9d14010385f840ea9f65b132a4fd91d8480f',
+    sponsorId: 'QUANTARA-SPONSOR',
+    packageLabel: '$50',
+    transactionHash: '0xabc…pending',
+    registrationDate: new Date().toLocaleString(),
+    network: 'BNB Smart Chain',
+  },
 };

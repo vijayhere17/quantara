@@ -77,7 +77,7 @@ export function ProfileUpdateCard({ data }: ProfileUpdateCardProps) {
           placeholder="Wallet address"
         />
         <Input
-          label="Firstname"
+          label="First Name"
           name="firstname"
           value={form.firstName}
           onChange={(e) => updateField('firstName', e.target.value)}
@@ -86,7 +86,7 @@ export function ProfileUpdateCard({ data }: ProfileUpdateCardProps) {
           disabled={!editing}
         />
         <Input
-          label="Lastname"
+          label="Last Name"
           name="lastname"
           value={form.lastName}
           onChange={(e) => updateField('lastName', e.target.value)}

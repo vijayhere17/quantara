@@ -104,4 +104,28 @@
   .q-aurora-follow {
     transform: none;
   }
+  .q-confetti {
+    animation: none !important;
+    display: none;
+  }
+}
+
+@keyframes q-confetti-fall {
+  0% {
+    transform: translate3d(0, -10px, 0) rotate(0deg);
+    opacity: 0;
+  }
+  12% {
+    opacity: 0.9;
+  }
+  100% {
+    transform: translate3d(12px, 110vh, 0) rotate(320deg);
+    opacity: 0;
+  }
+}
+
+.q-confetti {
+  animation-name: q-confetti-fall;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
 }

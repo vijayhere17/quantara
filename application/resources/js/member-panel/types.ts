@@ -61,7 +61,28 @@ export type MemberPage =
   | 'my-investments'
   | 'earning-wallet'
   | 'incentive-report'
-  | 'create-ticket';
+  | 'create-ticket'
+  | 'login'
+  | 'signup'
+  | 'registration-success';
+
+export type RegistrationSuccessPayload = {
+  memberId: string;
+  walletAddress: string;
+  sponsorId: string;
+  packageLabel: string;
+  transactionHash: string;
+  registrationDate: string;
+  network: string;
+};
+
+export type AuthLinks = {
+  home: string;
+  signIn: string;
+  signUp: string;
+  forgotPassword: string;
+  dashboard?: string;
+};
 
 export type MemberShellData = {
   page: MemberPage;
@@ -175,6 +196,18 @@ export type InvestPackageBoot = {
   locked: boolean;
 };
 
+export type AuthBoot = {
+  page: 'login' | 'signup' | 'registration-success';
+  baseUrl: string;
+  assetsUrl: string;
+  csrfToken: string;
+  currentPath: string;
+  referralCode?: string;
+  links: AuthLinks;
+  packages?: InvestPackageBoot[];
+  successDefaults?: Partial<RegistrationSuccessPayload>;
+};
+
 export type InvestNowBoot = MemberShellData & {
   page: 'invest-now';
   btcRate: number;
@@ -257,13 +290,17 @@ export type MemberBoot =
   | MyInvestmentsBoot
   | EarningWalletBoot
   | IncentiveReportBoot
-  | SupportTicketBoot;
+  | SupportTicketBoot
+  | AuthBoot;
 
 declare global {
   interface Window {
     __QUANTARA_DASHBOARD__?: DashboardBoot;
     __QUANTARA_PROFILE__?: ProfileBoot;
     __QUANTARA_BOOT__?: MemberBoot;
+    __QUANTARA_SHOW_SUCCESS__?: (payload?: RegistrationSuccessPayload) => void;
+    __QUANTARA_LAST_WALLET__?: string;
+    __QUANTARA_LAST_SPONSOR__?: string;
     connectwallet?: () => void | Promise<void>;
   }
 }
