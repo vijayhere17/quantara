@@ -26,6 +26,8 @@ export { InvestNowPage } from './investments/InvestNowPage';
 export { MyInvestmentsPage } from './investments/MyInvestmentsPage';
 export { EarningWalletPage } from './investments/EarningWalletPage';
 export { PackageCard } from './investments/PackageCard';
+export { IncentiveReportPage } from './earnings/IncentiveReportPage';
+export { CreateTicketPage } from './support/CreateTicketPage';
 export { AuroraBackground } from './layout/AuroraBackground';
 
 export { Card } from './ui/Card';
@@ -33,6 +35,7 @@ export { Badge } from './ui/Badge';
 export { ProgressBar } from './ui/ProgressBar';
 export { GradientButton } from './ui/GradientButton';
 export { Input } from './ui/Input';
+export { Textarea } from './ui/Textarea';
 export { PageHeader } from './ui/PageHeader';
 export { PageContainer } from './ui/PageContainer';
 export { SectionTitle } from './ui/SectionTitle';

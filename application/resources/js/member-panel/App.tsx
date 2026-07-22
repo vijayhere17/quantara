@@ -6,10 +6,14 @@ import { DownlineReportPage } from './components/network/DownlineReportPage';
 import { InvestNowPage } from './components/investments/InvestNowPage';
 import { MyInvestmentsPage } from './components/investments/MyInvestmentsPage';
 import { EarningWalletPage } from './components/investments/EarningWalletPage';
+import { IncentiveReportPage } from './components/earnings/IncentiveReportPage';
+import { CreateTicketPage } from './components/support/CreateTicketPage';
 import {
+  mockCreateTicketData,
   mockDashboardData,
   mockDownlineReportData,
   mockEarningWalletData,
+  mockIncentiveReportData,
   mockInvestNowData,
   mockMyInvestmentsData,
   mockMyReferralsData,
@@ -19,11 +23,13 @@ import type {
   DashboardBoot,
   DownlineReportBoot,
   EarningWalletBoot,
+  IncentiveReportBoot,
   InvestNowBoot,
   MemberBoot,
   MyInvestmentsBoot,
   MyReferralsBoot,
   ProfileBoot,
+  SupportTicketBoot,
 } from './types';
 
 function resolveBoot(): MemberBoot {
@@ -33,13 +39,22 @@ function resolveBoot(): MemberBoot {
     return { ...window.__QUANTARA_DASHBOARD__, page: 'dashboard' };
   }
 
-  const path = window.location.pathname.replace(/\/+$/, '');
+  const path = decodeURIComponent(window.location.pathname.replace(/\/+$/, ''));
   if (path.endsWith('/update-profile')) return mockProfileData;
   if (path.endsWith('/my-referral')) return mockMyReferralsData;
   if (path.includes('/downline-report')) return mockDownlineReportData;
   if (path.endsWith('/buy-robo')) return mockInvestNowData;
   if (path.endsWith('/bot-request')) return mockMyInvestmentsData;
   if (path.endsWith('/earning-wallet')) return mockEarningWalletData;
+  if (path.endsWith('/create-ticket')) return mockCreateTicketData;
+  if (path.includes('/earning/')) {
+    const title = path.split('/').pop() || 'ROI History';
+    return {
+      ...mockIncentiveReportData,
+      reportTitle: title,
+      currentPath: path,
+    };
+  }
 
   return mockDashboardData;
 }
@@ -58,6 +73,10 @@ function renderPage(data: MemberBoot) {
       return <MyInvestmentsPage data={data as MyInvestmentsBoot} />;
     case 'earning-wallet':
       return <EarningWalletPage data={data as EarningWalletBoot} />;
+    case 'incentive-report':
+      return <IncentiveReportPage data={data as IncentiveReportBoot} />;
+    case 'create-ticket':
+      return <CreateTicketPage data={data as SupportTicketBoot} />;
     case 'dashboard':
     default:
       return <DashboardPage data={data as DashboardBoot} />;

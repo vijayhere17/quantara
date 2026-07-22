@@ -148,12 +148,23 @@
           totalCredit: '0.0000',
           totalDebit: '0.0000',
           availableBalance: '0.0000',
-          roiWallet: '0.0000',
-          workingWallet: '0.0000',
-          communityWallet: '0.0000',
-          totalEarnings: '0.0000',
         },
         transactions: [],
+      };
+    } else if (page === 'roi' || page === 'earnings' || page === 'incentive') {
+      window.__QUANTARA_BOOT__ = {
+        ...shell,
+        page: 'incentive-report',
+        currentPath: '/earning/1/ROI History',
+        reportTitle: 'ROI History',
+        logType: 1,
+        records: [],
+      };
+    } else if (page === 'support' || page === 'ticket' || page === 'create-ticket') {
+      window.__QUANTARA_BOOT__ = {
+        ...shell,
+        page: 'create-ticket',
+        currentPath: '/create-ticket',
       };
     } else {
       window.__QUANTARA_BOOT__ = {

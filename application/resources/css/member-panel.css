@@ -76,6 +76,19 @@
   transform: translateZ(0);
 }
 
+.q-aurora-follow {
+  transform: translate3d(var(--q-aurora-x, 0px), var(--q-aurora-y, 0px), 0);
+}
+
+.q-aurora-spotlight {
+  background: radial-gradient(
+    560px circle at var(--q-aurora-px, 50%) var(--q-aurora-py, 35%),
+    rgba(0, 217, 255, 0.14),
+    rgba(124, 58, 237, 0.08) 28%,
+    transparent 58%
+  );
+}
+
 .q-aurora-blob-a { animation: q-aurora-a 28s ease-in-out infinite; }
 .q-aurora-blob-b { animation: q-aurora-b 34s ease-in-out infinite; }
 .q-aurora-blob-c { animation: q-aurora-c 40s ease-in-out infinite; }
@@ -87,5 +100,8 @@
   .q-aurora-blob-c,
   .q-aurora-blob-d {
     animation: none;
+  }
+  .q-aurora-follow {
+    transform: none;
   }
 }

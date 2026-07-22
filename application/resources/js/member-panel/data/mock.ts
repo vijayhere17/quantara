@@ -2,10 +2,12 @@ import type {
   DashboardBoot,
   DownlineReportBoot,
   EarningWalletBoot,
+  IncentiveReportBoot,
   InvestNowBoot,
   MyInvestmentsBoot,
   MyReferralsBoot,
   ProfileBoot,
+  SupportTicketBoot,
 } from '../types';
 
 const sharedLinks = {
@@ -227,10 +229,31 @@ export const mockEarningWalletData: EarningWalletBoot = {
     totalCredit: '0.0000',
     totalDebit: '0.0000',
     availableBalance: '0.0000',
-    roiWallet: '0.0000',
-    workingWallet: '0.0000',
-    communityWallet: '0.0000',
-    totalEarnings: '0.0000',
   },
   transactions: [],
+};
+
+export const mockIncentiveReportData: IncentiveReportBoot = {
+  page: 'incentive-report',
+  baseUrl: '/',
+  assetsUrl: '/assets',
+  csrfToken: '',
+  currentPath: '/earning/1/ROI%20History',
+  user: sharedUser,
+  wallet: sharedWallet,
+  links: sharedLinks,
+  reportTitle: 'ROI History',
+  logType: 1,
+  records: [],
+};
+
+export const mockCreateTicketData: SupportTicketBoot = {
+  page: 'create-ticket',
+  baseUrl: '/',
+  assetsUrl: '/assets',
+  csrfToken: '',
+  currentPath: '/create-ticket',
+  user: sharedUser,
+  wallet: sharedWallet,
+  links: sharedLinks,
 };
