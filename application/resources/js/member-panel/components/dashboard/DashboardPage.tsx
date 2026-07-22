@@ -1,4 +1,5 @@
 import type { DashboardBoot } from '../../types';
+import { PageContainer } from '../ui/PageContainer';
 import { DirectTeamCard } from './DirectTeamCard';
 import { IncomeSummaryCard } from './IncomeSummaryCard';
 import { PackageDetailsCard } from './PackageDetailsCard';
@@ -19,7 +20,7 @@ export function DashboardPage({ data }: DashboardPageProps) {
     data.rank.current && data.rank.current !== 'Q0' ? data.rank.current : 'Not Ranked Yet';
 
   return (
-    <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-5 sm:gap-6">
+    <PageContainer>
       <WelcomeBanner data={data} />
 
       <div className="grid grid-cols-1 gap-5 sm:gap-6 lg:grid-cols-2">
@@ -42,6 +43,6 @@ export function DashboardPage({ data }: DashboardPageProps) {
         <RoiProgress roi={data.roi} />
         <RankProgress rank={data.rank} />
       </div>
-    </div>
+    </PageContainer>
   );
 }

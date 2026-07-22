@@ -52,8 +52,14 @@ export type MemberUser = {
   packageRoi: string | number | null;
 };
 
+export type MemberPage =
+  | 'dashboard'
+  | 'profile'
+  | 'my-referrals'
+  | 'downline-report';
+
 export type MemberShellData = {
-  page: 'dashboard' | 'profile';
+  page: MemberPage;
   baseUrl: string;
   assetsUrl: string;
   csrfToken: string;
@@ -126,7 +132,39 @@ export type ProfileBoot = MemberShellData & {
   };
 };
 
-export type MemberBoot = DashboardBoot | ProfileBoot;
+export type ReferralRow = {
+  username: string;
+  activationOn: string;
+  totalTopup: string | number;
+  status: 'active' | 'inactive';
+  registeredDate: string;
+};
+
+export type DownlineRow = {
+  level: number;
+  userDetails: string;
+  activationOn: string;
+  totalTopup: string | number;
+  status: 'active' | 'inactive';
+  registeredDate: string;
+  referralDetails: string;
+};
+
+export type MyReferralsBoot = MemberShellData & {
+  page: 'my-referrals';
+  referrals: ReferralRow[];
+};
+
+export type DownlineReportBoot = MemberShellData & {
+  page: 'downline-report';
+  downlines: DownlineRow[];
+};
+
+export type MemberBoot =
+  | DashboardBoot
+  | ProfileBoot
+  | MyReferralsBoot
+  | DownlineReportBoot;
 
 declare global {
   interface Window {
