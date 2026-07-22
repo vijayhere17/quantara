@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Quantara Member Panel · Preview</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    html, body { margin: 0; background: #0a0b14; }
+    #member-panel-root { min-height: 100vh; }
+  </style>
+  <script type="module">
+    const res = await fetch('./manifest.json');
+    const manifest = await res.json();
+    const entry = manifest['resources/js/member-panel/main.tsx'];
+    const cssEntry = manifest['resources/css/member-panel.css'];
+    const cssFiles = new Set([...(entry?.css || []), cssEntry?.file].filter(Boolean));
+    for (const file of cssFiles) {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = './' + file;
+      document.head.appendChild(link);
+    }
+    if (entry?.file) {
+      await import('./' + entry.file);
+    }
+  </script>
+</head>
+<body>
+  <div id="member-panel-root"></div>
+</body>
+</html>
