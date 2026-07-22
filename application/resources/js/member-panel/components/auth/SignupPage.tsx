@@ -15,6 +15,7 @@ import { GradientButton } from '../ui/GradientButton';
 import { Input } from '../ui/Input';
 import { Logo } from '../ui/Logo';
 import { RegistrationSuccessPage } from './RegistrationSuccessPage';
+import { connectQuantaraWallet, notifyError } from '../../lib/walletConnect';
 import type { AuthBoot, RegistrationSuccessPayload } from '../../types';
 
 type SignupPageProps = {
@@ -46,8 +47,64 @@ export function SignupPage({ data }: SignupPageProps) {
   const [selectedAmount, setSelectedAmount] = useState(unlockedAmount);
   const [success, setSuccess] = useState(false);
   const [successPayload, setSuccessPayload] = useState<RegistrationSuccessPayload | null>(null);
+  const [connecting, setConnecting] = useState(false);
 
   const stepIndex = STEPS.findIndex((s) => s.id === step);
+
+  const handleConnect = async () => {
+    if (connecting) return;
+    setConnecting(true);
+    try {
+      const address = await connectQuantaraWallet();
+      setWallet(address);
+    } catch (error) {
+      console.error('Wallet connection failed:', error);
+      const err = error as { code?: number; message?: string };
+      if (err?.code === 4001) {
+        notifyError('Connection request was rejected in MetaMask');
+      } else {
+        const message = err?.message || 'Wallet connection failed';
+        if (!message.toLowerCase().includes('install metamask')) {
+          notifyError(message);
+        }
+      }
+    } finally {
+      setConnecting(false);
+    }
+  };
+
+  const handleRegister = () => {
+    if (!terms) {
+      notifyError('Please accept Quantara terms of services.');
+      return;
+    }
+    if (!wallet) {
+      notifyError('Please connect wallet!');
+      return;
+    }
+    if (!sponsorId.trim()) {
+      notifyError('Please enter a sponsor id.');
+      return;
+    }
+
+    // Keep bridge fields in sync for legacy processregister()
+    const sponsorEl = document.getElementById('sponsor_id') as HTMLInputElement | null;
+    if (sponsorEl) sponsorEl.value = sponsorId;
+    const walletEl = document.getElementById('userwallet') as HTMLInputElement | null;
+    if (walletEl) walletEl.value = wallet;
+    const termsEl = document.getElementById('terms') as HTMLInputElement | null;
+    if (termsEl) termsEl.checked = terms;
+
+    window.__QUANTARA_LAST_WALLET__ = wallet;
+    window.__QUANTARA_LAST_SPONSOR__ = sponsorId;
+
+    if (typeof window.processregister === 'function') {
+      window.processregister();
+      return;
+    }
+
+    notifyError('Registration handler is not ready. Please refresh and try again.');
+  };
 
   useEffect(() => {
     const el = document.getElementById('userwallet') as HTMLInputElement | null;
@@ -249,9 +306,11 @@ export function SignupPage({ data }: SignupPageProps) {
               type="button"
               fullWidth
               className="btn-connect !rounded-full !py-3.5 !font-bold !text-[#041018]"
+              onClick={() => void handleConnect()}
+              disabled={connecting}
             >
               <Wallet className="h-4 w-4" />
-              Connect Wallet
+              {connecting ? 'Connecting…' : 'Connect Wallet'}
             </GradientButton>
           ) : (
             <GradientButton
@@ -442,6 +501,7 @@ export function SignupPage({ data }: SignupPageProps) {
             fullWidth
             className="btn-submit !rounded-full !py-3.5 !font-bold !text-[#041018]"
             disabled={!terms || !wallet || !sponsorId}
+            onClick={handleRegister}
           >
             Complete Registration
           </GradientButton>
