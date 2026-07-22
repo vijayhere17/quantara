@@ -11,6 +11,7 @@ import {
 import { useState } from 'react';
 import { Badge } from '../ui/Badge';
 import { GradientButton } from '../ui/GradientButton';
+import { PageContainer } from '../ui/PageContainer';
 import { PageHeader } from '../ui/PageHeader';
 import { ProfileInfoCard } from './ProfileInfoCard';
 import { ProfileUpdateCard } from './ProfileUpdateCard';
@@ -52,7 +53,7 @@ export function ProfilePage({ data }: ProfilePageProps) {
   };
 
   return (
-    <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-5 sm:gap-6">
+    <PageContainer maxWidth="narrow">
       <PageHeader
         title="Update My Profile"
         crumbs={[
@@ -235,6 +236,6 @@ export function ProfilePage({ data }: ProfilePageProps) {
           />
         </div>
       </div>
-    </div>
+    </PageContainer>
   );
 }

@@ -16,7 +16,7 @@
   <div id="member-panel-root"></div>
   <script type="module">
     const params = new URLSearchParams(location.search);
-    const page = params.get('page') === 'profile' ? 'profile' : 'dashboard';
+    const page = params.get('page') || 'dashboard';
 
     const links = {
       dashboard: '/dashboard',
@@ -55,16 +55,20 @@
       potentialWallet: '0.0000',
     };
 
+    const shell = {
+      baseUrl: '/',
+      assetsUrl: '/assets',
+      csrfToken: '',
+      user,
+      wallet,
+      links,
+    };
+
     if (page === 'profile') {
       window.__QUANTARA_BOOT__ = {
+        ...shell,
         page: 'profile',
-        baseUrl: '/',
-        assetsUrl: '/assets',
-        csrfToken: '',
         currentPath: '/update-profile',
-        user,
-        wallet,
-        links,
         profile: {
           firstName: '',
           lastName: '',
@@ -83,16 +87,25 @@
           joinedAt: '—',
         },
       };
+    } else if (page === 'my-referrals' || page === 'referrals') {
+      window.__QUANTARA_BOOT__ = {
+        ...shell,
+        page: 'my-referrals',
+        currentPath: '/my-referral',
+        referrals: [],
+      };
+    } else if (page === 'downline' || page === 'downline-report') {
+      window.__QUANTARA_BOOT__ = {
+        ...shell,
+        page: 'downline-report',
+        currentPath: '/downline-report/A',
+        downlines: [],
+      };
     } else {
       window.__QUANTARA_BOOT__ = {
+        ...shell,
         page: 'dashboard',
-        baseUrl: '/',
-        assetsUrl: '/assets',
-        csrfToken: '',
         currentPath: '/dashboard',
-        user,
-        wallet,
-        links,
         referral: {
           displayUrl: '/invite/0x68de...480f',
           copyUrl: '/sign-up?ref=' + user.username,

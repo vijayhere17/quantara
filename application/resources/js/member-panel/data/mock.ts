@@ -1,4 +1,9 @@
-import type { DashboardBoot, ProfileBoot } from '../types';
+import type {
+  DashboardBoot,
+  DownlineReportBoot,
+  MyReferralsBoot,
+  ProfileBoot,
+} from '../types';
 
 const sharedLinks = {
   dashboard: '/dashboard',
@@ -31,6 +36,12 @@ const sharedUser = {
   packageRoi: null as string | number | null,
 };
 
+const sharedWallet = {
+  chainBalance: '0.00000000 BNB',
+  earningWallet: '0.0000',
+  potentialWallet: '0.0000',
+};
+
 export const mockDashboardData: DashboardBoot = {
   page: 'dashboard',
   baseUrl: '/',
@@ -42,11 +53,7 @@ export const mockDashboardData: DashboardBoot = {
     displayUrl: 'https://quantara.app/invite/0x68de...480f',
     copyUrl: 'https://quantara.app/sign-up?ref=0x68de9d14010385f840ea9f65b132a4fd91d8480f',
   },
-  wallet: {
-    chainBalance: '0.00000000 BNB',
-    earningWallet: '0.0000',
-    potentialWallet: '0.0000',
-  },
+  wallet: sharedWallet,
   income: {
     total: '0.0000',
     today: '0.0000',
@@ -99,11 +106,7 @@ export const mockProfileData: ProfileBoot = {
   csrfToken: '',
   currentPath: '/update-profile',
   user: sharedUser,
-  wallet: {
-    chainBalance: '0.00000000 BNB',
-    earningWallet: '0.0000',
-    potentialWallet: '0.0000',
-  },
+  wallet: sharedWallet,
   links: sharedLinks,
   profile: {
     firstName: '',
@@ -122,4 +125,28 @@ export const mockProfileData: ProfileBoot = {
     connectedWallet: '0x68de9d14010385f840ea9f65b132a4fd91d8480f',
     joinedAt: '—',
   },
+};
+
+export const mockMyReferralsData: MyReferralsBoot = {
+  page: 'my-referrals',
+  baseUrl: '/',
+  assetsUrl: '/assets',
+  csrfToken: '',
+  currentPath: '/my-referral',
+  user: sharedUser,
+  wallet: sharedWallet,
+  links: sharedLinks,
+  referrals: [],
+};
+
+export const mockDownlineReportData: DownlineReportBoot = {
+  page: 'downline-report',
+  baseUrl: '/',
+  assetsUrl: '/assets',
+  csrfToken: '',
+  currentPath: '/downline-report/A',
+  user: sharedUser,
+  wallet: sharedWallet,
+  links: sharedLinks,
+  downlines: [],
 };
