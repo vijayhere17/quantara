@@ -1,0 +1,790 @@
+/* ==========================================================================
+   Global Trade — Gold on Black theme override
+   Loads AFTER style.css, style-preset.css, bg-animation.css.
+   Do not edit those vendor files directly - add overrides here instead.
+   ========================================================================== */
+
+:root {
+  /* ---- Global Trade palette ---- */
+  --gt-bg: #0b0b0d;
+  --gt-bg-elevated: #141416;
+  --gt-card-bg: #17171a;
+  --gt-card-border: #2a2a2e;
+  --gt-sidebar-bg: #0e0e10;
+  --gt-header-bg: rgba(14, 14, 16, 0.85);
+
+  --gt-gold-1: #f4d78a;
+  --gt-gold-2: #d4af37;
+  --gt-gold-3: #9c7a22;
+  --gt-gold-2-rgb: 212, 175, 55;
+
+  --gt-text: #ececec;
+  --gt-text-muted: #9a9a9e;
+  --gt-heading: #f5efe0;
+
+  --gt-border: #2a2a2e;
+  --gt-border-light: #3a3a3f;
+
+  --gt-success: #2fbf71;
+  --gt-success-rgb: 47, 191, 113;
+  --gt-danger: #e5484d;
+  --gt-danger-rgb: 229, 72, 77;
+  --gt-warning: #f5a623;
+  --gt-warning-rgb: 245, 166, 35;
+  --gt-info: #4dabf7;
+  --gt-info-rgb: 77, 171, 247;
+
+  /* ---- Bootstrap base overrides ---- */
+  --bs-body-bg: var(--gt-bg);
+  --bs-body-bg-rgb: 11, 11, 13;
+  --bs-body-color: var(--gt-text);
+  --bs-heading-color: var(--gt-heading);
+  --bs-border-color: var(--gt-border);
+
+  --bs-primary: var(--gt-gold-2);
+  --bs-primary-rgb: var(--gt-gold-2-rgb);
+  --bs-primary-light: rgba(212, 175, 55, 0.14);
+  --bs-link-color: var(--gt-gold-2);
+  --bs-link-color-rgb: var(--gt-gold-2-rgb);
+  --bs-link-hover-color: var(--gt-gold-1);
+
+  --bs-success: var(--gt-success);
+  --bs-success-rgb: var(--gt-success-rgb);
+  --bs-danger: var(--gt-danger);
+  --bs-danger-rgb: var(--gt-danger-rgb);
+  --bs-warning: var(--gt-warning);
+  --bs-warning-rgb: var(--gt-warning-rgb);
+  --bs-info: var(--gt-info);
+  --bs-info-rgb: var(--gt-info-rgb);
+
+  /* ---- Able Pro structural vars ---- */
+  --pc-heading-color: var(--gt-heading);
+  --pc-active-background: var(--gt-bg-elevated);
+
+  --pc-sidebar-background: var(--gt-sidebar-bg);
+  --pc-sidebar-color: var(--gt-text-muted);
+  --pc-sidebar-color-rgb: 154, 154, 158;
+  --pc-sidebar-active-color: #55B9FF;
+  --pc-sidebar-shadow: none;
+  --pc-sidebar-caption-color: var(--gt-gold-3);
+  --pc-sidebar-border: 1px solid var(--gt-border);
+  --pc-sidebar-user-background: var(--gt-bg-elevated);
+
+  --pc-header-background: var(--gt-header-bg);
+  --pc-header-color: var(--gt-text);
+  --pc-header-shadow: none;
+  --pc-header-submenu-background: var(--gt-card-bg);
+  --pc-header-submenu-color: var(--gt-text);
+
+  --pc-card-box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(212, 175, 55, 0.06);
+}
+
+/* ==========================================================================
+   preset-8 hardcoded selectors - the vendor CSS bakes literal hex values
+   into these rules instead of referencing :root vars, so a var override
+   alone will not recolor them. Re-declared here with matching selectors/
+   specificity (loads after style-preset.css, same specificity => wins).
+   ========================================================================== */
+[data-pc-preset=preset-8] {
+  --pc-sidebar-active-color:#55B9FF;
+  --bs-blue: var(--gt-gold-2);
+  --bs-primary: var(--gt-gold-2);
+  --bs-primary-rgb: var(--gt-gold-2-rgb);
+  --bs-primary-light: rgba(212, 175, 55, 0.14);
+  --bs-link-color: var(--gt-gold-2);
+  --bs-link-color-rgb: var(--gt-gold-2-rgb);
+  --bs-link-hover-color: var(--gt-gold-1);
+  --dt-row-selected: 212, 175, 55;
+}
+[data-pc-preset=preset-8] .bg-light-primary {
+  background: rgba(212, 175, 55, 0.14);
+  color: var(--gt-gold-2);
+}
+[data-pc-preset=preset-8] .link-primary {
+  color: var(--gt-gold-2) !important;
+}
+[data-pc-preset=preset-8] .link-primary:hover, [data-pc-preset=preset-8] .link-primary:focus {
+  color: var(--gt-gold-1) !important;
+}
+[data-pc-preset=preset-8] .btn-primary {
+  --bs-btn-color: #0b0b0d;
+  --bs-btn-bg: var(--gt-gold-2);
+  --bs-btn-border-color: var(--gt-gold-2);
+  --bs-btn-hover-color: #0b0b0d;
+  --bs-btn-hover-bg: var(--gt-gold-1);
+  --bs-btn-hover-border-color: var(--gt-gold-1);
+  --bs-btn-focus-shadow-rgb: 212, 175, 55;
+  --bs-btn-active-color: #0b0b0d;
+  --bs-btn-active-bg: var(--gt-gold-3);
+  --bs-btn-active-border-color: var(--gt-gold-3);
+  --bs-btn-active-shadow: inset 0 3px 5px rgba(0, 0, 0, 0.3);
+  --bs-btn-disabled-color: #0b0b0d;
+  --bs-btn-disabled-bg: var(--gt-gold-2);
+  --bs-btn-disabled-border-color: var(--gt-gold-2);
+}
+[data-pc-preset=preset-8] .btn-link {
+  --bs-btn-color: var(--gt-gold-2);
+  --bs-btn-hover-color: var(--gt-gold-1);
+  --bs-btn-active-color: var(--gt-gold-1);
+}
+[data-pc-preset=preset-8] .text-bg-primary {
+  color: #0b0b0d !important;
+  background-color: RGBA(212, 175, 55, var(--bs-bg-opacity, 1)) !important;
+}
+[data-pc-preset=preset-8] .accordion {
+  --bs-accordion-btn-focus-border-color: var(--gt-gold-2);
+  --bs-accordion-btn-focus-box-shadow: 0 0 0 0.2rem rgba(212, 175, 55, 0.25);
+  --bs-accordion-active-color: var(--gt-gold-2);
+  --bs-accordion-active-bg: rgba(212, 175, 55, 0.12);
+}
+[data-pc-preset=preset-8] .alert-primary {
+  --bs-alert-color: var(--gt-gold-1);
+  --bs-alert-bg: rgba(212, 175, 55, 0.14);
+  --bs-alert-border-color: rgba(212, 175, 55, 0.3);
+  --bs-alert-link-color: var(--gt-gold-1);
+}
+[data-pc-preset=preset-8] .list-group {
+  --bs-list-group-active-bg: var(--gt-gold-2);
+  --bs-list-group-active-border-color: var(--gt-gold-2);
+}
+[data-pc-preset=preset-8] .list-group-item-primary {
+  color: var(--gt-gold-1);
+  background-color: rgba(212, 175, 55, 0.14);
+}
+[data-pc-preset=preset-8] .nav {
+  --bs-nav-link-hover-color: var(--gt-gold-1);
+}
+[data-pc-preset=preset-8] .nav-pills {
+  --bs-nav-pills-link-active-bg: var(--gt-gold-2);
+}
+[data-pc-preset=preset-8] .pagination {
+  --bs-pagination-hover-color: var(--gt-gold-1);
+  --bs-pagination-focus-color: var(--gt-gold-1);
+  --bs-pagination-focus-box-shadow: 0 0 0 0.2rem rgba(212, 175, 55, 0.25);
+  --bs-pagination-active-bg: var(--gt-gold-2);
+  --bs-pagination-active-border-color: var(--gt-gold-2);
+}
+[data-pc-preset=preset-8] .progress {
+  --bs-progress-bar-bg: var(--gt-gold-2);
+}
+[data-pc-preset=preset-8] .form-check .form-check-input.input-primary:checked {
+  border-color: var(--gt-gold-2);
+  background-color: var(--gt-gold-2);
+}
+[data-pc-preset=preset-8] .btn-light-primary {
+  background: rgba(212, 175, 55, 0.14);
+  color: var(--gt-gold-2);
+  border-color: rgba(212, 175, 55, 0.14);
+}
+[data-pc-preset=preset-8] .btn-light-primary:hover,
+[data-pc-preset=preset-8] .btn-light-primary.focus,
+[data-pc-preset=preset-8] .btn-light-primary:focus,
+[data-pc-preset=preset-8] .btn-light-primary:not(:disabled):not(.disabled).active,
+[data-pc-preset=preset-8] .btn-light-primary:not(:disabled):not(.disabled):active {
+  background: var(--gt-gold-2);
+  color: #0b0b0d;
+  border-color: var(--gt-gold-2);
+}
+[data-pc-preset=preset-8] .table-primary {
+  --bs-table-color: #0b0b0d;
+  --bs-table-bg: var(--gt-gold-2);
+  --bs-table-border-color: var(--gt-gold-3);
+  --bs-table-striped-bg: var(--gt-gold-3);
+  --bs-table-striped-color: #0b0b0d;
+  --bs-table-active-bg: var(--gt-gold-3);
+  --bs-table-active-color: #0b0b0d;
+  --bs-table-hover-bg: var(--gt-gold-3);
+  --bs-table-hover-color: #0b0b0d;
+}
+
+/* ==========================================================================
+   Cards, tables, forms, badges, scrollbar, sidebar-user-card, misc
+   ========================================================================== */
+.card {
+  --bs-card-border-color: var(--gt-card-border);
+  --bs-card-box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(212, 175, 55, 0.06);
+  --bs-card-bg: var(--gt-card-bg);
+}
+
+.table {
+  --bs-table-color: var(--gt-text);
+  --bs-table-bg: transparent;
+  --bs-table-border-color: var(--gt-border);
+  --bs-table-striped-bg: rgba(255, 255, 255, 0.02);
+  --bs-table-hover-bg: rgba(212, 175, 55, 0.06);
+}
+thead, .table thead th {
+  color: var(--gt-heading);
+  border-bottom-color: var(--gt-border-light) !important;
+}
+
+.form-control, .datatable-input, .custom-select, .dataTable-selector, .dataTable-input,
+.form-select {
+  color: var(--gt-text);
+  background-color: var(--gt-bg-elevated);
+  border-color: var(--gt-border);
+}
+.form-control:focus, .datatable-input:focus, .custom-select:focus,
+.dataTable-selector:focus, .dataTable-input:focus, .form-select:focus {
+  color: var(--gt-text);
+  background-color: var(--gt-bg-elevated);
+  border-color: var(--gt-gold-2);
+  box-shadow: 0 0 0 0.2rem rgba(212, 175, 55, 0.25);
+}
+.form-control::placeholder, .datatable-input::placeholder {
+  color: var(--gt-text-muted);
+}
+.form-floating > label {
+  color: var(--gt-text-muted);
+}
+
+.bg-light-primary { background: rgba(212, 175, 55, 0.14); color: var(--gt-gold-2); }
+.bg-light-success { background: rgba(47, 191, 113, 0.14); color: var(--gt-success); }
+.bg-light-info { background: rgba(77, 171, 247, 0.14); color: var(--gt-info); }
+.bg-light-warning { background: rgba(245, 166, 35, 0.14); color: var(--gt-warning); }
+.bg-light-danger { background: rgba(229, 72, 77, 0.14); color: var(--gt-danger); }
+
+.badge.bg-light-primary { background: rgba(212, 175, 55, 0.18); color: var(--gt-gold-2); }
+.badge.bg-light-success { background: rgba(47, 191, 113, 0.18); color: var(--gt-success); }
+.badge.bg-light-info { background: rgba(77, 171, 247, 0.18); color: var(--gt-info); }
+.badge.bg-light-warning { background: rgba(245, 166, 35, 0.18); color: var(--gt-warning); }
+.badge.bg-light-danger { background: rgba(229, 72, 77, 0.18); color: var(--gt-danger); }
+
+.simplebar-scrollbar:before {
+  background: var(--gt-gold-3);
+}
+
+.pc-sidebar .card.pc-user-card {
+  border: 1px solid var(--gt-border);
+}
+
+.avtar.avtar-s.border {
+  border-color: var(--gt-border) !important;
+  color: var(--gt-text);
+}
+
+.dropdown-menu {
+  background-color: var(--gt-card-bg);
+  border-color: var(--gt-border);
+  color: var(--gt-text);
+}
+.dropdown-item {
+  color: var(--gt-text);
+}
+.dropdown-item:hover, .dropdown-item:focus {
+  background-color: rgba(212, 175, 55, 0.12);
+  color: var(--gt-gold-1);
+}
+
+.loader-bg {
+  background: var(--gt-bg);
+}
+
+
+/* ===========================
+   Sidebar Logo
+=========================== */
+
+.sidebar-logo{
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    width:100%;
+    padding:20px 10px;
+}
+
+.sidebar-main-logo{
+    width:170px;
+    height:auto;
+    display:block;
+}
+
+
+/* ==========================================================================
+   Typography
+   ========================================================================== */
+h1, .h1, h2, .h2, h3, .h3, h4, .h4, h5, .h5, h6, .h6 {
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--gt-heading);
+}
+
+.gt-gold-heading {
+  background: linear-gradient(90deg, var(--gt-gold-1), var(--gt-gold-2) 55%, var(--gt-gold-3));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* ==========================================================================
+   Brand logo component
+   ========================================================================== */
+.gt-logo {
+  color: var(--gt-gold-2);
+}
+.gt-logo-icon {
+  color: var(--gt-gold-2);
+  flex-shrink: 0;
+}
+.gt-logo-text {
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  font-size: 1.15rem;
+  text-transform: uppercase;
+  line-height: 1;
+}
+.gt-logo-text strong {
+  font-weight: 800;
+}
+
+/* ==========================================================================
+   Utility card variants
+   ========================================================================== */
+.card-gold {
+  background: linear-gradient(135deg, var(--gt-gold-3), var(--gt-gold-2)) !important;
+  border: none !important;
+}
+.card-gold-outline {
+  background: var(--gt-card-bg) !important;
+  border: 1px solid rgba(212, 175, 55, 0.35) !important;
+}
+
+.gt-coin-icon {
+  color: var(--gt-gold-2);
+  width: 35px;
+  height: 35px;
+}
+
+/* Auth pages */
+.auth-main .card {
+  border: 1px solid var(--gt-border);
+}
+.saprator {
+  color: var(--gt-text-muted);
+}
+.saprator span {
+  background: var(--gt-card-bg);
+}
+
+/* Force bigger centered sidebar logo */
+.pc-sidebar .m-header{
+    height: 120px !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    padding: 15px 0 !important;
+}
+
+.pc-sidebar .b-brand{
+    width: 100% !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+}
+
+.pc-sidebar .sidebar-main-logo{
+    width: 110px !important;
+    max-width: 110px !important;
+    height: auto !important;
+    display: block !important;
+}
+
+
+/* ==========================================
+   QUANTARA SIDEBAR
+========================================== */
+
+.pc-sidebar{
+    background:#0D1117 !important;
+    border-right:1px solid rgba(255,255,255,.06);
+}
+
+/* Logo */
+
+.pc-sidebar .m-header{
+    border-bottom:1px solid rgba(255,255,255,.06);
+}
+
+/* Section Heading */
+
+.pc-caption label{
+    color:#55B9FF !important;
+    font-size:12px;
+    font-weight:700;
+    letter-spacing:3px;
+    text-transform:uppercase;
+}
+
+/* Menu */
+
+.pc-navbar>.pc-item>.pc-link{
+
+    height:50px;
+
+    margin:6px 16px;
+
+    border-radius:12px;
+
+    padding:0 16px;
+
+    background:transparent !important;
+
+    color:#B5C1CF !important;
+
+    transition:none;
+
+}
+
+/* Icons */
+
+.pc-micon{
+
+    width:38px;
+
+    height:38px;
+
+    display:flex;
+
+    align-items:center;
+
+    justify-content:center;
+
+}
+
+.pc-micon svg{
+
+    color:#7D8FA7;
+
+}
+
+/* Text */
+
+.pc-mtext{
+
+    font-size:15px;
+
+    font-weight:500;
+
+}
+
+/* Active */
+
+.pc-navbar>.pc-item.active>.pc-link,
+
+.pc-navbar>.pc-item>.pc-link.active{
+
+    background:#16273B !important;
+
+    border:1px solid rgba(85,185,255,.25);
+
+    color:#FFFFFF !important;
+
+    box-shadow:none;
+
+}
+
+.pc-navbar>.pc-item.active>.pc-link .pc-micon{
+
+    color:#55B9FF;
+
+}
+
+/* Remove hover */
+
+.pc-navbar>.pc-item>.pc-link:hover{
+
+    background:transparent !important;
+
+    color:#B5C1CF !important;
+
+    transform:none !important;
+
+}
+
+.pc-navbar>.pc-item>.pc-link:hover .pc-micon{
+
+    background:none !important;
+
+    color:#7D8FA7 !important;
+
+}
+
+/* Submenu */
+
+.pc-submenu{
+
+    padding-left:18px;
+
+}
+
+.pc-submenu .pc-link{
+
+    color:#8E9DB1;
+
+    border-radius:8px;
+
+    height:42px;
+
+    padding-left:20px;
+
+}
+
+.pc-submenu .pc-link:hover{
+
+    background:none !important;
+
+    color:#FFFFFF !important;
+
+    padding-left:20px;
+
+}
+
+/* Scrollbar */
+
+.navbar-content::-webkit-scrollbar{
+
+    width:5px;
+
+}
+
+.navbar-content::-webkit-scrollbar-thumb{
+
+    background:#3C4D63;
+
+}
+
+/* Premium Header Profile */
+
+.premium-profile-btn{
+
+display:flex;
+
+align-items:center;
+
+gap:12px;
+
+padding:8px 14px !important;
+
+background:#181D26;
+
+border:1px solid rgba(212,175,55,.15);
+
+border-radius:14px;
+
+transition:.3s;
+
+}
+
+
+
+.premium-profile-btn:hover{
+
+border-color:#55B9FF;
+
+background:#202632;
+
+}
+
+.premium-avatar{
+
+width:42px;
+
+height:42px;
+
+border-radius:50%;
+
+border:2px solid #55B9FF;
+
+object-fit:cover;
+
+}
+
+.premium-user-details{
+
+display:flex;
+
+flex-direction:column;
+
+line-height:1.2;
+
+}
+
+.premium-name{
+
+font-size:14px;
+
+font-weight:600;
+
+color:#fff;
+
+}
+
+.premium-id{
+
+font-size:11px;
+
+color:#9CA3AF;
+
+}
+
+.premium-arrow{
+
+font-size:18px;
+
+color:#55B9FF;
+
+margin-left:4px;
+
+}
+
+.dropdown-user-profile{
+
+    width:240px;
+
+    background:#181D26;
+
+    border:1px solid rgba(85,185,255,.18);
+
+    border-radius:14px;
+
+    padding:8px;
+
+}
+
+.dropdown-user-profile{
+
+    width:240px;
+
+    background:#181D26;
+
+    border:1px solid rgba(85,185,255,.18);
+
+    border-radius:14px;
+
+    padding:8px;
+
+    z-index:1020;
+
+}
+
+.dropdown-user-profile .dropdown-body{
+    padding:0;
+}
+
+.dropdown-user-profile .dropdown-item{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    height:46px;
+    padding:0 14px;
+    border-radius:10px;
+    color:#fff;
+    font-size:14px;
+    font-weight:500;
+    transition:.25s;
+}
+
+.dropdown-user-profile .dropdown-item i{
+    width:20px;
+    font-size:18px;
+    color:#55B9FF;
+}
+
+.dropdown-user-profile .dropdown-item:hover{
+    background:rgba(212,175,55,.08);
+}
+
+.dropdown-user-profile hr{
+    margin:8px 0;
+    border-color:rgba(255,255,255,.08);
+}
+
+/* FORCE REMOVE GOLD ACTIVE MENU */
+
+.pc-sidebar .pc-navbar>.pc-item.active>.pc-link,
+.pc-sidebar .pc-navbar>.pc-item>.pc-link.active{
+
+    background:#16273B !important;
+
+    background-image:none !important;
+
+    color:#fff !important;
+
+    border:1px solid rgba(85,185,255,.25) !important;
+
+    box-shadow:none !important;
+
+}
+
+.pc-sidebar .pc-navbar>.pc-item.active>.pc-link::before,
+.pc-sidebar .pc-navbar>.pc-item>.pc-link.active::before{
+
+    display:none !important;
+
+}
+
+.pc-sidebar .pc-navbar>.pc-item.active>.pc-link::after,
+.pc-sidebar .pc-navbar>.pc-item>.pc-link.active::after{
+
+    display:none !important;
+
+}
+
+/* ===========================
+   FIX ACTIVE MENU TEXT
+=========================== */
+
+.pc-sidebar .pc-navbar > .pc-item.active > .pc-link,
+.pc-sidebar .pc-navbar > .pc-item.active > .pc-link .pc-mtext,
+.pc-sidebar .pc-navbar > .pc-item.active > .pc-link .pc-micon,
+.pc-sidebar .pc-navbar > .pc-item.active > .pc-link i,
+.pc-sidebar .pc-navbar > .pc-item.active > .pc-link svg,
+.pc-sidebar .pc-navbar > .pc-item.active > .pc-link span{
+
+    color:#FFFFFF !important;
+
+    fill:#55B9FF !important;
+
+}
+
+.pc-sidebar .pc-navbar > .pc-item.active > .pc-link .pc-micon svg{
+
+    stroke:#55B9FF !important;
+
+}
+
+/* ==========================================
+   MOBILE HEADER ONLY
+========================================== */
+
+@media (max-width:1024px){
+
+    /* Hide wallet on mobile */
+
+    .wallet-header-box{
+        display:none !important;
+    }
+
+    /* Compact profile */
+
+    .premium-user-details{
+        display:none !important;
+    }
+
+    .premium-profile-btn{
+
+        padding:8px !important;
+
+        min-width:auto !important;
+
+    }
+
+    .premium-avatar{
+
+        width:38px;
+
+        height:38px;
+
+    }
+
+}
