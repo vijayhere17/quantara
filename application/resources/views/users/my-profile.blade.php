@@ -1,178 +1,127 @@
-@extends('users.master')
-@section('extra')
-<style>
-    .gt-profile-card{
-        background:
-            linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,.015)),
-            rgba(18,25,36,.9);
-        border:1px solid rgba(255,255,255,.08);
-        border-radius:20px;
-        box-shadow:0 22px 55px rgba(0,0,0,.35), 0 0 0 1px rgba(0,194,255,.06);
-        backdrop-filter:blur(14px);
-        -webkit-backdrop-filter:blur(14px);
-        overflow:hidden;
-    }
-    .gt-profile-card .card-header{
-        background:linear-gradient(90deg, rgba(0,194,255,.12), rgba(115,229,255,.03));
-        border-bottom:1px solid rgba(255,255,255,.07);
-        padding:20px 24px;
-    }
-    .gt-profile-card .card-header h5{
-        color:#fff;
-        font-weight:700;
-        letter-spacing:.01em;
-    }
-    .gt-profile-card .card-body{
-        padding:26px 24px 10px;
-    }
-    .gt-profile-card .card-footer{
-        background:transparent;
-        border-top:1px solid rgba(255,255,255,.06);
-        padding:20px 24px 24px;
-    }
-    .gt-profile-card .form-label,
-.gt-profile-card .form-floating > label{
-    color:#aab6c8;
-    font-size:12px;
-    font-weight:600;
-    text-transform:uppercase;
-    letter-spacing:.12em;
-}
-    .gt-profile-card .form-control,
-    .gt-profile-card input{
-        background:#0d131c !important;
-        border:1px solid rgba(255,255,255,.09) !important;
-        color:#fff !important;
-        border-radius:12px !important;
-        min-height:50px;
-        padding:10px 16px;
-        transition:all .25s ease;
-    }
-    .gt-profile-card .form-control::placeholder,
-    .gt-profile-card input::placeholder{
-        color:#7f8ca0;
-    }
-    .gt-profile-card .form-control:focus,
-    .gt-profile-card input:focus{
-        border-color:rgba(0,194,255,.45) !important;
-        box-shadow:0 0 0 3px rgba(0,194,255,.14) !important;
-        outline:none;
-    }
-    .gt-profile-card .btn-submit{
-        background:linear-gradient(90deg,#00c2ff,#73e5ff);
-        border:none;
-        color:#061019;
-        font-weight:700;
-        min-height:50px;
-        border-radius:12px;
-        box-shadow:0 12px 26px rgba(0,194,255,.22);
-        transition:all .25s ease;
-    }
-    .gt-profile-card .btn-submit:hover{
-        transform:translateY(-1px);
-        box-shadow:0 16px 32px rgba(0,194,255,.3);
-        color:#061019;
+@php
+    use Illuminate\Support\Facades\Auth;
+
+    $base = rtrim(URL::to('/'), '/');
+    $user = $user ?? Auth::user();
+
+    $displayName = trim(($user->firstname ?? '') . ' ' . ($user->lastname ?? ''));
+    if ($displayName === '') {
+        $displayName = 'Explorer';
     }
 
-    #profileSuccessAlert,
-#profileErrorAlert{
-    border:none;
-    border-radius:14px;
-    padding:16px 18px;
-    font-size:15px;
-    animation:fadeIn .35s ease;
-}
+    $boot = [
+        'page' => 'profile',
+        'baseUrl' => $base . '/',
+        'assetsUrl' => $base . '/assets',
+        'csrfToken' => csrf_token(),
+        'currentPath' => '/' . ltrim(request()->path(), '/'),
+        'user' => [
+            'firstName' => $user->firstname ?? '',
+            'lastName' => $user->lastname ?? '',
+            'displayName' => $displayName,
+            'username' => $user->username ?? '',
+            'obscuredAddress' => obscureAddress($user->username ?? ''),
+            'email' => $user->email ?: null,
+            'avatar' => $base . '/assets/images/user/avatar-1.jpg',
+            'packageName' => optional($user->kit)->name,
+            'packageAmount' => optional($user->kit)->amount,
+            'packageRoi' => optional($user->kit)->percantage,
+        ],
+        'wallet' => [
+            'chainBalance' => '0.00000000 BNB',
+            'earningWallet' => '0.0000',
+            'potentialWallet' => '0.0000',
+        ],
+        'links' => [
+            'dashboard' => $base . '/dashboard',
+            'profile' => $base . '/update-profile',
+            'referrals' => $base . '/my-referral',
+            'teamNetwork' => $base . '/downline-report/A',
+            'investNow' => $base . '/buy-robo',
+            'myInvestments' => $base . '/bot-request',
+            'wallet' => $base . '/earning-wallet',
+            'roiHistory' => $base . '/earning/1/ROI History',
+            'contributionReward' => $base . '/earning/2/Contribution Reward',
+            'boosterReward' => $base . '/earning/3/Booster Reward',
+            'rankReward' => $base . '/earning/4/Rank Reward',
+            'support' => $base . '/create-ticket',
+            'signOut' => $base . '/sign-out',
+            'secureAccount' => $base . '/secure-account',
+            'resetPassword' => $base . '/change-password',
+        ],
+        'profile' => [
+            'firstName' => $user->firstname ?? '',
+            'lastName' => $user->lastname ?? '',
+            'email' => $user->email ?? '',
+            'username' => $user->username ?? '',
+            'referralCode' => obscureAddress($user->username ?? ''),
+            'referralLink' => $base . '/sign-up?ref=' . ($user->username ?? ''),
+            'rank' => 'Not Ranked Yet',
+            'nextRank' => 'Sales Manager',
+            'packageName' => optional($user->kit)->name ?? 'Not Active',
+            'packageAmount' => optional($user->kit)->amount,
+            'packageStatus' => optional($user->kit)->name ? 'Active' : 'Inactive',
+            'kycStatus' => 'unverified',
+            'twoFactorEnabled' => (bool) ($user->is_authenticator ?? false),
+            'connectedWallet' => $user->username ?? '',
+            'joinedAt' => $user->created_at ? date('d M Y', strtotime($user->created_at)) : '—',
+        ],
+    ];
 
-#profileSuccessAlert{
-    background:rgba(25,135,84,.15);
-    color:#7dffbf;
-    border-left:4px solid #20c997;
-}
+    $manifestPath = base_path('../assets/build/manifest.json');
+    $manifest = file_exists($manifestPath)
+        ? json_decode(file_get_contents($manifestPath), true)
+        : [];
+    $mainEntry = $manifest['resources/js/member-panel/main.tsx'] ?? null;
+    $cssEntry = $manifest['resources/css/member-panel.css'] ?? null;
+    $viteHot = base_path('../assets/build/hot');
+    $viteDev = file_exists($viteHot) ? trim(file_get_contents($viteHot)) : null;
+@endphp
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=0, minimal-ui">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{{ $page_titel }}</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230b0d12'/%3E%3Ctext x='16' y='23' font-family='Arial,sans-serif' font-size='19' font-weight='700' fill='%2300c2ff' text-anchor='middle'%3EQ%3C/text%3E%3C/svg%3E">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    @if($viteDev)
+        <script type="module" src="{{ $viteDev }}/@vite/client"></script>
+        <script type="module" src="{{ $viteDev }}/resources/js/member-panel/main.tsx"></script>
+    @else
+        @if($cssEntry)
+            <link rel="stylesheet" href="{{ $base }}/assets/build/{{ $cssEntry['file'] }}">
+        @endif
+        @foreach(($mainEntry['css'] ?? []) as $cssFile)
+            <link rel="stylesheet" href="{{ $base }}/assets/build/{{ $cssFile }}">
+        @endforeach
+        @if($mainEntry)
+            <script type="module" src="{{ $base }}/assets/build/{{ $mainEntry['file'] }}"></script>
+        @endif
+    @endif
+    <style>
+        html, body { margin: 0; min-height: 100%; background: #0a0b14; }
+        #member-panel-root { min-height: 100vh; }
+    </style>
+</head>
+<body>
+    <input type="hidden" value="{{ URL::to('/') }}" id="basePath"/>
+    <input type="hidden" id="token" value="{{ csrf_token() }}"/>
 
-#profileErrorAlert{
-    background:rgba(220,53,69,.15);
-    color:#ffb3bd;
-    border-left:4px solid #dc3545;
-}
+    <div id="member-panel-root"></div>
 
-@keyframes fadeIn{
-    from{
-        opacity:0;
-        transform:translateY(-8px);
-    }
-    to{
-        opacity:1;
-        transform:translateY(0);
-    }
-}
-</style>
-@endsection
-@section('content')
-<div class="page-header mb-4">
-    <nav aria-label="breadcrumb">
-        <ol class="breadcrumb mb-2">
-            <li class="breadcrumb-item"><a href="{{ URL::to('/') }}/dashboard">Dashboard</a></li>
-            <li class="breadcrumb-item"><a href="javascript:void(0)">My Account</a></li>
-            <li class="breadcrumb-item active" aria-current="page">{{ $page_titel }}</li>
-        </ol>
-    </nav>
-    <h2 class="mb-0">{{ $page_titel }}</h2>
-</div>
+    <script>
+        window.__QUANTARA_BOOT__ = @json($boot);
+        window.__QUANTARA_PROFILE__ = window.__QUANTARA_BOOT__;
+    </script>
 
-<div class="row">
-    <div class="col-lg-2"></div>
-    <div class="col-lg-8">
-        <div class="card gt-profile-card">
-            <div class="card-header">
-                <h5 class="mb-0">Update Your Profile Details.</h5>
-            </div>
-            <div class="card-body">
-
-    <div id="profileSuccessAlert" class="alert alert-success d-none align-items-center mb-4" role="alert">
-        <i class="ti ti-circle-check me-2 fs-5"></i>
-        <div>
-            <strong>Profile Updated!</strong><br>
-            Your profile information has been updated successfully.
-        </div>
-    </div>
-
-    <div id="profileErrorAlert" class="alert alert-danger d-none align-items-center mb-4" role="alert">
-        <i class="ti ti-alert-circle me-2 fs-5"></i>
-        <div id="profileErrorText"></div>
-    </div>
-
-    <form>
-                    <div class="row g-4">
-                        <div class="col-md-12">
-                            <x-input type="text" name="username" id="username" placeholder="Username" value="data" />
-                        </div>
-                        <div class="col-md-12">
-                            <x-input type="text" name="firstname" id="firstname" placeholder="Firstname" value="" />
-                        </div>
-                        <div class="col-md-12">
-                            <x-input type="text" name="lastname" id="lastname" placeholder="Lastname" value=""/>
-                        </div>
-                        <div class="col-md-12">
-                            <x-input type="email" name="email" id="email" placeholder="Email" value="" />
-                        </div>
-                        @if($user->kit_id > 0)
-                            @if($user->is_authenticator == 1)
-                                <div class="col-md-12">
-                                    <x-input type="text" name="otp" id="otp" placeholder="Google 2FA Code" value=""/>
-                                </div>
-                            @endif
-                        @endif
-                    </div>
-                </form>
-            </div>
-            <div class="card-footer text-center">
-                <button type="submit" class="btn btn-submit w-100">Submit</button>
-            </div>
-        </div>
-    </div>
-    <div class="col-lg-2"></div>
-</div>
-@endsection
-@section('jscontent')
-<script src="{{ URL::to('/') }}/assets/js/users/my-profile.1.3.js?v=5"></script>
-@endsection
+    <script src="{{ URL::to('/') }}/assets/common/js/jquery.min.js"></script>
+    <script src="{{ URL::to('/') }}/assets/common/js/web3.min.js"></script>
+    <script src="{{ URL::to('/') }}/assets/common/js/jquery.blockUI.js"></script>
+    <script src="{{ URL::to('/') }}/assets/common/js/common.js"></script>
+</body>
+</html>

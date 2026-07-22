@@ -34,6 +34,7 @@
     }
 
     $boot = [
+        'page' => 'dashboard',
         'baseUrl' => $base . '/',
         'assetsUrl' => $base . '/assets',
         'csrfToken' => csrf_token(),
@@ -115,6 +116,8 @@
             'rankReward' => $base . '/earning/4/Rank Reward',
             'support' => $base . '/create-ticket',
             'signOut' => $base . '/sign-out',
+            'secureAccount' => $base . '/secure-account',
+            'resetPassword' => $base . '/change-password',
         ],
     ];
 
@@ -165,7 +168,8 @@
     <div id="member-panel-root"></div>
 
     <script>
-        window.__QUANTARA_DASHBOARD__ = @json($boot);
+        window.__QUANTARA_BOOT__ = @json($boot);
+        window.__QUANTARA_DASHBOARD__ = window.__QUANTARA_BOOT__;
     </script>
 
     <script src="{{ URL::to('/') }}/assets/common/js/jquery.min.js"></script>

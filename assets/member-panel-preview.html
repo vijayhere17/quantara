@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Quantara Member Panel · Preview</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    html, body { margin: 0; background: #0a0b14; }
+    #member-panel-root { min-height: 100vh; }
+  </style>
+</head>
+<body>
+  <div id="member-panel-root"></div>
+  <script type="module">
+    const params = new URLSearchParams(location.search);
+    const page = params.get('page') === 'profile' ? 'profile' : 'dashboard';
+
+    const links = {
+      dashboard: '/dashboard',
+      profile: '/update-profile',
+      referrals: '/my-referral',
+      teamNetwork: '/downline-report/A',
+      investNow: '/buy-robo',
+      myInvestments: '/bot-request',
+      wallet: '/earning-wallet',
+      roiHistory: '/earning/1/ROI History',
+      contributionReward: '/earning/2/Contribution Reward',
+      boosterReward: '/earning/3/Booster Reward',
+      rankReward: '/earning/4/Rank Reward',
+      support: '/create-ticket',
+      signOut: '/sign-out',
+      secureAccount: '/secure-account',
+      resetPassword: '/change-password',
+    };
+
+    const user = {
+      firstName: 'Explorer',
+      lastName: '',
+      displayName: 'Explorer',
+      username: '0x68de9d14010385f840ea9f65b132a4fd91d8480f',
+      obscuredAddress: '0x68de...480f',
+      email: null,
+      avatar: '/assets/images/user/avatar-1.jpg',
+      packageName: null,
+      packageAmount: null,
+      packageRoi: null,
+    };
+
+    const wallet = {
+      chainBalance: '0.00000000 BNB',
+      earningWallet: '0.0000',
+      potentialWallet: '0.0000',
+    };
+
+    if (page === 'profile') {
+      window.__QUANTARA_BOOT__ = {
+        page: 'profile',
+        baseUrl: '/',
+        assetsUrl: '/assets',
+        csrfToken: '',
+        currentPath: '/update-profile',
+        user,
+        wallet,
+        links,
+        profile: {
+          firstName: '',
+          lastName: '',
+          email: '',
+          username: user.username,
+          referralCode: '0x68de...480f',
+          referralLink: '/sign-up?ref=' + user.username,
+          rank: 'Not Ranked Yet',
+          nextRank: 'Sales Manager',
+          packageName: 'Not Active',
+          packageAmount: null,
+          packageStatus: 'Inactive',
+          kycStatus: 'unverified',
+          twoFactorEnabled: false,
+          connectedWallet: user.username,
+          joinedAt: '—',
+        },
+      };
+    } else {
+      window.__QUANTARA_BOOT__ = {
+        page: 'dashboard',
+        baseUrl: '/',
+        assetsUrl: '/assets',
+        csrfToken: '',
+        currentPath: '/dashboard',
+        user,
+        wallet,
+        links,
+        referral: {
+          displayUrl: '/invite/0x68de...480f',
+          copyUrl: '/sign-up?ref=' + user.username,
+        },
+        income: { total: '0.0000', today: '0.0000' },
+        directTeam: { total: 0, active: 0, inactive: 0 },
+        totalTeam: { total: 0, active: 0, inactive: 0 },
+        rewards: [
+          { label: 'ROI Reward', value: '0' },
+          { label: 'Contribution Reward', value: '0' },
+          { label: 'Booster Reward', value: '0' },
+          { label: 'Rank Reward', value: '0' },
+          { label: 'Same Rank Reward', value: '0' },
+          { label: 'Community Builder', value: '0' },
+        ],
+        roi: { progress: 0, earned: '0.0000', remaining: '0.0000' },
+        rank: { current: 'Q0', next: 'Sales Manager', progress: 0, teamVolume: '0', required: '0' },
+        packages: [
+          { amount: 50, label: '$50' },
+          { amount: 100, label: '$100' },
+          { amount: 300, label: '$300' },
+          { amount: 500, label: '$500' },
+        ],
+        selectedPackage: null,
+        blockNumber: '42,318,904',
+      };
+    }
+
+    const res = await fetch('./build/manifest.json');
+    const manifest = await res.json();
+    const entry = manifest['resources/js/member-panel/main.tsx'];
+    const cssEntry = manifest['resources/css/member-panel.css'];
+    const cssFiles = new Set([...(entry?.css || []), cssEntry?.file].filter(Boolean));
+    for (const file of cssFiles) {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = './build/' + file;
+      document.head.appendChild(link);
+    }
+    if (entry?.file) await import('./build/' + entry.file);
+  </script>
+</body>
+</html>

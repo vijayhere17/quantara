@@ -1,10 +1,10 @@
 import { useState, type ReactNode } from 'react';
-import type { DashboardBoot } from '../../types';
+import type { MemberShellData } from '../../types';
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
 
 type MemberLayoutProps = {
-  data: DashboardBoot;
+  data: MemberShellData;
   children: ReactNode;
 };
 
