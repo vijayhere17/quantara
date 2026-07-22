@@ -248,15 +248,119 @@ border-color:rgba(0,194,255,.4);
 .page-header h2{color:var(--q-text);}
 @media (max-width:1199.98px){.wallet-header-box{padding:10px 12px;}.wallet-header-box h6{font-size:14px;}.premium-user-details{display:none;}}
 @media (max-width:767.98px){
-.pc-header .header-wrapper{padding:0 12px;}
-.pc-head-link{width:40px;height:40px;border-radius:12px;}
-.dropdown-user-profile{min-width:240px;position:absolute;right:0;left:auto;margin-top:10px;max-width:calc(100vw - 24px);}
-.pc-footer .footer-wrapper{padding:16px;}
-.wallet-header-box{display:none;}
-.premium-profile-btn{width:auto;min-width:0;height:auto;min-height:0;padding:0;gap:6px;justify-content:flex-start;overflow:visible;}
-.premium-avatar{width:38px;height:38px;}
-.premium-chevron-badge{width:22px;height:22px;font-size:11px;}
-.premium-user-details{display:none;}
+
+.pc-header .header-wrapper{
+    padding:0 12px;
+}
+
+.pc-head-link{
+    width:40px;
+    height:40px;
+    border-radius:12px;
+}
+
+.wallet-header-box{
+    display:none;
+}
+
+.premium-profile-btn{
+    padding:0;
+    gap:6px;
+}
+
+.premium-avatar{
+    width:38px;
+    height:38px;
+}
+
+.premium-chevron-badge{
+    width:22px;
+    height:22px;
+    font-size:11px;
+}
+
+.premium-user-details{
+    display:none;
+}
+
+/* ===== MOBILE DROPDOWN ===== */
+
+.dropdown-user-profile{
+
+    position:absolute !important;
+
+    top:58px !important;
+
+    right:0 !important;
+
+    left:auto !important;
+
+    width:290px !important;
+
+    max-width:calc(100vw - 20px);
+
+    margin:0 !important;
+
+    padding:14px !important;
+
+    border-radius:22px !important;
+
+    background:#121A25 !important;
+
+    background-image:
+        linear-gradient(180deg,#141B2D 0%,#0F1424 100%) !important;
+
+    border:1px solid rgba(0,194,255,.18) !important;
+
+    box-shadow:
+        0 20px 60px rgba(0,0,0,.45),
+        0 0 25px rgba(0,194,255,.10);
+
+    backdrop-filter:none !important;
+
+    -webkit-backdrop-filter:none !important;
+
+    overflow:hidden;
+}
+
+.dropdown-user-profile .dropdown-header{
+
+    padding-bottom:12px;
+
+    border-bottom:1px solid rgba(255,255,255,.08);
+}
+
+.dropdown-user-profile hr{
+
+    border-color:rgba(255,255,255,.08);
+}
+
+.dropdown-user-profile .dropdown-item{
+
+    height:48px;
+
+    border-radius:12px;
+
+    color:#fff;
+
+    margin-bottom:6px;
+}
+
+.dropdown-user-profile .dropdown-item:hover{
+
+    background:rgba(0,194,255,.10);
+}
+
+.dropdown-user-profile .dropdown-item.text-danger{
+
+    color:#ff8c9d !important;
+}
+
+.dropdown-user-profile .dropdown-item.text-danger:hover{
+
+    background:rgba(255,107,129,.12);
+}
+
 }
 </style>
 @section('extra')
@@ -417,7 +521,7 @@ border-color:rgba(0,194,255,.4);
 </div>
 <span class="premium-chevron-badge"><i class="bi bi-chevron-down"></i></span>
 </a>
-<div class="dropdown-menu dropdown-menu-end dropdown-user-profile pc-h-dropdown">
+<div class="dropdown-menu dropdown-menu-end dropdown-user-profile shadow-lg">
 <div class="dropdown-header">
 <div class="d-flex align-items-center">
 <img src="{{ URL::to('/') }}/assets/images/user/avatar-1.jpg" class="rounded-circle me-3" width="55" alt="Avatar">

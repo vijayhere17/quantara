@@ -82,11 +82,31 @@
     <script src="{{ URL::to('/') }}/assets/common/js/ethers-v4.min.js"></script>
     <script src="{{ URL::to('/') }}/assets/common/js/jquery.blockUI.js"></script>
     <script src="{{ URL::to('/') }}/assets/common/js/common.0.8.js"></script>
+    <script>
+        // Bridge React modules ↔ legacy classic-script wallet state
+        window.setQuantaraWalletConnected = function (connected) {
+            try { is_connected = !!connected; } catch (e) {}
+            window.is_connected = !!connected;
+        };
+        window.is_connected = false;
+    </script>
 
     @isset($authScript)
         <script src="{{ URL::to('/') }}/{{ $authScript }}"></script>
     @endisset
 
+    <script>
+        // Expose login/register processors for React onClick fallbacks
+        if (typeof processlogin === 'function') {
+            window.processlogin = processlogin;
+        }
+        if (typeof processregister === 'function') {
+            window.processregister = processregister;
+        }
+        if (typeof erroralert === 'function') {
+            window.erroralert = erroralert;
+        }
+    </script>
     @isset($authBridge)
         {!! $authBridge !!}
     @endisset
