@@ -10,6 +10,11 @@ type LoginPageProps = {
   data: AuthBoot;
 };
 
+/**
+ * Wallet-only login (same flow as original Blade page):
+ * Connect Wallet → fill address → Login
+ * No email / password fields.
+ */
 export function LoginPage({ data }: LoginPageProps) {
   const [wallet, setWallet] = useState('');
   const [connecting, setConnecting] = useState(false);
@@ -47,7 +52,10 @@ export function LoginPage({ data }: LoginPageProps) {
       return;
     }
 
-    // Prefer legacy processlogin (same endpoint / token handling)
+    // Keep #userwallet in sync for legacy processlogin()
+    const el = document.getElementById('userwallet') as HTMLInputElement | null;
+    if (el && !el.value) el.value = address;
+
     if (typeof window.processlogin === 'function') {
       setLoggingIn(true);
       try {
@@ -58,7 +66,6 @@ export function LoginPage({ data }: LoginPageProps) {
       return;
     }
 
-    // Fallback — same API as legacy processlogin
     setLoggingIn(true);
     const token =
       data.csrfToken ||
@@ -69,14 +76,18 @@ export function LoginPage({ data }: LoginPageProps) {
       (document.getElementById('basePath') as HTMLInputElement | null)?.value ||
       '';
 
+    const body = new URLSearchParams();
+    body.set('_token', token);
+    body.set('wallet', address);
+
     void fetch(`${base}/submit-sign-in`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
         Accept: 'application/json',
         'X-CSRF-TOKEN': token,
+        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
       },
-      body: JSON.stringify({ _token: token, wallet: address }),
+      body,
     })
       .then(async (res) => {
         const result = (await res.json()) as { success?: boolean; error?: string };
@@ -122,27 +133,25 @@ export function LoginPage({ data }: LoginPageProps) {
         </label>
 
         {!connected ? (
-          <GradientButton
+          <button
             type="button"
-            fullWidth
-            className="btn-connect !rounded-full !py-3.5 !font-bold !text-[#041018]"
+            className="btn-connect inline-flex w-full items-center justify-center gap-2 rounded-full bg-q-gradient-br px-5 py-3.5 text-sm font-bold text-[#041018] shadow-btn-glow transition-all duration-300 hover:-translate-y-0.5 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
             onClick={() => void handleConnect()}
             disabled={connecting}
           >
             <Wallet className="h-4 w-4" />
             {connecting ? 'Connecting…' : 'Connect Wallet'}
-          </GradientButton>
+          </button>
         ) : (
-          <GradientButton
+          <button
             type="button"
-            fullWidth
-            className="btn-submit !rounded-full !py-3.5 !font-bold !text-[#041018]"
+            className="btn-submit inline-flex w-full items-center justify-center gap-2 rounded-full bg-q-gradient-br px-5 py-3.5 text-sm font-bold text-[#041018] shadow-btn-glow transition-all duration-300 hover:-translate-y-0.5 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
             onClick={handleLogin}
             disabled={loggingIn}
           >
             <Wallet className="h-4 w-4" />
             {loggingIn ? 'Signing in…' : 'Login'}
-          </GradientButton>
+          </button>
         )}
       </div>
 
