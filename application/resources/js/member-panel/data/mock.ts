@@ -1,6 +1,9 @@
 import type {
   DashboardBoot,
   DownlineReportBoot,
+  EarningWalletBoot,
+  InvestNowBoot,
+  MyInvestmentsBoot,
   MyReferralsBoot,
   ProfileBoot,
 } from '../types';
@@ -149,4 +152,85 @@ export const mockDownlineReportData: DownlineReportBoot = {
   wallet: sharedWallet,
   links: sharedLinks,
   downlines: [],
+};
+
+export const mockInvestNowData: InvestNowBoot = {
+  page: 'invest-now',
+  baseUrl: '/',
+  assetsUrl: '/assets',
+  csrfToken: '',
+  currentPath: '/buy-robo',
+  user: sharedUser,
+  wallet: sharedWallet,
+  links: sharedLinks,
+  btcRate: 62000,
+  packages: [
+    { amount: 50, label: '$50', multiplier: '4X Max', buys: 1, maxBuys: 2, locked: false },
+    { amount: 100, label: '$100', multiplier: '4X Max', buys: 0, maxBuys: 2, locked: false },
+    { amount: 300, label: '$300', multiplier: '4X Max', buys: 0, maxBuys: 2, locked: false },
+    { amount: 500, label: '$500', multiplier: '4X Max', buys: 0, maxBuys: 2, locked: true },
+    { amount: 1000, label: '$1000', multiplier: '4X Max', buys: 0, maxBuys: 2, locked: true },
+    { amount: 3000, label: '$3000', multiplier: '4X Max', buys: 0, maxBuys: 2, locked: true },
+    { amount: 5000, label: '$5000', multiplier: '4X Max', buys: 0, maxBuys: 2, locked: true },
+    {
+      amount: 10000,
+      label: '$10000',
+      multiplier: '4X Max',
+      buys: 0,
+      maxBuys: 2,
+      locked: true,
+      unlimited: true,
+    },
+  ],
+  activePackage: {
+    label: '$50',
+    cycle: '1 of 2',
+    status: 'Active',
+  },
+  info: {
+    expectedRoi: 'Daily ROI per plan rules',
+    roiCap: '3X Maximum',
+    workingCap: '4X Maximum',
+    treasuryAllocation: 'Protocol treasury share',
+  },
+  nextPackageProgress: 50,
+};
+
+export const mockMyInvestmentsData: MyInvestmentsBoot = {
+  page: 'my-investments',
+  baseUrl: '/',
+  assetsUrl: '/assets',
+  csrfToken: '',
+  currentPath: '/bot-request',
+  user: sharedUser,
+  wallet: sharedWallet,
+  links: sharedLinks,
+  summary: {
+    totalInvested: '0.0000',
+    activeInvestment: '0.0000',
+    completedPackages: 0,
+    roiEarned: '0.0000',
+  },
+  investments: [],
+};
+
+export const mockEarningWalletData: EarningWalletBoot = {
+  page: 'earning-wallet',
+  baseUrl: '/',
+  assetsUrl: '/assets',
+  csrfToken: '',
+  currentPath: '/earning-wallet',
+  user: sharedUser,
+  wallet: sharedWallet,
+  links: sharedLinks,
+  summary: {
+    totalCredit: '0.0000',
+    totalDebit: '0.0000',
+    availableBalance: '0.0000',
+    roiWallet: '0.0000',
+    workingWallet: '0.0000',
+    communityWallet: '0.0000',
+    totalEarnings: '0.0000',
+  },
+  transactions: [],
 };
