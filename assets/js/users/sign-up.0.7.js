@@ -3,40 +3,15 @@ jQuery(document).ready(function() {
     // document.getElementById('userwallet').readOnly = true;
 });
 
-jQuery('.btn-submit').bind('click', function(e) {
+// Event delegation — React mounts buttons after this script loads
+jQuery(document).off('click.quantaraSubmit', '.btn-submit').on('click.quantaraSubmit', '.btn-submit', function(e) {
     e.preventDefault();
     if (validate()) {
         processregister();
     }
 });
 
-// jQuery('.btn-connect').bind('click', async function(e) {
-//     e.preventDefault();
-    
-//     if (window.ethereum) {
-//         accounts = await ethereum.request({ method: 'eth_requestAccounts' });
-//         window.web3 = new Web3(window.ethereum);
-        
-//         is_connected = true;
-        
-//         $(".btn-connect").hide();
-//         $(".btn-submit").show();
-
-//         await window.ethereum.request({
-//             method: 'wallet_switchEthereumChain',
-//             params: [{ chainId: web3.utils.toHex(chainId) }]
-//         });
-
-//         $("#userwallet").val(accounts[0]);
-//     } else {
-//         is_connected = false;
-//         $(".btn-connect").show();
-//         $(".btn-submit").hide();
-//         $("#userwallet").val('');
-//     }  
-// });
-
-jQuery('.btn-connect').bind('click', async function(e) {
+jQuery(document).off('click.quantaraConnect', '.btn-connect').on('click.quantaraConnect', '.btn-connect', async function(e) {
     e.preventDefault();
 
     if (window.ethereum) {
@@ -50,7 +25,7 @@ jQuery('.btn-connect').bind('click', async function(e) {
             $(".btn-submit").show();
             
             // Fill wallet input
-            $("#userwallet").val(accounts[0]);
+            $("#userwallet").val(accounts[0]).trigger('change').trigger('input');
             
             const chainIdHex = web3.utils.toHex(chainId);
     
@@ -66,7 +41,7 @@ jQuery('.btn-connect').bind('click', async function(e) {
                 blockExplorerUrls: ["https://bscscan.com/"],
             };
 
-            // Try to switch to ALTB
+            // Try to switch to BSC
             try {
                 await window.ethereum.request({
                     method: 'wallet_switchEthereumChain',
@@ -103,6 +78,7 @@ jQuery('.btn-connect').bind('click', async function(e) {
         $(".btn-connect").show();
         $(".btn-submit").hide();
         $("#userwallet").val('');
+        erroralert('Please install MetaMask or another Web3 wallet');
     }
 });
 
