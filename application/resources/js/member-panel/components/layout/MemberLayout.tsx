@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import type { MemberShellData } from '../../types';
+import { AuroraBackground } from './AuroraBackground';
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
 
@@ -12,14 +13,8 @@ export function MemberLayout({ data, children }: MemberLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
-    <div className="member-panel-root min-h-screen overflow-x-hidden bg-q-bg text-white">
-      <div
-        className="pointer-events-none fixed inset-0 z-0"
-        style={{
-          background:
-            'radial-gradient(circle at 12% 18%, rgba(0,212,255,0.07), transparent 26%), radial-gradient(circle at 88% 8%, rgba(139,92,246,0.10), transparent 24%), radial-gradient(circle at 50% 100%, rgba(59,130,246,0.06), transparent 36%)',
-        }}
-      />
+    <div className="member-panel-root relative min-h-screen overflow-x-hidden bg-transparent text-white">
+      <AuroraBackground />
 
       <Sidebar data={data} open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 

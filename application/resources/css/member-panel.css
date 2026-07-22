@@ -20,7 +20,7 @@
 
 @layer components {
   .q-card {
-    @apply relative overflow-hidden rounded-card border border-q-border bg-q-card shadow-card transition-all duration-300 ease-out;
+    @apply relative overflow-hidden rounded-card border border-q-border bg-q-card/80 shadow-card backdrop-blur-xl transition-all duration-300 ease-out;
   }
 
   .q-card:hover {
@@ -51,4 +51,41 @@
 .q-sidebar-scroll::-webkit-scrollbar-thumb {
   background: linear-gradient(180deg, #00d4ff, #8b5cf6);
   border-radius: 999px;
+}
+
+/* Global aurora motion — transform-only for 60fps */
+@keyframes q-aurora-a {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(4%, 6%, 0) scale(1.08); }
+}
+@keyframes q-aurora-b {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(-5%, 4%, 0) scale(1.1); }
+}
+@keyframes q-aurora-c {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(3%, -5%, 0) scale(1.06); }
+}
+@keyframes q-aurora-d {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(-4%, -3%, 0) scale(1.09); }
+}
+
+.q-aurora-blob {
+  will-change: transform;
+  transform: translateZ(0);
+}
+
+.q-aurora-blob-a { animation: q-aurora-a 28s ease-in-out infinite; }
+.q-aurora-blob-b { animation: q-aurora-b 34s ease-in-out infinite; }
+.q-aurora-blob-c { animation: q-aurora-c 40s ease-in-out infinite; }
+.q-aurora-blob-d { animation: q-aurora-d 32s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .q-aurora-blob-a,
+  .q-aurora-blob-b,
+  .q-aurora-blob-c,
+  .q-aurora-blob-d {
+    animation: none;
+  }
 }

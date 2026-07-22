@@ -22,6 +22,12 @@ export { ProfileInfoCard } from './profile/ProfileInfoCard';
 export { MyReferralsPage } from './network/MyReferralsPage';
 export { DownlineReportPage } from './network/DownlineReportPage';
 
+export { InvestNowPage } from './investments/InvestNowPage';
+export { MyInvestmentsPage } from './investments/MyInvestmentsPage';
+export { EarningWalletPage } from './investments/EarningWalletPage';
+export { PackageCard } from './investments/PackageCard';
+export { AuroraBackground } from './layout/AuroraBackground';
+
 export { Card } from './ui/Card';
 export { Badge } from './ui/Badge';
 export { ProgressBar } from './ui/ProgressBar';

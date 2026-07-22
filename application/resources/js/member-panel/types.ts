@@ -56,7 +56,10 @@ export type MemberPage =
   | 'dashboard'
   | 'profile'
   | 'my-referrals'
-  | 'downline-report';
+  | 'downline-report'
+  | 'invest-now'
+  | 'my-investments'
+  | 'earning-wallet';
 
 export type MemberShellData = {
   page: MemberPage;
@@ -160,11 +163,86 @@ export type DownlineReportBoot = MemberShellData & {
   downlines: DownlineRow[];
 };
 
+export type InvestPackageBoot = {
+  amount: number;
+  label: string;
+  multiplier: string;
+  buys: number;
+  maxBuys: number;
+  unlimited?: boolean;
+  locked: boolean;
+};
+
+export type InvestNowBoot = MemberShellData & {
+  page: 'invest-now';
+  btcRate: number;
+  packages: InvestPackageBoot[];
+  activePackage: {
+    label: string;
+    cycle: string;
+    status: string;
+  };
+  info: {
+    expectedRoi: string;
+    roiCap: string;
+    workingCap: string;
+    treasuryAllocation: string;
+  };
+  nextPackageProgress: number;
+};
+
+export type InvestmentRow = {
+  request: string;
+  amount: string | number;
+  btcPlan: string;
+  txnHash: string;
+  maturity: string;
+  status: 'active' | 'completed' | 'expired' | 'pending';
+};
+
+export type MyInvestmentsBoot = MemberShellData & {
+  page: 'my-investments';
+  summary: {
+    totalInvested: string | number;
+    activeInvestment: string | number;
+    completedPackages: string | number;
+    roiEarned: string | number;
+  };
+  investments: InvestmentRow[];
+};
+
+export type WalletTxnRow = {
+  description: string;
+  amount: string | number;
+  txnType: string;
+  txnDate: string;
+  hash?: string;
+  status?: string;
+  wallet?: string;
+};
+
+export type EarningWalletBoot = MemberShellData & {
+  page: 'earning-wallet';
+  summary: {
+    totalCredit: string | number;
+    totalDebit: string | number;
+    availableBalance: string | number;
+    roiWallet: string | number;
+    workingWallet: string | number;
+    communityWallet: string | number;
+    totalEarnings: string | number;
+  };
+  transactions: WalletTxnRow[];
+};
+
 export type MemberBoot =
   | DashboardBoot
   | ProfileBoot
   | MyReferralsBoot
-  | DownlineReportBoot;
+  | DownlineReportBoot
+  | InvestNowBoot
+  | MyInvestmentsBoot
+  | EarningWalletBoot;
 
 declare global {
   interface Window {
