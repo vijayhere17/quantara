@@ -17,7 +17,10 @@ export { DashboardPage } from './dashboard/DashboardPage';
 
 export { ProfilePage } from './profile/ProfilePage';
 export { ProfileUpdateCard } from './profile/ProfileUpdateCard';
-export { ProfileInfoCard } from './profile/ProfileInfoCard';
+
+export { LoginPage } from './auth/LoginPage';
+export { SignupPage } from './auth/SignupPage';
+export { RegistrationSuccessPage } from './auth/RegistrationSuccessPage';
 
 export { MyReferralsPage } from './network/MyReferralsPage';
 export { DownlineReportPage } from './network/DownlineReportPage';
@@ -29,6 +32,7 @@ export { PackageCard } from './investments/PackageCard';
 export { IncentiveReportPage } from './earnings/IncentiveReportPage';
 export { CreateTicketPage } from './support/CreateTicketPage';
 export { AuroraBackground } from './layout/AuroraBackground';
+export { AuthLayout } from './layout/AuthLayout';
 
 export { Card } from './ui/Card';
 export { Badge } from './ui/Badge';
@@ -52,3 +56,5 @@ export { Table } from './ui/Table';
 export { DataTableToolbar } from './ui/DataTableToolbar';
 export { Modal } from './ui/Modal';
 export { Skeleton, TableSkeleton } from './ui/Skeleton';
+export { Logo, QUANTARA_LOGO_SRC } from './ui/Logo';
+export { SuccessCard } from './ui/SuccessCard';

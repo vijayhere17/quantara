@@ -1,4 +1,5 @@
 import { MemberLayout } from './components/layout/MemberLayout';
+import { AuthLayout } from './components/layout/AuthLayout';
 import { DashboardPage } from './components/dashboard/DashboardPage';
 import { ProfilePage } from './components/profile/ProfilePage';
 import { MyReferralsPage } from './components/network/MyReferralsPage';
@@ -8,6 +9,9 @@ import { MyInvestmentsPage } from './components/investments/MyInvestmentsPage';
 import { EarningWalletPage } from './components/investments/EarningWalletPage';
 import { IncentiveReportPage } from './components/earnings/IncentiveReportPage';
 import { CreateTicketPage } from './components/support/CreateTicketPage';
+import { LoginPage } from './components/auth/LoginPage';
+import { SignupPage } from './components/auth/SignupPage';
+import { RegistrationSuccessPage } from './components/auth/RegistrationSuccessPage';
 import {
   mockCreateTicketData,
   mockDashboardData,
@@ -15,11 +19,15 @@ import {
   mockEarningWalletData,
   mockIncentiveReportData,
   mockInvestNowData,
+  mockLoginData,
   mockMyInvestmentsData,
   mockMyReferralsData,
   mockProfileData,
+  mockRegistrationSuccessData,
+  mockSignupData,
 } from './data/mock';
 import type {
+  AuthBoot,
   DashboardBoot,
   DownlineReportBoot,
   EarningWalletBoot,
@@ -32,6 +40,10 @@ import type {
   SupportTicketBoot,
 } from './types';
 
+function isAuthPage(page: MemberBoot['page']): page is AuthBoot['page'] {
+  return page === 'login' || page === 'signup' || page === 'registration-success';
+}
+
 function resolveBoot(): MemberBoot {
   if (window.__QUANTARA_BOOT__) return window.__QUANTARA_BOOT__;
   if (window.__QUANTARA_PROFILE__) return window.__QUANTARA_PROFILE__;
@@ -40,6 +52,13 @@ function resolveBoot(): MemberBoot {
   }
 
   const path = decodeURIComponent(window.location.pathname.replace(/\/+$/, ''));
+  if (path.endsWith('/sign-in') || path.endsWith('/login')) return mockLoginData;
+  if (path.endsWith('/sign-up') || path.endsWith('/register')) {
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get('ref') || '';
+    return { ...mockSignupData, referralCode: ref };
+  }
+  if (path.endsWith('/registration-success')) return mockRegistrationSuccessData;
   if (path.endsWith('/update-profile')) return mockProfileData;
   if (path.endsWith('/my-referral')) return mockMyReferralsData;
   if (path.includes('/downline-report')) return mockDownlineReportData;
@@ -77,6 +96,12 @@ function renderPage(data: MemberBoot) {
       return <IncentiveReportPage data={data as IncentiveReportBoot} />;
     case 'create-ticket':
       return <CreateTicketPage data={data as SupportTicketBoot} />;
+    case 'login':
+      return <LoginPage data={data as AuthBoot} />;
+    case 'signup':
+      return <SignupPage data={data as AuthBoot} />;
+    case 'registration-success':
+      return <RegistrationSuccessPage data={data as AuthBoot} />;
     case 'dashboard':
     default:
       return <DashboardPage data={data as DashboardBoot} />;
@@ -86,5 +111,9 @@ function renderPage(data: MemberBoot) {
 export default function App() {
   const data = resolveBoot();
 
-  return <MemberLayout data={data}>{renderPage(data)}</MemberLayout>;
+  if (isAuthPage(data.page)) {
+    return <AuthLayout>{renderPage(data)}</AuthLayout>;
+  }
+
+  return <MemberLayout data={data as Exclude<MemberBoot, AuthBoot>}>{renderPage(data)}</MemberLayout>;
 }

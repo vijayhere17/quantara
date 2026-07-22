@@ -1,6 +1,7 @@
 import { ChevronDown, Menu, Wallet } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { MemberShellData } from '../../types';
+import { Logo } from '../ui/Logo';
 
 type HeaderProps = {
   data: MemberShellData;
@@ -44,9 +45,11 @@ export function Header({ data, onToggleSidebar }: HeaderProps) {
 
         {/* Center — logo */}
         <div className="flex min-w-0 items-center justify-center px-1">
-          <span className="truncate text-xs font-bold tracking-[0.22em] text-white sm:text-base sm:tracking-[0.28em]">
-            QUANTARA
-          </span>
+          <Logo
+            href={data.links.dashboard}
+            size="sm"
+            imgClassName="max-h-8 max-w-[140px] sm:max-h-9 sm:max-w-[180px]"
+          />
         </div>
 
         {/* Right — wallet + connect + avatar */}

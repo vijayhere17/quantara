@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import type { MemberShellData, NavItem } from '../../types';
+import { Logo } from '../ui/Logo';
 
 type SidebarProps = {
   data: MemberShellData;
@@ -118,12 +119,7 @@ export function Sidebar({ data, open, onClose }: SidebarProps) {
         }`}
       >
         <div className="flex h-[88px] items-center border-b border-white/[0.05] px-6">
-          <a href={data.links.dashboard} className="flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-q-cyan to-q-blue text-lg font-bold text-white shadow-glow-cyan">
-              Q
-            </span>
-            <span className="text-[17px] font-bold tracking-[0.18em] text-white">QUANTARA</span>
-          </a>
+          <Logo href={data.links.dashboard} size="md" imgClassName="max-w-[160px]" />
         </div>
 
         <div className="q-sidebar-scroll flex-1 overflow-y-auto px-3 pb-8 pt-5">
