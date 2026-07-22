@@ -15,7 +15,13 @@ export { RoiProgress } from './dashboard/RoiProgress';
 export { RankProgress } from './dashboard/RankProgress';
 export { DashboardPage } from './dashboard/DashboardPage';
 
+export { ProfilePage } from './profile/ProfilePage';
+export { ProfileUpdateCard } from './profile/ProfileUpdateCard';
+export { ProfileInfoCard } from './profile/ProfileInfoCard';
+
 export { Card } from './ui/Card';
 export { Badge } from './ui/Badge';
 export { ProgressBar } from './ui/ProgressBar';
 export { GradientButton } from './ui/GradientButton';
+export { Input } from './ui/Input';
+export { PageHeader } from './ui/PageHeader';

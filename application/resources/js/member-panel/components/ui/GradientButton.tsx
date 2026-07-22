@@ -11,6 +11,7 @@ export function GradientButton({
   href,
   fullWidth = false,
   className = '',
+  type = 'button',
   ...props
 }: GradientButtonProps) {
   const classes = [
@@ -34,7 +35,7 @@ export function GradientButton({
   }
 
   return (
-    <button type="button" className={classes} {...props}>
+    <button type={type} className={classes} {...props}>
       {children}
     </button>
   );

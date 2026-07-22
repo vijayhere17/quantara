@@ -11,10 +11,10 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import type { DashboardBoot, NavItem } from '../../types';
+import type { MemberShellData, NavItem } from '../../types';
 
 type SidebarProps = {
-  data: DashboardBoot;
+  data: MemberShellData;
   open: boolean;
   onClose: () => void;
 };
@@ -30,7 +30,7 @@ const iconMap: Record<string, LucideIcon> = {
   signout: LogOut,
 };
 
-function buildNav(links: DashboardBoot['links']): NavItem[] {
+function buildNav(links: MemberShellData['links']): NavItem[] {
   return [
     { id: 'dashboard', label: 'Dashboard', href: links.dashboard, icon: 'dashboard' },
     {

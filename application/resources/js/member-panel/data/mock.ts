@@ -1,25 +1,46 @@
-import type { DashboardBoot } from '../types';
+import type { DashboardBoot, ProfileBoot } from '../types';
+
+const sharedLinks = {
+  dashboard: '/dashboard',
+  profile: '/update-profile',
+  referrals: '/my-referral',
+  teamNetwork: '/downline-report/A',
+  investNow: '/buy-robo',
+  myInvestments: '/bot-request',
+  wallet: '/earning-wallet',
+  roiHistory: '/earning/1/ROI History',
+  contributionReward: '/earning/2/Contribution Reward',
+  boosterReward: '/earning/3/Booster Reward',
+  rankReward: '/earning/4/Rank Reward',
+  support: '/create-ticket',
+  signOut: '/sign-out',
+  secureAccount: '/secure-account',
+  resetPassword: '/change-password',
+};
+
+const sharedUser = {
+  firstName: 'Explorer',
+  lastName: '',
+  displayName: 'Explorer',
+  username: '0x68de9d14010385f840ea9f65b132a4fd91d8480f',
+  obscuredAddress: '0x68de...480f',
+  email: null as string | null,
+  avatar: '/assets/images/user/avatar-1.jpg',
+  packageName: null as string | null,
+  packageAmount: null as string | number | null,
+  packageRoi: null as string | number | null,
+};
 
 export const mockDashboardData: DashboardBoot = {
+  page: 'dashboard',
   baseUrl: '/',
   assetsUrl: '/assets',
   csrfToken: '',
   currentPath: '/dashboard',
-  user: {
-    firstName: 'Explorer',
-    lastName: '',
-    displayName: 'Explorer',
-    username: '0x68de9a1b2c3d4e5f6780480f',
-    obscuredAddress: '0x68de...480f',
-    email: null,
-    avatar: '/assets/images/user/avatar-1.jpg',
-    packageName: null,
-    packageAmount: null,
-    packageRoi: null,
-  },
+  user: sharedUser,
   referral: {
     displayUrl: 'https://quantara.app/invite/0x68de...480f',
-    copyUrl: 'https://quantara.app/sign-up?ref=0x68de9a1b2c3d4e5f6780480f',
+    copyUrl: 'https://quantara.app/sign-up?ref=0x68de9d14010385f840ea9f65b132a4fd91d8480f',
   },
   wallet: {
     chainBalance: '0.00000000 BNB',
@@ -68,19 +89,37 @@ export const mockDashboardData: DashboardBoot = {
   ],
   selectedPackage: null,
   blockNumber: '42,318,904',
-  links: {
-    dashboard: '/dashboard',
-    profile: '/update-profile',
-    referrals: '/my-referral',
-    teamNetwork: '/downline-report/A',
-    investNow: '/buy-robo',
-    myInvestments: '/bot-request',
-    wallet: '/earning-wallet',
-    roiHistory: '/earning/1/ROI History',
-    contributionReward: '/earning/2/Contribution Reward',
-    boosterReward: '/earning/3/Booster Reward',
-    rankReward: '/earning/4/Rank Reward',
-    support: '/create-ticket',
-    signOut: '/sign-out',
+  links: sharedLinks,
+};
+
+export const mockProfileData: ProfileBoot = {
+  page: 'profile',
+  baseUrl: '/',
+  assetsUrl: '/assets',
+  csrfToken: '',
+  currentPath: '/update-profile',
+  user: sharedUser,
+  wallet: {
+    chainBalance: '0.00000000 BNB',
+    earningWallet: '0.0000',
+    potentialWallet: '0.0000',
+  },
+  links: sharedLinks,
+  profile: {
+    firstName: '',
+    lastName: '',
+    email: '',
+    username: '0x68de9d14010385f840ea9f65b132a4fd91d8480f',
+    referralCode: '0x68de...480f',
+    referralLink: 'https://quantara.app/sign-up?ref=0x68de9d14010385f840ea9f65b132a4fd91d8480f',
+    rank: 'Not Ranked Yet',
+    nextRank: 'Sales Manager',
+    packageName: 'Not Active',
+    packageAmount: null,
+    packageStatus: 'Inactive',
+    kycStatus: 'unverified',
+    twoFactorEnabled: false,
+    connectedWallet: '0x68de9d14010385f840ea9f65b132a4fd91d8480f',
+    joinedAt: '—',
   },
 };
