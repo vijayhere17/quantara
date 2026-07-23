@@ -268,12 +268,12 @@ export async function completeRegistrationWithLaravel(payload: {
   token_amount?: string;
   leg?: string;
 }) {
+  // POST /api/auth/register uses api.session (no CSRF). Auth proof = verified txs.
   const res = await fetch(apiUrl('/api/auth/register', payload.baseUrl), {
     method: 'POST',
     headers: {
       Accept: 'application/json',
       'Content-Type': 'application/json',
-      'X-CSRF-TOKEN': payload.csrfToken,
       'X-Requested-With': 'XMLHttpRequest',
     },
     credentials: 'same-origin',
@@ -292,6 +292,12 @@ export async function completeRegistrationWithLaravel(payload: {
       leg: payload.leg || 'L',
     }),
   });
+
+  if (res.status === 419) {
+    throw new Error(
+      'Registration session expired (HTTP 419). Refresh the page and submit again — on-chain txs are already confirmed.',
+    );
+  }
 
   let json: {
     success?: boolean;

@@ -61,6 +61,20 @@ class Kernel extends HttpKernel
             \Illuminate\Routing\Middleware\ThrottleRequests::class.':api',
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
         ],
+
+        /*
+         * Session-aware API routes (Auth::login / session cookies) WITHOUT CSRF.
+         * Used by React after long MetaMask flows where a boot-time CSRF token
+         * frequently mismatches. Auth is enforced by credentials + on-chain
+         * tx verification, not form CSRF.
+         */
+        'api.session' => [
+            \App\Http\Middleware\EncryptCookies::class,
+            \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
+            \Illuminate\Session\Middleware\StartSession::class,
+            \Illuminate\Routing\Middleware\ThrottleRequests::class.':api',
+            \Illuminate\Routing\Middleware\SubstituteBindings::class,
+        ],
     ];
 
     /**

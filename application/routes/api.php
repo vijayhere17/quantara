@@ -21,12 +21,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/dashboard', [AuthController::class, 'dashboard']);
 });
 
-// Web3 authentication (session-aware — reuse web middleware for Auth::login)
-Route::middleware('web')->group(function () {
-    Route::prefix('auth')->group(function () {
-        Route::post('register', [AuthController::class, 'register']);
-        Route::post('login', [AuthController::class, 'login']);
-    });
+// Web3 authentication — session login WITHOUT web CSRF.
+// These endpoints are called by React after MetaMask txs; boot-time CSRF
+// tokens routinely 419. Protection = rate limit + on-chain verification
+// (register) or email/password + wallet match (login).
+Route::middleware('api.session')->prefix('auth')->group(function () {
+    Route::post('register', [AuthController::class, 'register']);
+    Route::post('login', [AuthController::class, 'login']);
 });
 
 Route::prefix('blockchain')->group(function () {
