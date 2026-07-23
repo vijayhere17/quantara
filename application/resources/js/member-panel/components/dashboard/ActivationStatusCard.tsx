@@ -46,6 +46,14 @@ export function ActivationStatusCard({ registration, walletAddress }: Activation
           : null,
     },
     {
+      label: 'Approve tx',
+      value: shortHash(registration?.approveTxHash),
+      href:
+        explorerBase && registration?.approveTxHash
+          ? `${explorerBase}/tx/${registration.approveTxHash}`
+          : null,
+    },
+    {
       label: 'Package tx',
       value: shortHash(registration?.packageTxHash),
       href:

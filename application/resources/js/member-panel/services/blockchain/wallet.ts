@@ -80,7 +80,6 @@ export async function createBrowserProvider(): Promise<{
   const network = await provider.getNetwork();
   const address = await signer.getAddress();
 
-  // Bridge legacy globals used by existing jQuery scripts
   window.is_connected = true;
   window.setQuantaraWalletConnected?.(true);
   const el = document.getElementById('userwallet') as HTMLInputElement | null;
@@ -111,13 +110,13 @@ export function mapWalletError(error: unknown): string {
   };
 
   if (err?.code === 4001 || err?.code === 'ACTION_REJECTED') {
-    return 'You rejected the MetaMask request.';
+    return 'Transaction rejected.';
   }
   if (err?.code === 'WALLET_NOT_INSTALLED') {
     return 'MetaMask is not installed.';
   }
   if (err?.code === 4902) {
-    return 'Please add BNB Smart Chain in MetaMask.';
+    return 'Wrong blockchain network.';
   }
 
   const raw =
@@ -130,36 +129,63 @@ export function mapWalletError(error: unknown): string {
     '';
 
   const lower = raw.toLowerCase();
-  if (lower.includes('user already registered')) return 'This wallet is already registered on-chain.';
-  if (lower.includes('sponsor not registered')) return 'Sponsor is not registered on-chain yet.';
+
+  if (
+    lower.includes('sponsor not found') ||
+    lower.includes('insufficient package balance') ||
+    lower.includes('approval cancelled') ||
+    lower.includes('activation failed') ||
+    lower.includes('registration failed') ||
+    lower.includes('cannot sponsor yourself')
+  ) {
+    return raw;
+  }
+
+  if (lower.includes('user already registered') || lower.includes('already registered')) {
+    return 'This wallet is already registered.';
+  }
+  if (lower.includes('sponsor not registered') || lower.includes('not registered on-chain')) {
+    return 'Sponsor not found.';
+  }
   if (lower.includes('cannot sponsor yourself')) return 'Cannot sponsor yourself.';
-  if (lower.includes('invalid package sequence')) return 'Invalid package sequence. New members must activate $50 first.';
-  if (lower.includes('user not registered')) return 'Register on-chain before activating a package.';
-  if (lower.includes('insufficient')) return raw;
-  if (lower.includes('transfer amount exceeds allowance') || lower.includes('erc20: insufficient allowance')) {
-    return 'Token allowance is insufficient. Please approve BTCB spending and try again.';
+  if (lower.includes('invalid package')) return 'Invalid package selection.';
+  if (lower.includes('user rejected') || lower.includes('rejected the request')) {
+    return 'Transaction rejected.';
+  }
+  if (lower.includes('insufficient') && lower.includes('balance')) {
+    return 'Insufficient package balance.';
   }
   if (lower.includes('transfer amount exceeds balance') || lower.includes('insufficient funds')) {
-    return 'Insufficient token or BNB balance for this transaction.';
+    return 'Insufficient package balance.';
+  }
+  if (lower.includes('wrong') && lower.includes('network')) {
+    return 'Wrong blockchain network.';
+  }
+  if (lower.includes('chain') && (lower.includes('switch') || lower.includes('mismatch'))) {
+    return 'Wrong blockchain network.';
   }
   if (
     lower.includes('unrecognized-selector') ||
-    lower.includes('unrecognized selector') ||
-    lower.includes('function selector was not recognized')
+    lower.includes('call_exception') ||
+    lower.includes('call exception') ||
+    lower.includes('require(false)') ||
+    lower.includes('internal json-rpc') ||
+    lower.includes('rpc error') ||
+    lower.includes('unknown error') ||
+    lower.includes('execution reverted')
   ) {
-    return (
-      'Contract rejected the function selector (ABI/bytecode mismatch). ' +
-      'For Get Demo BTCB this usually means MockBTCB was deployed without mint(). ' +
-      'Run FORCE_DEPLOY=1 npm run bootstrap:demo and update TOKEN_CONTRACT, or skip the faucet if already funded.'
-    );
-  }
-  if (lower.includes('require(false)')) {
-    return (
-      'Transaction reverted (require(false) / empty revert). ' +
-      'Often caused by calling mint() on an older MockBTCB without that function. ' +
-      'If your wallet already has MockBTCB, skip Get Demo BTCB and complete registration.'
-    );
+    return 'Transaction failed. Please try again.';
   }
 
-  return raw || 'Wallet request failed.';
+  const cleaned = raw
+    .replace(/^error:\s*/i, '')
+    .replace(/^execution reverted:\s*/i, '')
+    .replace(/^call_exception:\s*/i, '')
+    .trim();
+
+  if (!cleaned || cleaned.length > 180) {
+    return 'Transaction failed. Please try again.';
+  }
+
+  return cleaned;
 }

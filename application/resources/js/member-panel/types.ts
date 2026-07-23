@@ -110,6 +110,7 @@ export type DashboardBoot = MemberShellData & {
     walletStatus?: string | null;
     transactionHash?: string | null;
     packageTxHash?: string | null;
+    approveTxHash?: string | null;
     blockNumber?: number | string | null;
     packageId?: number | string | null;
     chainId?: number | null;

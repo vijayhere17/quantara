@@ -26,14 +26,17 @@ class User extends Authenticatable
         'wallet_addr',
         'transaction_hash',
         'package_tx_hash',
+        'approve_tx_hash',
         'chain_id',
         'package_id',
+        'package_amount',
         'registration_block',
         'registration_timestamp',
         'wallet_status',
         'registration_status',
         'activation_date',
         'kit_id',
+        'status',
     ];
 
     protected $hidden = [

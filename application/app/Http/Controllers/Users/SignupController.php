@@ -65,7 +65,7 @@ class SignupController extends Controller
             })->first();
 
             if ($sponsor === null) {
-                return response()->json(['success' => false, 'error' => 'Invalid sponsor id'], 200);
+                return response()->json(['success' => false, 'error' => 'Sponsor not found.'], 200);
             }
 
             $wallet = strtolower((string) ($sponsor->wallet_addr ?: $sponsor->username));

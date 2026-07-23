@@ -79,12 +79,12 @@ class AuthController extends Controller
             $request->validate([
                 'firstname' => 'nullable|string|max:100',
                 'lastname' => 'nullable|string|max:100',
+                'username' => 'required|string|min:3|max:32|regex:/^[A-Za-z0-9_]+$/',
                 'email' => 'required|email|max:190',
                 'password' => 'required|string|min:6|max:100',
                 'wallet' => 'required|string|size:42',
                 'sponsor_id' => 'required|string|max:80',
                 'tx_hash' => 'required|string|size:66',
-                // Contract: new users must activate $50 first (getNextEligiblePackage)
                 'package_amount' => 'required|integer|in:50',
                 'package_tx_hash' => 'required|string|size:66',
                 'approve_tx_hash' => 'nullable|string|size:66',
@@ -95,31 +95,39 @@ class AuthController extends Controller
             $wallet = $this->blockchain->normalizeAddress($request->input('wallet'));
             $txHash = $this->blockchain->normalizeTxHash($request->input('tx_hash'));
             $packageTx = $this->blockchain->normalizeTxHash($request->input('package_tx_hash'));
+            $approveTx = $request->filled('approve_tx_hash')
+                ? $this->blockchain->normalizeTxHash($request->input('approve_tx_hash'))
+                : null;
             $sponsorId = trim($request->input('sponsor_id'));
             $email = strtolower(trim($request->input('email')));
+            $username = trim($request->input('username'));
             $packageAmount = (int) $request->input('package_amount');
 
             if ($txHash === $packageTx) {
-                return response()->json(['success' => false, 'error' => 'Registration and package transactions must be different'], 200);
+                return response()->json(['success' => false, 'error' => 'Registration failed. Please try again.'], 200);
             }
 
             if (User::where('email', $email)->exists()) {
-                return response()->json(['success' => false, 'error' => 'Email already registered'], 200);
+                return response()->json(['success' => false, 'error' => 'Email already registered.'], 200);
+            }
+
+            if (User::whereRaw('LOWER(username) = ?', [strtolower($username)])->exists()) {
+                return response()->json(['success' => false, 'error' => 'Username already taken.'], 200);
             }
 
             if (
-                User::where('username', $wallet)->exists() ||
-                User::where('wallet_addr', $wallet)->exists()
+                User::whereRaw('LOWER(username) = ?', [$wallet])->exists() ||
+                User::whereRaw('LOWER(wallet_addr) = ?', [$wallet])->exists()
             ) {
-                return response()->json(['success' => false, 'error' => 'Wallet address already registered'], 200);
+                return response()->json(['success' => false, 'error' => 'Wallet address already registered.'], 200);
             }
 
             if (User::where('transaction_hash', $txHash)->exists()) {
-                return response()->json(['success' => false, 'error' => 'Registration transaction already used'], 200);
+                return response()->json(['success' => false, 'error' => 'Registration transaction already used.'], 200);
             }
 
             if (User::where('package_tx_hash', $packageTx)->exists()) {
-                return response()->json(['success' => false, 'error' => 'Package transaction already used'], 200);
+                return response()->json(['success' => false, 'error' => 'Activation transaction already used.'], 200);
             }
 
             $sponsorKey = strtolower($sponsorId);
@@ -130,24 +138,28 @@ class AuthController extends Controller
             })->first();
 
             if ($sponsor === null) {
-                return response()->json(['success' => false, 'error' => 'Invalid sponsor id'], 200);
+                return response()->json(['success' => false, 'error' => 'Sponsor not found.'], 200);
             }
 
             $sponsorWallet = $this->blockchain->normalizeAddress($sponsor->wallet_addr ?: $sponsor->username);
             if ($sponsorWallet === $wallet) {
-                return response()->json(['success' => false, 'error' => 'Cannot sponsor yourself'], 200);
+                return response()->json(['success' => false, 'error' => 'Cannot sponsor yourself.'], 200);
             }
 
-            // 1) Verify register(sponsor) tx + UserRegistered event
             $verified = $this->blockchain->verifyRegistrationTransaction($txHash, $wallet, $sponsorWallet);
             if (!($verified['ok'] ?? false)) {
-                return response()->json(['success' => false, 'error' => $verified['error'] ?? 'On-chain registration verification failed'], 200);
+                return response()->json([
+                    'success' => false,
+                    'error' => 'Registration verification failed.',
+                ], 200);
             }
 
-            // 2) Verify activatePackage(amount) tx + PackageActivated event
             $pkgVerified = $this->blockchain->verifyPackageActivation($packageTx, $wallet, $packageAmount);
             if (!($pkgVerified['ok'] ?? false)) {
-                return response()->json(['success' => false, 'error' => $pkgVerified['error'] ?? 'On-chain package verification failed'], 200);
+                return response()->json([
+                    'success' => false,
+                    'error' => 'Activation verification failed.',
+                ], 200);
             }
 
             $signup = app(SignupController::class);
@@ -158,25 +170,27 @@ class AuthController extends Controller
                 $request,
                 $wallet,
                 $email,
+                $username,
                 $sponsor,
                 $referralUplines,
                 $txHash,
                 $packageTx,
+                $approveTx,
                 $packageAmount,
                 $verified,
                 $pkgVerified,
                 $signup,
                 $kit
             ) {
-                // Re-check uniqueness inside the transaction
                 if (
                     User::where('email', $email)->lockForUpdate()->exists() ||
-                    User::where('username', $wallet)->lockForUpdate()->exists() ||
+                    User::whereRaw('LOWER(username) = ?', [strtolower($username)])->lockForUpdate()->exists() ||
+                    User::whereRaw('LOWER(wallet_addr) = ?', [$wallet])->lockForUpdate()->exists() ||
                     User::where('transaction_hash', $txHash)->lockForUpdate()->exists() ||
                     User::where('package_tx_hash', $packageTx)->lockForUpdate()->exists()
                 ) {
                     throw ValidationException::withMessages([
-                        'wallet' => ['Duplicate registration detected. Please contact support.'],
+                        'wallet' => ['Duplicate registration detected.'],
                     ]);
                 }
 
@@ -185,7 +199,7 @@ class AuthController extends Controller
                     'lastname' => $request->input('lastname', ''),
                     'email' => $email,
                     'password' => $request->input('password'),
-                    'username' => $wallet,
+                    'username' => $username,
                     'leg' => $request->input('leg', 'L'),
                     'referral_id' => $sponsor->id,
                     'referral_uplines' => $referralUplines,
@@ -196,14 +210,17 @@ class AuthController extends Controller
                 $member->wallet_addr = $wallet;
                 $member->transaction_hash = $txHash;
                 $member->package_tx_hash = $packageTx;
+                $member->approve_tx_hash = $approveTx;
                 $member->chain_id = (int) config('blockchain.chain_id', 56);
                 $member->package_id = $packageAmount;
+                $member->package_amount = $packageAmount;
                 $member->kit_id = $kit?->id;
                 $member->registration_block = $pkgVerified['blockNumber'] ?? ($verified['blockNumber'] ?? null);
                 $member->registration_timestamp = now();
                 $member->wallet_status = 'verified';
                 $member->registration_status = 'completed';
                 $member->activation_date = now();
+                $member->status = 0; // active member
                 $member->save();
 
                 return $member->fresh(['kit', 'referral']);
@@ -336,12 +353,14 @@ class AuthController extends Controller
             'wallet_status' => $user->wallet_status ?: 'unverified',
             'transaction_hash' => $user->transaction_hash,
             'package_tx_hash' => $user->package_tx_hash,
+            'approve_tx_hash' => $user->approve_tx_hash ?? null,
             'block_number' => $user->registration_block ?? ($pkgVerified['blockNumber'] ?? ($verified['blockNumber'] ?? null)),
             'chain_id' => $user->chain_id,
             'registration_timestamp' => optional($user->registration_timestamp)->toIso8601String(),
             'sponsor' => $user->referral ? [
                 'id' => $user->referral->id,
                 'wallet' => strtolower($user->referral->wallet_addr ?: $user->referral->username),
+                'username' => $user->referral->username,
             ] : null,
         ];
     }
@@ -351,14 +370,15 @@ class AuthController extends Controller
         return [
             'wallet' => strtolower($user->wallet_addr ?: $user->username),
             'package' => [
-                'amount' => $user->package_id,
-                'name' => optional($user->kit)->name ?: ('$' . $user->package_id),
+                'amount' => $user->package_amount ?: $user->package_id,
+                'name' => optional($user->kit)->name ?: ('$' . ($user->package_amount ?: $user->package_id)),
                 'cycle' => $pkgVerified['packageCycle'] ?? 1,
                 'status' => $user->activation_date ? 'active' : 'inactive',
             ],
             'activation_status' => $user->registration_status ?: 'pending',
             'transactions' => [
                 'registration' => $user->transaction_hash,
+                'approval' => $user->approve_tx_hash ?? null,
                 'package' => $user->package_tx_hash,
                 'block_number' => $user->registration_block,
             ],
