@@ -52,6 +52,7 @@ export function SignupPage({ data }: SignupPageProps) {
   const [step, setStep] = useState<StepId>('referral');
   const [sponsorId, setSponsorId] = useState(data.referralCode ?? '');
   const [sponsorName, setSponsorName] = useState('');
+  const [sponsorWallet, setSponsorWallet] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
@@ -73,6 +74,7 @@ export function SignupPage({ data }: SignupPageProps) {
   useEffect(() => {
     if (!sponsorId.trim()) {
       setSponsorName('');
+      setSponsorWallet('');
       return;
     }
 
@@ -92,11 +94,24 @@ export function SignupPage({ data }: SignupPageProps) {
         body,
       })
         .then(async (res) => {
-          const json = (await res.json()) as { success?: boolean; name?: string; error?: string };
-          if (json.success) setSponsorName(json.name || 'Verified');
-          else setSponsorName('');
+          const json = (await res.json()) as {
+            success?: boolean;
+            name?: string;
+            wallet?: string;
+            error?: string;
+          };
+          if (json.success && json.wallet) {
+            setSponsorName(json.name || 'Verified');
+            setSponsorWallet(json.wallet);
+          } else {
+            setSponsorName('');
+            setSponsorWallet('');
+          }
         })
-        .catch(() => setSponsorName(''));
+        .catch(() => {
+          setSponsorName('');
+          setSponsorWallet('');
+        });
     }, 450);
 
     return () => window.clearTimeout(timer);
@@ -120,6 +135,10 @@ export function SignupPage({ data }: SignupPageProps) {
       notifyError('Please enter a sponsor id.');
       return;
     }
+    if (!sponsorWallet || !/^0x[a-fA-F0-9]{40}$/.test(sponsorWallet)) {
+      notifyError('Sponsor must be verified before on-chain registration.');
+      return;
+    }
     if (!email.trim() || password.length < 6) {
       notifyError('Email and password (min 6 chars) are required.');
       return;
@@ -134,15 +153,16 @@ export function SignupPage({ data }: SignupPageProps) {
     try {
       const session = await createBrowserProvider();
 
+      // Contract requires register(sponsor address) — never pass the referral username raw
       setStatus('Submitting on-chain registration…');
       const onChain = await registerOnChain(
         session.signer,
-        sponsorId.trim(),
+        sponsorWallet,
         selectedAmount,
         setStatus,
       );
 
-      setStatus('Verifying transaction with Quantara…');
+      setStatus('Verifying blockchain transactions with Quantara…');
       const laravel = await completeRegistrationWithLaravel({
         baseUrl: data.baseUrl,
         csrfToken: data.csrfToken,
@@ -155,6 +175,8 @@ export function SignupPage({ data }: SignupPageProps) {
         tx_hash: onChain.registerTxHash,
         package_amount: onChain.packageAmount,
         package_tx_hash: onChain.packageTxHash,
+        approve_tx_hash: onChain.approveTxHash,
+        token_amount: onChain.tokenAmount,
       });
 
       setSuccessPayload({
@@ -168,9 +190,10 @@ export function SignupPage({ data }: SignupPageProps) {
       });
       setSuccess(true);
 
+      // Auto-open dashboard with synchronized session
       window.setTimeout(() => {
         window.location.href = laravel.redirect || `${data.baseUrl.replace(/\/$/, '')}/dashboard`;
-      }, 1800);
+      }, 1200);
     } catch (error) {
       console.error(error);
       const message = error instanceof Error ? error.message : 'Registration failed';
@@ -253,16 +276,17 @@ export function SignupPage({ data }: SignupPageProps) {
               onChange={(e) => setSponsorId(e.target.value)}
               placeholder="Sponsor wallet address"
             />
-            {sponsorName ? (
+            {sponsorName && sponsorWallet ? (
               <p className="rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-300">
                 Sponsor verified: <span className="font-semibold">{sponsorName}</span>
+                <span className="mt-1 block font-mono text-[11px] text-emerald-200/70">{sponsorWallet}</span>
               </p>
             ) : null}
             <GradientButton
               type="button"
               fullWidth
               className="!rounded-full !py-3.5 !font-bold !text-[#041018]"
-              disabled={!sponsorId.trim() || !sponsorName}
+              disabled={!sponsorId.trim() || !sponsorName || !sponsorWallet}
               onClick={goNext}
             >
               Continue
@@ -329,7 +353,9 @@ export function SignupPage({ data }: SignupPageProps) {
             </div>
             <p className="flex items-center gap-2 text-xs text-q-muted">
               <Lock className="h-3.5 w-3.5" />
-              Registration activates <strong className="text-white">${unlockedAmount}</strong> via BTCPlanCore.activatePackage.
+              Exact contract sequence: <strong className="text-white">register</strong> →{' '}
+              <strong className="text-white">approve BTCB</strong> →{' '}
+              <strong className="text-white">activatePackage($50)</strong>
             </p>
             <GradientButton type="button" fullWidth className="!rounded-full !py-3.5 !font-bold !text-[#041018]" onClick={goNext}>
               Continue with {selectedPackage?.label || '$50'}
@@ -396,8 +422,11 @@ export function SignupPage({ data }: SignupPageProps) {
               <div>
                 <h2 className="text-lg font-bold text-white">Payment & Register</h2>
                 <p className="text-sm text-q-muted">
-                  MetaMask will confirm <code className="text-q-cyan">register</code> then{' '}
-                  <code className="text-q-cyan">activatePackage</code>. No account is created until both succeed.
+                  MetaMask will confirm the exact contract sequence:{' '}
+                  <code className="text-q-cyan">register(sponsor)</code> →{' '}
+                  <code className="text-q-cyan">approve(core)</code> →{' '}
+                  <code className="text-q-cyan">activatePackage(50)</code>. No Laravel account is
+                  created until both registration and package transactions are verified on-chain.
                 </p>
               </div>
             </div>

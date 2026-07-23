@@ -100,7 +100,16 @@ export async function createBrowserProvider(): Promise<{
 }
 
 export function mapWalletError(error: unknown): string {
-  const err = error as { code?: number | string; message?: string; shortMessage?: string; reason?: string };
+  const err = error as {
+    code?: number | string;
+    message?: string;
+    shortMessage?: string;
+    reason?: string;
+    data?: { message?: string };
+    error?: { message?: string };
+    info?: { error?: { message?: string } };
+  };
+
   if (err?.code === 4001 || err?.code === 'ACTION_REJECTED') {
     return 'You rejected the MetaMask request.';
   }
@@ -110,5 +119,29 @@ export function mapWalletError(error: unknown): string {
   if (err?.code === 4902) {
     return 'Please add BNB Smart Chain in MetaMask.';
   }
-  return err?.shortMessage || err?.reason || err?.message || 'Wallet request failed.';
+
+  const raw =
+    err?.reason ||
+    err?.shortMessage ||
+    err?.data?.message ||
+    err?.info?.error?.message ||
+    err?.error?.message ||
+    err?.message ||
+    '';
+
+  const lower = raw.toLowerCase();
+  if (lower.includes('user already registered')) return 'This wallet is already registered on-chain.';
+  if (lower.includes('sponsor not registered')) return 'Sponsor is not registered on-chain yet.';
+  if (lower.includes('cannot sponsor yourself')) return 'Cannot sponsor yourself.';
+  if (lower.includes('invalid package sequence')) return 'Invalid package sequence. New members must activate $50 first.';
+  if (lower.includes('user not registered')) return 'Register on-chain before activating a package.';
+  if (lower.includes('insufficient')) return raw;
+  if (lower.includes('transfer amount exceeds allowance') || lower.includes('erc20: insufficient allowance')) {
+    return 'Token allowance is insufficient. Please approve BTCB spending and try again.';
+  }
+  if (lower.includes('transfer amount exceeds balance') || lower.includes('insufficient funds')) {
+    return 'Insufficient token or BNB balance for this transaction.';
+  }
+
+  return raw || 'Wallet request failed.';
 }

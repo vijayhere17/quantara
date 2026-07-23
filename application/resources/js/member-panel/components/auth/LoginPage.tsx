@@ -79,6 +79,17 @@ export function LoginPage({ data }: LoginPageProps) {
         }
       }
 
+      if ((json as { dashboard?: unknown }).dashboard) {
+        try {
+          sessionStorage.setItem(
+            'quantara_dashboard_sync',
+            JSON.stringify((json as { dashboard: unknown }).dashboard),
+          );
+        } catch {
+          // ignore
+        }
+      }
+
       window.location.href = json.redirect || `${data.baseUrl.replace(/\/$/, '')}/dashboard`;
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Login failed';

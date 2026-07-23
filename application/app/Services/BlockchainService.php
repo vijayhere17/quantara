@@ -55,6 +55,24 @@ class BlockchainService
         return strtolower($this->token);
     }
 
+    public function normalizeAddress(string $address): string
+    {
+        $address = strtolower(trim($address));
+        if (!preg_match('/^0x[a-f0-9]{40}$/', $address)) {
+            throw new RuntimeException('Invalid wallet address format');
+        }
+        return $address;
+    }
+
+    public function normalizeTxHash(string $hash): string
+    {
+        $hash = strtolower(trim($hash));
+        if (!preg_match('/^0x[a-f0-9]{64}$/', $hash)) {
+            throw new RuntimeException('Invalid transaction hash format');
+        }
+        return $hash;
+    }
+
     /**
      * JSON-RPC call to the configured RPC endpoint.
      */
@@ -64,7 +82,7 @@ class BlockchainService
             throw new RuntimeException('BLOCKCHAIN_RPC is not configured');
         }
 
-        $response = Http::timeout(30)->post($this->rpc, [
+        $response = Http::timeout(45)->retry(2, 400)->post($this->rpc, [
             'jsonrpc' => '2.0',
             'id' => 1,
             'method' => $method,
@@ -101,8 +119,35 @@ class BlockchainService
         return is_string($hex) ? hexdec($hex) : 0;
     }
 
+    protected function assertSuccessfulReceipt(array $receipt, string $expectedFrom, string $label): ?string
+    {
+        $status = $receipt['status'] ?? null;
+        if ($status !== '0x1' && $status !== 1 && $status !== '1') {
+            return $label . ' failed on-chain';
+        }
+
+        $to = strtolower((string) ($receipt['to'] ?? ''));
+        if ($to !== $this->getCoreAddress()) {
+            return $label . ' was not sent to the core contract';
+        }
+
+        // Cross-check the sender from the raw transaction when available
+        $txHash = $receipt['transactionHash'] ?? null;
+        if (is_string($txHash)) {
+            $tx = $this->getTransaction($txHash);
+            if (is_array($tx)) {
+                $from = strtolower((string) ($tx['from'] ?? ''));
+                if ($from !== '' && $from !== strtolower($expectedFrom)) {
+                    return $label . ' sender does not match connected wallet';
+                }
+            }
+        }
+
+        return null;
+    }
+
     /**
-     * Verify a BTCPlanCore.register(sponsor) transaction from the chain.
+     * Verify BTCPlanCore.register(sponsor) from chain receipt + UserRegistered event.
      *
      * @return array{ok:bool,error?:string,wallet?:string,sponsor?:string,blockNumber?:int,txHash?:string}
      */
@@ -116,23 +161,19 @@ class BlockchainService
                 return ['ok' => false, 'error' => 'CORE_CONTRACT is not configured'];
             }
 
+            $txHash = $this->normalizeTxHash($txHash);
+            $expectedWallet = $this->normalizeAddress($expectedWallet);
+            $expectedSponsor = $this->normalizeAddress($expectedSponsor);
+
             $receipt = $this->getTransactionReceipt($txHash);
             if ($receipt === null) {
-                return ['ok' => false, 'error' => 'Transaction not found or not yet mined'];
+                return ['ok' => false, 'error' => 'Registration transaction not found or not yet mined'];
             }
 
-            $status = $receipt['status'] ?? null;
-            if ($status !== '0x1' && $status !== 1 && $status !== '1') {
-                return ['ok' => false, 'error' => 'Transaction failed on-chain'];
+            if ($err = $this->assertSuccessfulReceipt($receipt, $expectedWallet, 'Registration transaction')) {
+                return ['ok' => false, 'error' => $err];
             }
 
-            $to = strtolower((string) ($receipt['to'] ?? ''));
-            if ($to !== $this->getCoreAddress()) {
-                return ['ok' => false, 'error' => 'Transaction was not sent to the registration contract'];
-            }
-
-            $expectedWallet = strtolower($expectedWallet);
-            $expectedSponsor = strtolower($expectedSponsor);
             $found = false;
             $decodedSponsor = null;
 
@@ -146,23 +187,19 @@ class BlockchainService
                 if (($topics[0] ?? '') !== self::USER_REGISTERED_TOPIC) {
                     continue;
                 }
-
                 if (count($topics) < 3) {
                     continue;
                 }
 
-                $user = '0x' . substr($topics[1], -40);
-                $sponsor = '0x' . substr($topics[2], -40);
-                $user = strtolower($user);
-                $sponsor = strtolower($sponsor);
+                $user = $this->normalizeAddress('0x' . substr($topics[1], -40));
+                $sponsor = $this->normalizeAddress('0x' . substr($topics[2], -40));
 
                 if ($user !== $expectedWallet) {
                     continue;
                 }
 
-                // Zero-address sponsor allowed for root
-                if ($expectedSponsor !== '0x0000000000000000000000000000000000000000' && $sponsor !== $expectedSponsor) {
-                    return ['ok' => false, 'error' => 'Sponsor in event does not match referral wallet'];
+                if ($sponsor !== $expectedSponsor) {
+                    return ['ok' => false, 'error' => 'Sponsor in UserRegistered event does not match referral wallet'];
                 }
 
                 $found = true;
@@ -181,7 +218,7 @@ class BlockchainService
                 'wallet' => $expectedWallet,
                 'sponsor' => $decodedSponsor,
                 'blockNumber' => $blockNumber,
-                'txHash' => strtolower($txHash),
+                'txHash' => $txHash,
             ];
         } catch (\Throwable $e) {
             Log::error('verifyRegistrationTransaction failed', ['error' => $e->getMessage()]);
@@ -190,7 +227,7 @@ class BlockchainService
     }
 
     /**
-     * Optionally verify PackageActivated after activatePackage().
+     * Verify BTCPlanCore.activatePackage(amount) via PackageActivated event.
      */
     public function verifyPackageActivation(
         string $txHash,
@@ -198,44 +235,56 @@ class BlockchainService
         int $expectedPackageAmount
     ): array {
         try {
+            if ($this->core === '') {
+                return ['ok' => false, 'error' => 'CORE_CONTRACT is not configured'];
+            }
+
+            $txHash = $this->normalizeTxHash($txHash);
+            $expectedWallet = $this->normalizeAddress($expectedWallet);
+
             $receipt = $this->getTransactionReceipt($txHash);
             if ($receipt === null) {
-                return ['ok' => false, 'error' => 'Package transaction not found'];
+                return ['ok' => false, 'error' => 'Package transaction not found or not yet mined'];
             }
 
-            $status = $receipt['status'] ?? null;
-            if ($status !== '0x1' && $status !== 1 && $status !== '1') {
-                return ['ok' => false, 'error' => 'Package transaction failed on-chain'];
+            if ($err = $this->assertSuccessfulReceipt($receipt, $expectedWallet, 'Package transaction')) {
+                return ['ok' => false, 'error' => $err];
             }
 
-            $to = strtolower((string) ($receipt['to'] ?? ''));
-            if ($to !== $this->getCoreAddress()) {
-                return ['ok' => false, 'error' => 'Package tx not sent to core contract'];
-            }
-
-            $expectedWallet = strtolower($expectedWallet);
             $found = false;
+            $cycle = null;
+            $tokenAmount = null;
 
             foreach (($receipt['logs'] ?? []) as $log) {
                 if (strtolower((string) ($log['address'] ?? '')) !== $this->getCoreAddress()) {
                     continue;
                 }
+
                 $topics = $log['topics'] ?? [];
                 if (($topics[0] ?? '') !== self::PACKAGE_ACTIVATED_TOPIC) {
                     continue;
                 }
-                $user = strtolower('0x' . substr($topics[1], -40));
+                if (count($topics) < 2) {
+                    continue;
+                }
+
+                $user = $this->normalizeAddress('0x' . substr($topics[1], -40));
                 if ($user !== $expectedWallet) {
                     continue;
                 }
 
-                // data = packageAmount (uint256) + packageCycle (uint8 padded) + tokenAmount (uint256)
+                // data = packageAmount + packageCycle + tokenAmount (each 32 bytes)
                 $data = substr((string) ($log['data'] ?? '0x'), 2);
-                if (strlen($data) >= 64) {
-                    $amount = hexdec(substr($data, 0, 64));
-                    if ($amount !== $expectedPackageAmount) {
-                        return ['ok' => false, 'error' => 'Package amount mismatch on-chain'];
-                    }
+                if (strlen($data) < 192) {
+                    return ['ok' => false, 'error' => 'PackageActivated event data is incomplete'];
+                }
+
+                $amount = hexdec(substr($data, 0, 64));
+                $cycle = hexdec(substr($data, 64, 64));
+                $tokenAmount = '0x' . substr($data, 128, 64);
+
+                if ($amount !== $expectedPackageAmount) {
+                    return ['ok' => false, 'error' => 'Package amount mismatch on-chain'];
                 }
 
                 $found = true;
@@ -248,8 +297,11 @@ class BlockchainService
 
             return [
                 'ok' => true,
-                'txHash' => strtolower($txHash),
+                'txHash' => $txHash,
                 'blockNumber' => isset($receipt['blockNumber']) ? hexdec($receipt['blockNumber']) : 0,
+                'packageAmount' => $expectedPackageAmount,
+                'packageCycle' => $cycle,
+                'tokenAmountHex' => $tokenAmount,
             ];
         } catch (\Throwable $e) {
             Log::error('verifyPackageActivation failed', ['error' => $e->getMessage()]);

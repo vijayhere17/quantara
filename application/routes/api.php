@@ -21,10 +21,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/dashboard', [AuthController::class, 'dashboard']);
 });
 
-// Web3 authentication (extends existing signup endpoints — does not remove them)
-Route::prefix('auth')->group(function () {
-    Route::post('register', [AuthController::class, 'register']);
-    Route::post('login', [AuthController::class, 'login']);
+// Web3 authentication (session-aware — reuse web middleware for Auth::login)
+Route::middleware('web')->group(function () {
+    Route::prefix('auth')->group(function () {
+        Route::post('register', [AuthController::class, 'register']);
+        Route::post('login', [AuthController::class, 'login']);
+    });
 });
 
 Route::prefix('blockchain')->group(function () {

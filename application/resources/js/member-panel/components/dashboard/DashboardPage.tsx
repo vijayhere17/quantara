@@ -1,5 +1,6 @@
 import type { DashboardBoot } from '../../types';
 import { PageContainer } from '../ui/PageContainer';
+import { ActivationStatusCard } from './ActivationStatusCard';
 import { DirectTeamCard } from './DirectTeamCard';
 import { IncomeSummaryCard } from './IncomeSummaryCard';
 import { PackageDetailsCard } from './PackageDetailsCard';
@@ -31,8 +32,15 @@ export function DashboardPage({ data }: DashboardPageProps) {
         <PackageDetailsCard data={data} />
       </div>
 
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-5 sm:gap-6 lg:grid-cols-2">
+        <ActivationStatusCard
+          registration={data.registration}
+          walletAddress={data.user.username || data.user.obscuredAddress}
+        />
         <WalletSummaryCard wallet={data.wallet} />
+      </div>
+
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6 xl:grid-cols-3">
         <IncomeSummaryCard income={data.income} />
         <DirectTeamCard team={data.directTeam} />
         <TotalTeamCard team={data.totalTeam} />
