@@ -57,7 +57,7 @@
                                         <x-input type="text" name="amount" id="amount" placeholder="Transfer Amount" value="{{ $transfer_amount }}"/>
                                     </div>
                                     <div class="col-md-12" style="display: none;">
-                                        <x-input type="text" name="otp" id="otp" placeholder="One - Time Password" value="346789"/>
+                                        <x-input type="text" name="otp" id="otp" placeholder="One - Time Password" value=""/>
                                     </div>
                                 </div>
                             </form>

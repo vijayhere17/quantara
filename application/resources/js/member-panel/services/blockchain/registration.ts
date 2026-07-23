@@ -1,5 +1,6 @@
 import { JsonRpcSigner, formatUnits } from 'ethers';
 import { apiUrl } from '../../lib/apiBase';
+import { ensureTokenApproval, findPriorApprovalTx } from './approval';
 import { getCoreContract, getTokenContract } from './contract';
 import { loadBlockchainConfig } from './config';
 import { assertSponsorActiveOnChain, findPriorRegistrationTxs } from './events';
@@ -7,7 +8,7 @@ import { mapWalletError } from './wallet';
 
 export type RegistrationOnChainResult = {
   registerTxHash: string;
-  approveTxHash: string | null;
+  approveTxHash: string;
   packageTxHash: string;
   wallet: string;
   sponsor: string;
@@ -22,11 +23,16 @@ function isAddress(value: string): boolean {
   return /^0x[a-fA-F0-9]{40}$/.test(value);
 }
 
+function isTxHash(value: string): boolean {
+  return /^0x[a-fA-F0-9]{64}$/.test(value);
+}
+
 /**
- * BTCPlanCore sequence:
- * 1) register(sponsor)
- * 2) approve(core, tokenAmount) when needed
- * 3) activatePackage(50) for new members
+ * Production MetaMask registration lifecycle (blockchain is source of truth):
+ * 1) register(sponsor) → wait mined → verify
+ * 2) ALWAYS approve(core, tokenAmount) → wait mined → store approve hash
+ * 3) activatePackage(50) → wait mined → verify
+ * 4) Laravel saves only after all hashes are real + verified
  */
 export async function registerOnChain(
   signer: JsonRpcSigner,
@@ -59,7 +65,7 @@ export async function registerOnChain(
     await assertSponsorActiveOnChain(core, sponsor);
 
     let registerTxHash = '';
-    let approveTxHash: string | null = null;
+    let approveTxHash = '';
     let packageTxHash = '';
     let blockNumber = 0;
     let packageCycle = 1;
@@ -79,7 +85,7 @@ export async function registerOnChain(
 
       onStatus?.('Resuming registration…');
       const prior = await findPriorRegistrationTxs(signer, wallet);
-      if (!prior.registerTxHash) {
+      if (!prior.registerTxHash || !isTxHash(prior.registerTxHash)) {
         throw new Error('Registration is incomplete. Please contact support.');
       }
       registerTxHash = prior.registerTxHash;
@@ -88,7 +94,7 @@ export async function registerOnChain(
       }
 
       if (alreadyPackaged) {
-        if (!prior.packageTxHash) {
+        if (!prior.packageTxHash || !isTxHash(prior.packageTxHash)) {
           throw new Error('Activation is incomplete. Please contact support.');
         }
         if (prior.packageAmount !== null && prior.packageAmount !== packageAmount) {
@@ -101,9 +107,18 @@ export async function registerOnChain(
         const receipt = await signer.provider!.getTransactionReceipt(packageTxHash);
         blockNumber = Number(receipt?.blockNumber ?? 0);
 
+        // Never leave approve_tx_hash NULL — recover prior Approval or force a new one
+        const priorApprove = await findPriorApprovalTx(signer, wallet);
+        if (priorApprove && isTxHash(priorApprove)) {
+          approveTxHash = priorApprove;
+        } else {
+          const approved = await ensureTokenApproval(signer, tokenAmount, onStatus);
+          approveTxHash = approved.approveTxHash;
+        }
+
         return {
           registerTxHash,
-          approveTxHash: null,
+          approveTxHash,
           packageTxHash,
           wallet,
           sponsor,
@@ -123,6 +138,9 @@ export async function registerOnChain(
         throw new Error('Registration failed.');
       }
       registerTxHash = String(registerTx.hash);
+      if (!isTxHash(registerTxHash)) {
+        throw new Error('Invalid registration transaction hash.');
+      }
       blockNumber = Number(registerReceipt.blockNumber ?? 0);
 
       const confirmed = await core.users(wallet);
@@ -152,22 +170,9 @@ export async function registerOnChain(
       );
     }
 
-    const allowance: bigint = await token.allowance(wallet, cfg.core);
-    if (allowance < tokenAmount) {
-      onStatus?.('Confirm approval in MetaMask…');
-      const approveTx = await token.approve(cfg.core, tokenAmount);
-      onStatus?.('Waiting for approval confirmation…');
-      const approveReceipt = await approveTx.wait();
-      if (!approveReceipt || approveReceipt.status !== 1) {
-        throw new Error('Approval cancelled.');
-      }
-      approveTxHash = String(approveTx.hash);
-
-      const refreshed = await token.allowance(wallet, cfg.core);
-      if (refreshed < tokenAmount) {
-        throw new Error('Approval failed.');
-      }
-    }
+    // Step 8 — ALWAYS MetaMask approval → mined → real approve_tx_hash
+    const approved = await ensureTokenApproval(signer, tokenAmount, onStatus);
+    approveTxHash = approved.approveTxHash;
 
     onStatus?.('Confirm package activation in MetaMask…');
     const packageTx = await core.activatePackage(BigInt(packageAmount));
@@ -177,11 +182,18 @@ export async function registerOnChain(
       throw new Error('Activation failed.');
     }
     packageTxHash = String(packageTx.hash);
+    if (!isTxHash(packageTxHash)) {
+      throw new Error('Invalid activation transaction hash.');
+    }
     blockNumber = Number(packageReceipt.blockNumber ?? blockNumber);
 
     const activated = await core.users(wallet);
     if (Number(activated.packageAmount) !== packageAmount) {
       throw new Error('Activation failed.');
+    }
+
+    if (!isTxHash(registerTxHash) || !isTxHash(approveTxHash) || !isTxHash(packageTxHash)) {
+      throw new Error('Missing blockchain transaction hash.');
     }
 
     return {
@@ -214,11 +226,15 @@ export async function completeRegistrationWithLaravel(payload: {
   tx_hash: string;
   package_amount: number;
   package_tx_hash: string;
-  approve_tx_hash?: string | null;
+  approve_tx_hash: string;
   token_amount?: string;
   leg?: string;
 }) {
-  // Laravel creates the user only after both register + package txs verify on-chain.
+  if (!payload.approve_tx_hash || !/^0x[a-fA-F0-9]{64}$/.test(payload.approve_tx_hash)) {
+    throw new Error('Approval transaction hash is required.');
+  }
+
+  // Laravel creates the user only after register + approve + package txs verify on-chain.
   const res = await fetch(apiUrl('/api/auth/register', payload.baseUrl), {
     method: 'POST',
     headers: {
@@ -238,7 +254,7 @@ export async function completeRegistrationWithLaravel(payload: {
       tx_hash: payload.tx_hash,
       package_amount: payload.package_amount,
       package_tx_hash: payload.package_tx_hash,
-      approve_tx_hash: payload.approve_tx_hash || null,
+      approve_tx_hash: payload.approve_tx_hash,
       token_amount: payload.token_amount || null,
       leg: payload.leg || 'L',
     }),

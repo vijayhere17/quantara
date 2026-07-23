@@ -16,6 +16,9 @@ class Kernel extends ConsoleKernel
         //
         Commands\ProcessAPI::class,
         Commands\ProcessDaily::class,
+        Commands\SyncBlockchainIncomeCommand::class,
+        Commands\SeedDemoQaCommand::class,
+        Commands\RepairMigrationsCommand::class,
     ];
 
     /**
@@ -29,6 +32,7 @@ class Kernel extends ConsoleKernel
         // $schedule->command('act:processapi')->everyMinute();
         
         $schedule->command('act:processdaily')->dailyAt('00:05');
+        $schedule->command('blockchain:sync-income')->everyFiveMinutes();
     }
 
     /**
