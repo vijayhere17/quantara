@@ -4,6 +4,7 @@ import { Card } from '../ui/Card';
 import { Logo } from '../ui/Logo';
 import { InstallWalletModal } from './InstallWalletModal';
 import { useWallet } from '../../hooks/useWallet';
+import { apiUrl } from '../../lib/apiBase';
 import { notifyError } from '../../lib/walletConnect';
 import type { AuthBoot } from '../../types';
 
@@ -42,7 +43,7 @@ export function LoginPage({ data }: LoginPageProps) {
 
       const address = wallet.isConnected ? wallet.walletAddress : await wallet.connect();
 
-      const res = await fetch(`${data.baseUrl.replace(/\/$/, '')}/api/auth/login`, {
+      const res = await fetch(apiUrl('/api/auth/login', data.baseUrl), {
         method: 'POST',
         headers: {
           Accept: 'application/json',
@@ -90,7 +91,7 @@ export function LoginPage({ data }: LoginPageProps) {
         }
       }
 
-      window.location.href = json.redirect || `${data.baseUrl.replace(/\/$/, '')}/dashboard`;
+      window.location.href = json.redirect || apiUrl('/dashboard', data.baseUrl);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Login failed';
       if (message.toLowerCase().includes('metamask is not installed')) {
@@ -121,12 +122,11 @@ export function LoginPage({ data }: LoginPageProps) {
       }
 
       const token = data.csrfToken || '';
-      const base = data.baseUrl.replace(/\/$/, '');
       const body = new URLSearchParams();
       body.set('_token', token);
       body.set('wallet', address);
 
-      const res = await fetch(`${base}/submit-sign-in`, {
+      const res = await fetch(apiUrl('/submit-sign-in', data.baseUrl), {
         method: 'POST',
         headers: {
           Accept: 'application/json',
@@ -138,7 +138,7 @@ export function LoginPage({ data }: LoginPageProps) {
       });
       const json = (await res.json()) as { success?: boolean; error?: string };
       if (json.success) {
-        window.location.href = `${base}/dashboard`;
+        window.location.href = apiUrl('/dashboard', data.baseUrl);
       } else {
         notifyError(json.error || 'Login failed');
       }

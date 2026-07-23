@@ -1,4 +1,5 @@
 import { JsonRpcSigner, formatUnits } from 'ethers';
+import { apiUrl } from '../../lib/apiBase';
 import { getCoreContract, getTokenContract } from './contract';
 import { loadBlockchainConfig } from './config';
 import { assertSponsorActiveOnChain, findPriorRegistrationTxs } from './events';
@@ -250,7 +251,7 @@ export async function completeRegistrationWithLaravel(payload: {
   token_amount?: string;
   leg?: string;
 }) {
-  const res = await fetch(`${payload.baseUrl.replace(/\/$/, '')}/api/auth/register`, {
+  const res = await fetch(apiUrl('/api/auth/register', payload.baseUrl), {
     method: 'POST',
     headers: {
       Accept: 'application/json',
