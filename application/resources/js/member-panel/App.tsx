@@ -99,7 +99,8 @@ function renderPage(data: MemberBoot) {
     case 'withdraw':
       return <WithdrawPage data={data as WithdrawBoot} />;
     case 'incentive-report':
-      return <IncentiveReportPage data={data as IncentiveReportBoot} />;    case 'create-ticket':
+      return <IncentiveReportPage data={data as IncentiveReportBoot} />;
+    case 'create-ticket':
       return <CreateTicketPage data={data as SupportTicketBoot} />;
     case 'login':
       return <LoginPage data={data as AuthBoot} />;

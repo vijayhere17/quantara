@@ -9,11 +9,12 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
  * @title TreasuryManager
  * @notice Handles all treasury fund accounting and payouts.
  *
- * Activation distribution:
- * - 25% ROI Fund (interdependent)
- * - 3%  Reserve
- * - 2%  Community Builder
- * - 70% Working Pool → split into 65% working + 5% charity (of total)
+ * Activation distribution (business plan):
+ * - 30% Contract Regeneration
+ * - 25% Interdependent Reward Pool (ROI)
+ * -  3% Reserve Contract
+ * -  2% Community Builder Pool
+ * - 40% Working Pool (direct / booster / rank / same-rank)
  */
 contract TreasuryManager is ReentrancyGuard {
     using SafeERC20 for IERC20;
@@ -25,6 +26,7 @@ contract TreasuryManager is ReentrancyGuard {
     address public rewardContract;
     address public communityBuilderContract;
     address public charityWallet;
+    address public regenerationWallet;
 
     mapping(address => bool) public workingPayers;
 
@@ -33,36 +35,43 @@ contract TreasuryManager is ReentrancyGuard {
     uint256 public communityBuilderFundBalance;
     uint256 public charityFundBalance;
     uint256 public workingFundBalance;
+    uint256 public regenerationFundBalance;
 
     uint256 public totalSelfRoiPaid;
     uint256 public totalWorkingIncomePaid;
     uint256 public totalCommunityPaid;
     uint256 public totalCharityPaid;
+    uint256 public totalRegenerationPaid;
+    uint256 public totalReserveWithdrawn;
 
+    uint256 public constant REGENERATION_BPS = 3000; // 30%
     uint256 public constant INTERDEPENDENT_BPS = 2500; // 25% ROI Fund
     uint256 public constant RESERVE_BPS = 300; // 3%
     uint256 public constant COMMUNITY_BPS = 200; // 2%
-    uint256 public constant WORKING_BPS = 6500; // 65%
-    uint256 public constant CHARITY_BPS = 500; // 5%
-    // 2500 + 300 + 200 + 6500 + 500 = 10000
+    uint256 public constant WORKING_BPS = 4000; // 40%
+    // 3000 + 2500 + 300 + 200 + 4000 = 10000
 
     event CoreContractUpdated(address indexed coreContract);
     event RewardContractUpdated(address indexed rewardContract);
     event CommunityBuilderUpdated(address indexed communityBuilder);
     event CharityWalletUpdated(address indexed charityWallet);
+    event RegenerationWalletUpdated(address indexed regenerationWallet);
     event WorkingPayerUpdated(address indexed payer, bool status);
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
     event ContributionProcessed(
         uint256 amount,
+        uint256 regenerationAmount,
         uint256 interdependentAmount,
         uint256 reserveAmount,
         uint256 communityAmount,
-        uint256 charityAmount,
         uint256 workingAmount
     );
     event SelfRoiPaid(address indexed user, uint256 amount);
     event WorkingIncomePaid(address indexed user, uint256 amount);
     event CommunityBuilderPaid(address indexed user, uint256 amount);
     event CharityFundsTransferred(address indexed wallet, uint256 amount);
+    event RegenerationFundsTransferred(address indexed wallet, uint256 amount);
+    event ReserveFundsWithdrawn(address indexed to, uint256 amount);
 
     modifier onlyOwner() {
         require(msg.sender == owner, "Only owner");
@@ -73,6 +82,12 @@ contract TreasuryManager is ReentrancyGuard {
         require(_btcbToken != address(0), "Invalid BTCB token");
         owner = msg.sender;
         btcbToken = IERC20(_btcbToken);
+    }
+
+    function transferOwnership(address newOwner) external onlyOwner {
+        require(newOwner != address(0), "Invalid owner");
+        emit OwnershipTransferred(owner, newOwner);
+        owner = newOwner;
     }
 
     function setCoreContract(address _coreContract) external onlyOwner {
@@ -101,6 +116,12 @@ contract TreasuryManager is ReentrancyGuard {
         emit CharityWalletUpdated(_wallet);
     }
 
+    function setRegenerationWallet(address _wallet) external onlyOwner {
+        require(_wallet != address(0), "Invalid wallet");
+        regenerationWallet = _wallet;
+        emit RegenerationWalletUpdated(_wallet);
+    }
+
     function setWorkingPayer(address payer, bool status) external onlyOwner {
         require(payer != address(0), "Invalid payer");
         workingPayers[payer] = status;
@@ -111,35 +132,34 @@ contract TreasuryManager is ReentrancyGuard {
         require(msg.sender == coreContract, "Only core contract");
         require(amount > 0, "Invalid amount");
 
-        // Exact basis-point splits (not derived from a residual "70% pool").
+        uint256 regenerationAmount = (amount * REGENERATION_BPS) / 10000;
         uint256 interdependentAmount = (amount * INTERDEPENDENT_BPS) / 10000;
         uint256 reserveAmount = (amount * RESERVE_BPS) / 10000;
         uint256 communityAmount = (amount * COMMUNITY_BPS) / 10000;
         uint256 workingAmount = (amount * WORKING_BPS) / 10000;
-        uint256 charityAmount = (amount * CHARITY_BPS) / 10000;
 
         // Any wei lost to flooring is assigned to Working so buckets sum to `amount`.
-        uint256 distributed = interdependentAmount
+        uint256 distributed = regenerationAmount
+            + interdependentAmount
             + reserveAmount
             + communityAmount
-            + workingAmount
-            + charityAmount;
+            + workingAmount;
         if (distributed < amount) {
             workingAmount += amount - distributed;
         }
 
+        regenerationFundBalance += regenerationAmount;
         interdependentFundBalance += interdependentAmount;
         reserveFundBalance += reserveAmount;
         communityBuilderFundBalance += communityAmount;
-        charityFundBalance += charityAmount;
         workingFundBalance += workingAmount;
 
         emit ContributionProcessed(
             amount,
+            regenerationAmount,
             interdependentAmount,
             reserveAmount,
             communityAmount,
-            charityAmount,
             workingAmount
         );
     }
@@ -169,7 +189,7 @@ contract TreasuryManager is ReentrancyGuard {
     }
 
     /**
-     * @notice Pays working-pool income (contribution / booster / rank).
+     * @notice Pays working-pool income (contribution / booster / rank / same-rank).
      */
     function payWorkingIncome(
         address user,
@@ -218,5 +238,32 @@ contract TreasuryManager is ReentrancyGuard {
         btcbToken.safeTransfer(charityWallet, amount);
 
         emit CharityFundsTransferred(charityWallet, amount);
+    }
+
+    function transferRegenerationFunds(uint256 amount) external onlyOwner nonReentrant {
+        require(regenerationWallet != address(0), "Regeneration wallet not set");
+        require(regenerationFundBalance >= amount, "Insufficient regeneration fund");
+
+        regenerationFundBalance -= amount;
+        totalRegenerationPaid += amount;
+
+        btcbToken.safeTransfer(regenerationWallet, amount);
+
+        emit RegenerationFundsTransferred(regenerationWallet, amount);
+    }
+
+    /**
+     * @notice Owner withdraw from reserve (ops / contingency).
+     */
+    function withdrawReserve(address to, uint256 amount) external onlyOwner nonReentrant {
+        require(to != address(0), "Invalid recipient");
+        require(reserveFundBalance >= amount, "Insufficient reserve fund");
+
+        reserveFundBalance -= amount;
+        totalReserveWithdrawn += amount;
+
+        btcbToken.safeTransfer(to, amount);
+
+        emit ReserveFundsWithdrawn(to, amount);
     }
 }

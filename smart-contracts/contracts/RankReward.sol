@@ -9,20 +9,18 @@ import {ITreasuryManager} from "./interfaces/ITreasuryManager.sol";
  * @title RankReward
  * @notice Rank qualification, differential rank income, and same-rank income.
  *
- * Same Rank Bonus — "total eligible income":
+ * Same Rank — two mechanisms:
  * -----------------------------------------
- * For each accepted income event credited to a user (the earner), if the earner's
- * direct sponsor holds the exact same non-None rank, the sponsor receives 10% of
- * that accepted amount.
+ * 1) Ongoing matching (eligible income slices):
+ *    For each accepted income event credited to a user (the earner), if the earner's
+ *    direct sponsor holds the exact same non-None rank, the sponsor receives 10% of
+ *    that accepted amount. Eligible: ROI, Contribution, Booster, Rank, Community.
+ *    SameRank income itself does NOT re-trigger Same Rank.
  *
- * Eligible income types that trigger Same Rank (and count toward the 10% base):
- * - ROI
- * - Contribution
- * - Booster
- * - Rank (differential)
- * - Community
- *
- * SameRank income itself does NOT re-trigger Same Rank (no recursive loops).
+ * 2) Rank achievement bonus (business plan):
+ *    When a user first reaches a rank that their direct sponsor already holds,
+ *    the sponsor receives a one-time 10% of the user's TOTAL earned income
+ *    (IncomeManager.totalEarned). Deduped per (user, sponsor, rank).
  *
  * Rank income-cap multipliers (architecture present, application gated):
  * - Default / Q1-Q2 / Q4 / Q6 / Q8 → 3
@@ -72,6 +70,10 @@ contract RankReward {
 
     uint256 public constant SAME_RANK_REWARD_BPS = 1000; // 10%
 
+    /// @dev one-time achievement: user reached sponsor's rank → paid already
+    mapping(address => mapping(address => mapping(Rank => bool))) public sameRankAchievementPaid;
+    mapping(address => uint256) public sameRankAchievementIncome;
+
     event CoreContractUpdated(address indexed coreContract);
     event RewardContractUpdated(address indexed rewardContract);
     event CommunityBuilderUpdated(address indexed communityBuilder);
@@ -82,6 +84,12 @@ contract RankReward {
     event RankUpdated(address indexed user, Rank oldRank, Rank newRank);
     event RankIncomePaid(address indexed beneficiary, address indexed fromUser, uint256 amount);
     event SameRankIncomePaid(address indexed beneficiary, address indexed fromUser, uint256 amount);
+    event SameRankAchievementPaid(
+        address indexed beneficiary,
+        address indexed fromUser,
+        Rank rank,
+        uint256 amount
+    );
 
     modifier onlyOwner() {
         require(msg.sender == owner, "Only owner");
@@ -472,6 +480,61 @@ contract RankReward {
         }
 
         emit RankUpdated(user, oldRank, newRank);
+
+        // Achievement bonus for each newly attained rank that matches the sponsor.
+        for (
+            uint256 rankValue = uint256(oldRank) + 1;
+            rankValue <= uint256(newRank);
+            rankValue++
+        ) {
+            _paySameRankAchievementBonus(user, Rank(rankValue));
+        }
+    }
+
+    /**
+     * @notice One-time 10% of user's TOTAL income when they reach the sponsor's rank.
+     */
+    function _paySameRankAchievementBonus(address user, Rank achievedRank) internal {
+        if (achievedRank == Rank.None) {
+            return;
+        }
+        if (address(incomeManager) == address(0) || address(treasury) == address(0)) {
+            return;
+        }
+
+        address sponsor = sponsors[user];
+        if (sponsor == address(0)) {
+            return;
+        }
+        if (userRanks[sponsor] != achievedRank) {
+            return;
+        }
+        if (sameRankAchievementPaid[user][sponsor][achievedRank]) {
+            return;
+        }
+
+        uint256 total = incomeManager.totalEarned(user);
+        if (total == 0) {
+            // Mark as paid with 0 so a later re-check does not double-fire after income accrues
+            // without a rank change. Achievement is tied to the rank-up moment.
+            sameRankAchievementPaid[user][sponsor][achievedRank] = true;
+            return;
+        }
+
+        uint256 rewardAmount = (total * SAME_RANK_REWARD_BPS) / 10000;
+        uint256 paid = _payWorkingIncome(
+            sponsor,
+            rewardAmount,
+            IIncomeManager.IncomeType.SameRank
+        );
+
+        sameRankAchievementPaid[user][sponsor][achievedRank] = true;
+
+        if (paid > 0) {
+            sameRankAchievementIncome[sponsor] += paid;
+            sameRankIncome[sponsor] += paid;
+            emit SameRankAchievementPaid(sponsor, user, achievedRank, paid);
+        }
     }
 
     function syncCommunityPoints(address user) internal {

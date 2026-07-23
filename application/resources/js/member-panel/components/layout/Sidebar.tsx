@@ -59,6 +59,16 @@ function buildNav(links: MemberShellData['links']): NavItem[] {
       ],
     },
     { id: 'wallet', label: 'Wallet', href: links.wallet, icon: 'wallet' },
+    ...(links.withdraw
+      ? [
+          {
+            id: 'withdraw',
+            label: 'Withdraw',
+            href: links.withdraw,
+            icon: 'wallet',
+          } as NavItem,
+        ]
+      : []),
     {
       id: 'earnings',
       label: 'Earnings',

@@ -1,28 +1,39 @@
-# Quantara Architecture Notes (post–gap closure)
+# Quantara Architecture Notes (production)
 
-## Caps (independent)
+## Caps
 
-| Stream | Cap | Includes |
-|--------|-----|----------|
-| ROI | 3X principal | ROI only |
-| Working | 4X principal | Contribution, Booster, Rank, SameRank, Community |
-
-ROI does **not** reduce Working room. Working does **not** reduce ROI room.
+| Stream | Cap | Includes | Stop rule |
+|--------|-----|----------|-----------|
+| ROI | 3X principal | ROI only | Also stops when **total income** hits 3X |
+| Working | 4X principal | Contribution, Booster, Rank, SameRank, Community | Independent of ROI stream |
 
 Progression unlock (`packageCompleted`): first of ROI-cap or Working-cap.  
 Final income shutdown (`packageActive=false`): both caps exhausted.
 
-## Same Rank — total eligible income
+## Same Rank
 
-When a user receives accepted income of type ROI / Contribution / Booster / Rank / Community, their direct same-rank sponsor receives **10%** of that accepted amount (IncomeType.SameRank). SameRank does not re-trigger itself.
+1. **Matching (ongoing):** 10% of each eligible income slice to direct same-rank sponsor.
+2. **Achievement (one-time):** when a user first reaches a rank the sponsor already holds, sponsor receives 10% of the user's **totalEarned** at that moment. Deduped per `(user, sponsor, rank)`.
 
 ## Rank multipliers (architecture only)
 
 `RankReward.getIncomeCapMultiplier`: Q3→5, Q5→6, Q7→7, else 3.  
 `IncomeManager.applyRankCapMultipliers` defaults to **false**.
 
-**Clarification still required before enabling:** do multipliers scale ROI cap, Working cap, or both?
+## Treasury BPS (business plan)
 
-## Treasury BPS
+| Bucket | BPS | % |
+|--------|-----|---|
+| Contract Regeneration | 3000 | 30% |
+| Interdependent (ROI) | 2500 | 25% |
+| Reserve | 300 | 3% |
+| Community Builder | 200 | 2% |
+| Working | 4000 | 40% |
 
-25% ROI / 3% Reserve / 2% Community / 65% Working / 5% Charity (exact BPS; dust → Working).
+Dust from flooring → Working.  
+Reserve withdrawable by owner. Regeneration transferable to configured wallet.
+
+## Packages
+
+50 → 100 → 300 → 500 → 1000 → 3000 → 5000 → 10000  
+Each (except unlimited 10000 after C2) allows **2 cycles** then next amount. No skip / no downgrade.

@@ -39,10 +39,11 @@
             'investNow' => $base . '/buy-robo',
             'myInvestments' => $base . '/bot-request',
             'wallet' => $base . '/earning-wallet',
-            'roiHistory' => $base . '/earning/1/ROI History',
-            'contributionReward' => $base . '/earning/2/Contribution Reward',
-            'boosterReward' => $base . '/earning/3/Booster Reward',
-            'rankReward' => $base . '/earning/4/Rank Reward',
+            'withdraw' => $base . '/new-withdrawal',
+            'roiHistory' => $base . '/earning/2/ROI History',
+            'contributionReward' => $base . '/earning/1/Contribution Reward',
+            'boosterReward' => $base . '/earning/8/Booster Reward',
+            'rankReward' => $base . '/earning/5/Rank Reward',
             'support' => $base . '/create-ticket',
             'signOut' => $base . '/sign-out',
             'secureAccount' => $base . '/secure-account',
@@ -50,6 +51,18 @@
         ],
     ];
 
+    // Prefer live earning balance when available
+    try {
+        $walletCon = app(\App\Http\Controllers\Users\EarningWalletController::class);
+        $shell['wallet']['earningWallet'] = number_format(
+            (float) $walletCon->getearningbalance($user->id),
+            4,
+            '.',
+            ''
+        );
+    } catch (\Throwable $e) {
+        // keep defaults
+    }
     $boot = array_merge($shell, $boot ?? []);
 
     $manifestPath = base_path('../assets/build/manifest.json');

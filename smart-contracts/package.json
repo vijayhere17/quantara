@@ -9,6 +9,7 @@
     "deploy": "hardhat run scripts/deploy.ts --network localhost",
     "bootstrap:root": "hardhat run scripts/bootstrap-root.ts --network localhost",
     "bootstrap:demo": "hardhat run scripts/bootstrap-demo.ts --network localhost",
+    "demo:harness": "hardhat run scripts/demo-harness.ts",
     "test:flow": "hardhat run scripts/testFlow.ts",
     "test:cap": "hardhat run scripts/testIncomeCap.ts"
   },
