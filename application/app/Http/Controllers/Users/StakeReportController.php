@@ -10,6 +10,7 @@ use App\Models\StakeRequest;
 use App\Models\UserStaked;
 use App\Models\TopupByWalletLog;
 use App\Models\SundayOffers;
+use App\Services\MemberPanelBootService;
 use Log;
 use DB;
 
@@ -18,8 +19,15 @@ class StakeReportController extends Controller
     //
     public function stakeReport()
     {
-        $page_titel = 'Stake Requets';    
-        return view('users.stake-request')->with(['page_titel'=>$page_titel, 'txn_hash_url'=>'https://bscscan.com/tx'])->toJS();
+        $page_titel = 'My Investments';
+        $history = app(MemberPanelBootService::class)->buildInvestmentHistory(Auth::user());
+
+        return view('users.stake-request')->with([
+            'page_titel' => $page_titel,
+            'txn_hash_url' => 'https://bscscan.com/tx',
+            'summary' => $history['summary'],
+            'investments' => $history['investments'],
+        ])->toJS();
     }
     
     public function topupReport()

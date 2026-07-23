@@ -1,4 +1,4 @@
-import { Layers } from 'lucide-react';
+import { Layers, Link2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Badge } from '../ui/Badge';
 import { Card } from '../ui/Card';
@@ -16,6 +16,12 @@ type MyInvestmentsPageProps = {
   data: MyInvestmentsBoot;
 };
 
+function shortHash(value?: string | null) {
+  if (!value) return '—';
+  if (value.length < 14) return value;
+  return `${value.slice(0, 8)}…${value.slice(-6)}`;
+}
+
 export function MyInvestmentsPage({ data }: MyInvestmentsPageProps) {
   const [search, setSearch] = useState('');
   const [pageSize, setPageSize] = useState(10);
@@ -25,7 +31,18 @@ export function MyInvestmentsPage({ data }: MyInvestmentsPageProps) {
     const query = search.trim().toLowerCase();
     if (!query) return data.investments;
     return data.investments.filter((row) =>
-      [row.request, row.amount, row.btcPlan, row.txnHash, row.maturity, row.status]
+      [
+        row.request,
+        row.amount,
+        row.packageAmount,
+        row.packageName,
+        row.btcPlan,
+        row.txnHash,
+        row.maturity,
+        row.status,
+        row.blockchainStatus,
+        row.activationOn,
+      ]
         .join(' ')
         .toLowerCase()
         .includes(query),
@@ -44,19 +61,73 @@ export function MyInvestmentsPage({ data }: MyInvestmentsPageProps) {
       header: '#',
       render: (_row, index) => (safePage - 1) * pageSize + index + 1,
     },
-    { key: 'request', header: 'Request', render: (row) => row.request },
-    { key: 'amount', header: 'Amount ($)', render: (row) => row.amount },
-    { key: 'btcPlan', header: 'BTC Plan', render: (row) => row.btcPlan },
     {
-      key: 'txnHash',
-      header: 'Txn. Hash',
-      render: (row) => row.txnHash || '—',
+      key: 'packageName',
+      header: 'Package',
+      render: (row) => row.packageName || row.btcPlan || row.request,
     },
-    { key: 'maturity', header: 'Maturity', render: (row) => row.maturity || '—' },
+    {
+      key: 'packageAmount',
+      header: 'Amount ($)',
+      render: (row) => row.packageAmount ?? row.amount,
+    },
+    {
+      key: 'activationOn',
+      header: 'Activation',
+      render: (row) => row.activationOn || '—',
+    },
     {
       key: 'status',
       header: 'Status',
       render: (row) => <StatusBadge status={row.status} />,
+    },
+    {
+      key: 'roiEarned',
+      header: 'ROI Earned',
+      render: (row) => row.roiEarned ?? '—',
+    },
+    {
+      key: 'roiRemaining',
+      header: 'ROI Remaining',
+      render: (row) => row.roiRemaining ?? '—',
+    },
+    {
+      key: 'roiCap',
+      header: 'ROI Cap',
+      render: (row) => row.roiCap ?? '—',
+    },
+    {
+      key: 'workingIncome',
+      header: 'Working Income',
+      render: (row) => row.workingIncome ?? '—',
+    },
+    {
+      key: 'totalEarned',
+      header: 'Total Earned',
+      render: (row) => row.totalEarned ?? '—',
+    },
+    {
+      key: 'txnHash',
+      header: 'Txn Hash',
+      render: (row) =>
+        row.txnHashUrl ? (
+          <a
+            href={row.txnHashUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1 font-mono text-xs text-q-cyan hover:underline"
+          >
+            {shortHash(row.txnHash)}
+            <Link2 className="h-3.5 w-3.5" />
+          </a>
+        ) : (
+          <span className="font-mono text-xs">{shortHash(row.txnHash)}</span>
+        ),
+    },
+    {
+      key: 'blockchainStatus',
+      header: 'Chain Status',
+      render: (row) => row.blockchainStatus || '—',
     },
   ];
 
@@ -101,7 +172,7 @@ export function MyInvestmentsPage({ data }: MyInvestmentsPageProps) {
       <Card hover={false} className="border-q-cyan/20 p-5 shadow-[0_0_0_1px_rgba(0,217,255,0.08)] sm:p-6">
         <div className="mb-5">
           <SectionTitle
-            title="Topup Report"
+            title="Investment History"
             icon={<Layers className="h-5 w-5" />}
             action={<Badge tone="cyan">{filtered.length} Records</Badge>}
           />
@@ -124,7 +195,7 @@ export function MyInvestmentsPage({ data }: MyInvestmentsPageProps) {
         <Table
           columns={columns}
           rows={pageRows}
-          minWidth="780px"
+          minWidth="1100px"
           emptyState={
             <EmptyState
               icon={<Layers className="h-7 w-7" />}

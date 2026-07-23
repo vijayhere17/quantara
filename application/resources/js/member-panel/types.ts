@@ -254,10 +254,22 @@ export type WithdrawBoot = MemberShellData & {
 export type InvestmentRow = {
   request: string;
   amount: string | number;
+  packageAmount?: string | number;
+  packageName?: string;
   btcPlan: string;
+  activationOn?: string;
   txnHash: string;
+  txnHashUrl?: string | null;
   maturity: string;
   status: 'active' | 'completed' | 'expired' | 'pending';
+  roiEarned?: string | number;
+  roiRemaining?: string | number;
+  roiCap?: string | number;
+  workingIncome?: string | number;
+  totalEarned?: string | number;
+  blockchainStatus?: string;
+  packageCycle?: number | null;
+  blockNumber?: number | string | null;
 };
 
 export type MyInvestmentsBoot = MemberShellData & {
