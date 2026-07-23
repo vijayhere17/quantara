@@ -4,9 +4,9 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Users\SignupController;
-use App\Models\StakeMaster;
 use App\Models\User;
 use App\Services\BlockchainService;
+use App\Services\PackageActivationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -22,8 +22,10 @@ use RuntimeException;
  */
 class AuthController extends Controller
 {
-    public function __construct(protected BlockchainService $blockchain)
-    {
+    public function __construct(
+        protected BlockchainService $blockchain,
+        protected PackageActivationService $packageActivation
+    ) {
     }
 
     /**
@@ -180,7 +182,6 @@ class AuthController extends Controller
 
             $signup = app(SignupController::class);
             $referralUplines = $signup->getReferralUplines($sponsor->id);
-            $kit = StakeMaster::where('amount', $packageAmount)->first();
 
             $member = DB::transaction(function () use (
                 $request,
@@ -195,8 +196,7 @@ class AuthController extends Controller
                 $packageAmount,
                 $verified,
                 $pkgVerified,
-                $signup,
-                $kit
+                $signup
             ) {
                 if (
                     User::where('email', $email)->lockForUpdate()->exists() ||
@@ -223,23 +223,25 @@ class AuthController extends Controller
 
                 $signup->processReferralUplines($member->id, $referralUplines);
 
+                // Persist blockchain identity fields, then mirror package activation ledger
                 $member->wallet_addr = $wallet;
                 $member->transaction_hash = $txHash;
                 $member->package_tx_hash = $packageTx;
                 $member->approve_tx_hash = $approveTx;
                 $member->chain_id = (int) config('blockchain.chain_id', 56);
-                $member->package_id = $packageAmount;
-                $member->package_amount = $packageAmount;
-                $member->kit_id = $kit?->id;
                 $member->registration_block = $pkgVerified['blockNumber'] ?? ($verified['blockNumber'] ?? null);
                 $member->registration_timestamp = now();
                 $member->wallet_status = 'verified';
-                $member->registration_status = 'completed';
-                $member->activation_date = now();
                 $member->status = 0; // active member
                 $member->save();
 
-                return $member->fresh(['kit', 'referral']);
+                return $this->packageActivation->activateFromVerifiedPackage(
+                    $member,
+                    $packageAmount,
+                    $packageTx,
+                    $approveTx,
+                    $pkgVerified
+                );
             });
 
             Auth::guard('web')->login($member);
@@ -250,8 +252,8 @@ class AuthController extends Controller
                 'success' => true,
                 'error' => '',
                 'token' => $token,
-                'user' => $this->userPayload($member, $verified, $pkgVerified),
-                'dashboard' => $this->dashboardPayload($member, $verified, $pkgVerified),
+                'user' => $this->buildUserPayload($member, $verified, $pkgVerified),
+                'dashboard' => $this->buildDashboardPayload($member, $verified, $pkgVerified),
                 'redirect' => url('/dashboard'),
             ], 200);
         } catch (ValidationException $e) {
@@ -373,8 +375,8 @@ class AuthController extends Controller
                 'success' => true,
                 'error' => '',
                 'token' => $token,
-                'user' => $this->userPayload($user),
-                'dashboard' => $this->dashboardPayload($user),
+                'user' => $this->buildUserPayload($user),
+                'dashboard' => $this->buildDashboardPayload($user),
                 'redirect' => url('/dashboard'),
             ], 200);
         } catch (\Throwable $e) {
@@ -397,12 +399,16 @@ class AuthController extends Controller
 
         return response()->json([
             'success' => true,
-            'user' => $this->userPayload($user),
-            'dashboard' => $this->dashboardPayload($user),
+            'user' => $this->buildUserPayload($user),
+            'dashboard' => $this->buildDashboardPayload($user),
+            'next_package' => $this->blockchain->getNextEligiblePackageHint($user),
         ]);
     }
 
-    protected function userPayload(User $user, ?array $verified = null, ?array $pkgVerified = null): array
+    /**
+     * Public payload builders (used by PackageController).
+     */
+    public function buildUserPayload(User $user, ?array $verified = null, ?array $pkgVerified = null): array
     {
         $wallet = strtolower($user->wallet_addr ?: $user->username);
 
@@ -414,6 +420,7 @@ class AuthController extends Controller
             'display_name' => trim(($user->firstname ?? '') . ' ' . ($user->lastname ?? '')) ?: 'Explorer',
             'package' => $user->package_id,
             'package_name' => optional($user->kit)->name ?: ('$' . $user->package_id),
+            'package_cycle' => $user->package_cycle ?? ($pkgVerified['packageCycle'] ?? null),
             'activation_status' => $user->registration_status ?: ($user->activation_date ? 'completed' : 'pending'),
             'wallet_status' => $user->wallet_status ?: 'unverified',
             'transaction_hash' => $user->transaction_hash,
@@ -430,14 +437,16 @@ class AuthController extends Controller
         ];
     }
 
-    protected function dashboardPayload(User $user, ?array $verified = null, ?array $pkgVerified = null): array
+    public function buildDashboardPayload(User $user, ?array $verified = null, ?array $pkgVerified = null): array
     {
+        $cycle = $user->package_cycle ?? ($pkgVerified['packageCycle'] ?? 1);
+
         return [
             'wallet' => strtolower($user->wallet_addr ?: $user->username),
             'package' => [
                 'amount' => $user->package_amount ?: $user->package_id,
                 'name' => optional($user->kit)->name ?: ('$' . ($user->package_amount ?: $user->package_id)),
-                'cycle' => $pkgVerified['packageCycle'] ?? 1,
+                'cycle' => $cycle,
                 'status' => $user->activation_date ? 'active' : 'inactive',
             ],
             'activation_status' => $user->registration_status ?: 'pending',
@@ -447,6 +456,7 @@ class AuthController extends Controller
                 'package' => $user->package_tx_hash,
                 'block_number' => $user->registration_block,
             ],
+            'next_package' => $this->blockchain->getNextEligiblePackageHint($user),
             'synced_at' => now()->toIso8601String(),
         ];
     }

@@ -3,6 +3,7 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\PackageController;
 use App\Http\Controllers\Users\SignupController;
 use App\Http\Controllers\Users\StakeReportController;
 use App\Services\BlockchainService;
@@ -28,6 +29,11 @@ Route::middleware('auth:sanctum')->group(function () {
 Route::middleware('api.session')->prefix('auth')->group(function () {
     Route::post('register', [AuthController::class, 'register']);
     Route::post('login', [AuthController::class, 'login']);
+});
+
+// Package activation (Sanctum + session cookie; no CSRF — on-chain verify)
+Route::middleware(['api.session', 'auth:sanctum'])->prefix('packages')->group(function () {
+    Route::post('activate', [PackageController::class, 'activate']);
 });
 
 Route::prefix('blockchain')->group(function () {
