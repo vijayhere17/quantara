@@ -6,11 +6,12 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
+        if (Schema::hasTable('roi_tier_masters')) {
+            return;
+        }
+
         Schema::create('roi_tier_masters', function (Blueprint $table) {
             $table->id();
             $table->decimal('min_amount', 18, 2);
@@ -21,9 +22,6 @@ return new class extends Migration
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('roi_tier_masters');

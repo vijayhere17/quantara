@@ -6,23 +6,25 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
-        Schema::table('users', function (Blueprint $table) {
-            $table->dateTime('booster_evaluated_at')->nullable()->after('booster_on');
-        });
+        if (!Schema::hasTable('users')) {
+            return;
+        }
+
+        if (!Schema::hasColumn('users', 'booster_evaluated_at')) {
+            Schema::table('users', function (Blueprint $table) {
+                $table->dateTime('booster_evaluated_at')->nullable();
+            });
+        }
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
-        Schema::table('users', function (Blueprint $table) {
-            $table->dropColumn('booster_evaluated_at');
-        });
+        if (Schema::hasTable('users') && Schema::hasColumn('users', 'booster_evaluated_at')) {
+            Schema::table('users', function (Blueprint $table) {
+                $table->dropColumn('booster_evaluated_at');
+            });
+        }
     }
 };

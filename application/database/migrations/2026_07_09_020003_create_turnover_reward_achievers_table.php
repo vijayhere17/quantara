@@ -6,11 +6,12 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
+        if (Schema::hasTable('turnover_reward_achievers')) {
+            return;
+        }
+
         Schema::create('turnover_reward_achievers', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('member_id');
@@ -26,9 +27,6 @@ return new class extends Migration
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('turnover_reward_achievers');
