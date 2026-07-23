@@ -13,7 +13,9 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
+use RuntimeException;
 
 /**
  * Web3 auth API — extends existing session auth without replacing it.
@@ -76,10 +78,12 @@ class AuthController extends Controller
             }
             RateLimiter::hit($key, 300);
 
+            $this->assertWeb3UserColumnsExist();
+
             $request->validate([
                 'firstname' => 'nullable|string|max:100',
                 'lastname' => 'nullable|string|max:100',
-                'username' => 'required|string|min:3|max:32|regex:/^[A-Za-z0-9_]+$/',
+                'username' => 'nullable|string|min:3|max:42|regex:/^[A-Za-z0-9_]+$/',
                 'email' => 'required|email|max:190',
                 'password' => 'required|string|min:6|max:100',
                 'wallet' => 'required|string|size:42',
@@ -100,8 +104,20 @@ class AuthController extends Controller
                 : null;
             $sponsorId = trim($request->input('sponsor_id'));
             $email = strtolower(trim($request->input('email')));
-            $username = trim($request->input('username'));
+            $username = trim((string) $request->input('username', ''));
+            if ($username === '') {
+                // Default identity: wallet address (legacy + previous signup UI)
+                $username = $wallet;
+            }
             $packageAmount = (int) $request->input('package_amount');
+
+            // Reject dummy / zero hashes
+            if ($this->isDummyTxHash($txHash) || $this->isDummyTxHash($packageTx)) {
+                return response()->json(['success' => false, 'error' => 'Invalid blockchain transaction hash.'], 200);
+            }
+            if ($approveTx !== null && $this->isDummyTxHash($approveTx)) {
+                return response()->json(['success' => false, 'error' => 'Invalid approval transaction hash.'], 200);
+            }
 
             if ($txHash === $packageTx) {
                 return response()->json(['success' => false, 'error' => 'Registration failed. Please try again.'], 200);
@@ -243,10 +259,59 @@ class AuthController extends Controller
                 'success' => false,
                 'error' => collect($e->errors())->flatten()->first() ?: 'Validation failed',
             ], 200);
+        } catch (RuntimeException $e) {
+            Log::error('Web3 register schema error', ['error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'error' => $e->getMessage()], 200);
         } catch (\Throwable $e) {
             Log::error('Web3 register failed', ['error' => $e->getMessage()]);
             return response()->json(['success' => false, 'error' => 'Registration failed. Please try again.'], 200);
         }
+    }
+
+    /**
+     * Ensure every blockchain column written by register() exists.
+     * Never silently ignore missing columns.
+     */
+    protected function assertWeb3UserColumnsExist(): void
+    {
+        $required = [
+            'wallet_addr',
+            'transaction_hash',
+            'package_tx_hash',
+            'approve_tx_hash',
+            'chain_id',
+            'package_id',
+            'package_amount',
+            'registration_block',
+            'registration_timestamp',
+            'wallet_status',
+            'registration_status',
+            'activation_date',
+        ];
+
+        $missing = [];
+        foreach ($required as $column) {
+            if (!Schema::hasColumn('users', $column)) {
+                $missing[] = $column;
+            }
+        }
+
+        if ($missing !== []) {
+            throw new RuntimeException(
+                'Database is missing required columns: ' . implode(', ', $missing) .
+                '. Run: php artisan migrate'
+            );
+        }
+    }
+
+    protected function isDummyTxHash(string $hash): bool
+    {
+        $h = strtolower($hash);
+        return $h === '' ||
+            preg_match('/^0x0+$/', $h) === 1 ||
+            str_contains($h, 'pending') ||
+            str_contains($h, 'dummy') ||
+            str_contains($h, 'fake');
     }
 
     /**

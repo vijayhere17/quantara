@@ -37,7 +37,7 @@
         walletAddress: wallet || '—',
         sponsorId: sponsor || '—',
         packageLabel: '$50',
-        transactionHash: 'Pending confirmation',
+        transactionHash: '',
         registrationDate: new Date().toLocaleString(),
         network: 'BNB Smart Chain'
       }
