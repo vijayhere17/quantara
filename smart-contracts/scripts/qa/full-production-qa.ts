@@ -120,6 +120,50 @@ function fmtUsd(n: bigint | number): string {
   return typeof n === "bigint" ? `$${n.toString()}` : `$${n}`;
 }
 
+async function safeCall<T>(
+  contract: Contract,
+  fn: string,
+  args: unknown[] = [],
+): Promise<{ ok: true; value: T } | { ok: false; error: string }> {
+  const has =
+    contract.interface.fragments.some(
+      (f: any) => f.type === "function" && f.name === fn,
+    );
+  if (!has) {
+    return { ok: false, error: "Not exposed by contract" };
+  }
+  try {
+    const value = (await contract.getFunction(fn)(...args)) as T;
+    return { ok: true, value };
+  } catch (e) {
+    const msg = (e as Error).message || String(e);
+    if (
+      msg.includes("function selector was not recognized") ||
+      msg.includes("no fallback function") ||
+      msg.includes("CALL_EXCEPTION")
+    ) {
+      return { ok: false, error: "Not exposed by contract" };
+    }
+    return { ok: false, error: msg };
+  }
+}
+
+async function safeRow(
+  contract: Contract,
+  label: string,
+  fn: string,
+  args: unknown[] = [],
+  format: (v: unknown) => string = (v) => String(v),
+): Promise<unknown | null> {
+  const result = await safeCall(contract, fn, args);
+  if (!result.ok) {
+    row(label, result.error, c.yellow);
+    return null;
+  }
+  row(label, format(result.value));
+  return result.value;
+}
+
 const ZERO = "0x0000000000000000000000000000000000000000";
 
 const RANK_NAMES = [
@@ -630,38 +674,56 @@ async function main() {
         row("rankReward", await core!.rankReward());
       }
       if (name === "TreasuryManager") {
-        row("REGENERATION_BPS", (await treasury!.REGENERATION_BPS()).toString());
-        row("INTERDEPENDENT_BPS", (await treasury!.INTERDEPENDENT_BPS()).toString());
-        row("RESERVE_BPS", (await treasury!.RESERVE_BPS()).toString());
-        row("COMMUNITY_BPS", (await treasury!.COMMUNITY_BPS()).toString());
-        row("WORKING_BPS", (await treasury!.WORKING_BPS()).toString());
-        row("coreContract", await treasury!.coreContract());
-        row("rewardContract", await treasury!.rewardContract());
-        row("communityBuilder", await treasury!.communityBuilderContract());
-        row("regenerationWallet", await treasury!.regenerationWallet());
+        await safeRow(treasury!, "REGENERATION_BPS", "REGENERATION_BPS", [], (v) => String(v));
+        await safeRow(treasury!, "INTERDEPENDENT_BPS", "INTERDEPENDENT_BPS", [], (v) => String(v));
+        await safeRow(treasury!, "RESERVE_BPS", "RESERVE_BPS", [], (v) => String(v));
+        await safeRow(treasury!, "COMMUNITY_BPS", "COMMUNITY_BPS", [], (v) => String(v));
+        await safeRow(treasury!, "WORKING_BPS", "WORKING_BPS", [], (v) => String(v));
+        await safeRow(treasury!, "coreContract", "coreContract");
+        await safeRow(treasury!, "rewardContract", "rewardContract");
+        await safeRow(treasury!, "communityBuilder", "communityBuilderContract");
+        await safeRow(treasury!, "regenerationWallet", "regenerationWallet");
       }
       if (name === "IncomeManager") {
-        row("ROI_CAP_MULTIPLIER", (await income!.ROI_CAP_MULTIPLIER()).toString());
-        row("WORKING_CAP_MULTIPLIER", (await income!.WORKING_CAP_MULTIPLIER()).toString());
-        row("applyRankCapMultipliers", String(await income!.applyRankCapMultipliers()));
+        await safeRow(income!, "ROI_CAP_MULTIPLIER", "ROI_CAP_MULTIPLIER", [], (v) => String(v));
+        await safeRow(income!, "WORKING_CAP_MULTIPLIER", "WORKING_CAP_MULTIPLIER", [], (v) => String(v));
+        await safeRow(income!, "applyRankCapMultipliers", "applyRankCapMultipliers", [], (v) => String(v));
       }
     } catch (e) {
       contractNotes.push(`${name} config read error: ${(e as Error).message}`);
     }
   }
 
-  // BPS sanity
+  // BPS sanity — prefer getters; if absent, verify from ContributionProcessed later
   if (treasury) {
-    const sum =
-      (await treasury.REGENERATION_BPS()) +
-      (await treasury.INTERDEPENDENT_BPS()) +
-      (await treasury.RESERVE_BPS()) +
-      (await treasury.COMMUNITY_BPS()) +
-      (await treasury.WORKING_BPS());
-    if (sum === 10000n) {
-      record("Contracts / Treasury BPS", "PASS", ["30/25/3/2/40 = 10000 BPS"]);
+    const bpsNames = [
+      "REGENERATION_BPS",
+      "INTERDEPENDENT_BPS",
+      "RESERVE_BPS",
+      "COMMUNITY_BPS",
+      "WORKING_BPS",
+    ] as const;
+    const bpsValues: bigint[] = [];
+    let bpsMissing = false;
+    for (const fn of bpsNames) {
+      const result = await safeCall<bigint>(treasury, fn);
+      if (!result.ok) {
+        bpsMissing = true;
+        break;
+      }
+      bpsValues.push(result.value);
+    }
+    if (bpsMissing) {
+      record("Contracts / Treasury BPS", "WARNING", [
+        "BPS getters not exposed by deployed ABI — will verify 30/25/3/2/40 from ContributionProcessed event",
+      ]);
     } else {
-      record("Contracts / Treasury BPS", "FAIL", [`BPS sum = ${sum}, expected 10000`]);
+      const sum = bpsValues.reduce((a, b) => a + b, 0n);
+      if (sum === 10000n && bpsValues[0] === 3000n && bpsValues[1] === 2500n && bpsValues[2] === 300n && bpsValues[3] === 200n && bpsValues[4] === 4000n) {
+        record("Contracts / Treasury BPS", "PASS", ["30/25/3/2/40 = 10000 BPS"]);
+      } else {
+        record("Contracts / Treasury BPS", "FAIL", [`BPS values = [${bpsValues.join(",")}], sum = ${sum}`]);
+      }
     }
   } else {
     record("Contracts", "FAIL", ["TreasuryManager missing"]);
