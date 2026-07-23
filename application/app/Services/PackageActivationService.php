@@ -8,17 +8,21 @@ use App\Models\StakeRequest;
 use App\Models\User;
 use App\Models\UserStaked;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use RuntimeException;
 
 /**
  * Mirrors blockchain-verified package activation into legacy stake / investment tables.
  * Contribution commissions are paid on-chain — this service does NOT call processreferralcommission.
+ * It does immediately trigger BlockchainIncomeIndexer so referral income appears in the panel without waiting for cron.
  */
 class PackageActivationService
 {
-    public function __construct(protected BlockchainLedgerService $ledger)
-    {
+    public function __construct(
+        protected BlockchainLedgerService $ledger,
+        protected BlockchainIncomeIndexer $incomeIndexer,
+    ) {
     }
 
     /**
@@ -60,7 +64,7 @@ class PackageActivationService
             }
         }
 
-        return DB::transaction(function () use (
+        $result = DB::transaction(function () use (
             $member,
             $packageAmount,
             $packageTx,
@@ -154,8 +158,30 @@ class PackageActivationService
                 'verified'
             );
 
-            return $member->fresh(['kit', 'referral']) ?? $member;
+            $fresh = $member->fresh(['kit', 'referral']) ?? $member;
+
+            return [
+                'member' => $fresh,
+                'blockNumber' => $blockNumber,
+            ];
         });
+
+        $fresh = $result['member'];
+        $syncedBlock = $result['blockNumber'] ?? $blockNumber;
+
+        // Mirror ContributionRewardPaid / working payments into earning_wallets immediately
+        // (cron still runs every 5 minutes as backup).
+        try {
+            $from = max(0, ((int) ($syncedBlock ?? 0)) - 25);
+            $this->incomeIndexer->sync($from, null, 500);
+        } catch (\Throwable $e) {
+            Log::warning('Post-activation income sync failed', [
+                'error' => $e->getMessage(),
+                'package_tx' => $packageTx,
+            ]);
+        }
+
+        return $fresh;
     }
 
     /**

@@ -14,6 +14,7 @@ use App\Models\User;
 use Cookie;
 use Log;
 use DB;
+use App\Services\MemberPanelBootService;
 
 class EarningWalletController extends Controller
 {
@@ -26,13 +27,25 @@ class EarningWalletController extends Controller
         $cradit = formatdecimal(self::getcraditdebitsum($member_id, 1), 4);
         $debit = formatdecimal(self::getcraditdebitsum($member_id, 2), 4);
         $balance = self::getearningbalance($member_id);
+        $transactions = app(MemberPanelBootService::class)->buildEarningTransactions(Auth::user());
           
-        return view('users.stake-earning')->with(['page_titel'=>$page_titel, 'cradit'=>$cradit, 'debit'=>$debit, 'balance'=>$balance])->toJS();
+        return view('users.stake-earning')->with([
+            'page_titel' => $page_titel,
+            'cradit' => $cradit,
+            'debit' => $debit,
+            'balance' => $balance,
+            'transactions' => $transactions,
+        ])->toJS();
     }
 
     public function earningWiseReport($logtype, $page_titel)
     {
-        return view('users.earning-wise-log')->with(['page_titel'=>$page_titel, 'logtype'=>$logtype])->toJS();
+        $records = app(MemberPanelBootService::class)->buildEarningRecords((int) $logtype, Auth::user());
+        return view('users.earning-wise-log')->with([
+            'page_titel' => $page_titel,
+            'logtype' => $logtype,
+            'records' => $records,
+        ])->toJS();
     }
     
     public function potentialReport()

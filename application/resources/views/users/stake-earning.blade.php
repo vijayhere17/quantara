@@ -6,7 +6,7 @@
             'totalDebit' => isset($debit) ? $debit : '0.0000',
             'availableBalance' => isset($balance) ? $balance : '0.0000',
         ],
-        'transactions' => [],
+        'transactions' => $transactions ?? [],
     ];
 @endphp
 @include('users.layouts.member-react', ['boot' => $boot, 'page_titel' => $page_titel ?? 'Earning Wallet'])

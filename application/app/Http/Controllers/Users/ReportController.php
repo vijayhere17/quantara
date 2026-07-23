@@ -15,12 +15,14 @@ use App\Models\LevelMaster;
 use App\Models\User;
 use Log;
 use DB;
+use App\Services\MemberPanelBootService;
 
 class ReportController extends Controller
 {
     public function myreferral(){
-        $page_titel = 'My Referral';          
-        return view('users.my-referral', compact('page_titel'));
+        $page_titel = 'My Referral';
+        $referrals = app(MemberPanelBootService::class)->buildReferrals(Auth::user());
+        return view('users.my-referral', compact('page_titel', 'referrals'));
     }
 
     public function downlinerep($leg){
@@ -28,9 +30,10 @@ class ReportController extends Controller
         else if ($leg == 'L') { $position = 'Left '; }
         else if ($leg == 'R') { $position = 'Right '; }
         
-        $page_titel = $position.'Downline Report';       
+        $page_titel = $position.'Downline Report';
+        $downlines = app(MemberPanelBootService::class)->buildDownlines(Auth::user());
 
-        return view('users.downline-report', compact('page_titel', 'leg'));
+        return view('users.downline-report', compact('page_titel', 'leg', 'downlines'));
     }
 
     public function treeview(){
