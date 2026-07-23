@@ -1,39 +1,55 @@
 import { Eye, EyeOff, Lock, Mail, Wallet } from 'lucide-react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Card } from '../ui/Card';
+import { GradientButton } from '../ui/GradientButton';
 import { Logo } from '../ui/Logo';
 import { InstallWalletModal } from './InstallWalletModal';
 import { useWallet } from '../../hooks/useWallet';
 import { apiUrl } from '../../lib/apiBase';
-import { notifyError } from '../../lib/walletConnect';
+import { notifyError, notifySuccess } from '../../lib/walletConnect';
 import type { AuthBoot } from '../../types';
 
 type LoginPageProps = {
   data: AuthBoot;
 };
 
+function obscure(address: string) {
+  if (!address || address.length < 12) return address || '—';
+  return `${address.slice(0, 6)}…${address.slice(-4)}`;
+}
+
 /**
- * Secure login: email + password, then connected wallet must match
- * the wallet stored during on-chain registration.
- * Legacy wallet-only login remains available via window.processlogin
- * for older accounts without email.
+ * Email + password + connected wallet must match registered wallet.
  */
 export function LoginPage({ data }: LoginPageProps) {
   const wallet = useWallet();
+  const submittingRef = useRef(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [showInstall, setShowInstall] = useState(false);
-  const [mode, setMode] = useState<'secure' | 'legacy'>('secure');
 
-  const handleSecureLogin = async () => {
-    if (submitting) return;
+  const handleConnect = async () => {
+    if (!wallet.walletInstalled) {
+      setShowInstall(true);
+      return;
+    }
+    try {
+      await wallet.connect();
+    } catch (error) {
+      notifyError(error instanceof Error ? error.message : 'Wallet connection failed.');
+    }
+  };
+
+  const handleLogin = async () => {
+    if (submitting || submittingRef.current) return;
     if (!email.trim() || !password) {
-      notifyError('Please enter email and password');
+      notifyError('Please enter email and password.');
       return;
     }
 
+    submittingRef.current = true;
     setSubmitting(true);
     try {
       if (!wallet.walletInstalled) {
@@ -59,20 +75,20 @@ export function LoginPage({ data }: LoginPageProps) {
       });
 
       if (res.status === 419) {
-        notifyError('Login session expired (HTTP 419). Refresh the page and try again.');
+        notifyError('Session expired. Please refresh and try again.');
         return;
       }
 
       const json = (await res.json()) as {
         success?: boolean;
         error?: string;
-        code?: string;
         redirect?: string;
         token?: string;
+        dashboard?: unknown;
       };
 
       if (!json.success) {
-        notifyError(json.error || 'Login failed');
+        notifyError(json.error || 'Invalid login credentials.');
         return;
       }
 
@@ -84,71 +100,25 @@ export function LoginPage({ data }: LoginPageProps) {
         }
       }
 
-      if ((json as { dashboard?: unknown }).dashboard) {
+      if (json.dashboard) {
         try {
-          sessionStorage.setItem(
-            'quantara_dashboard_sync',
-            JSON.stringify((json as { dashboard: unknown }).dashboard),
-          );
+          sessionStorage.setItem('quantara_dashboard_sync', JSON.stringify(json.dashboard));
         } catch {
           // ignore
         }
       }
 
+      notifySuccess('Login successful.');
       window.location.href = json.redirect || apiUrl('/dashboard', data.baseUrl);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Login failed';
+      const message = error instanceof Error ? error.message : 'Login failed.';
       if (message.toLowerCase().includes('metamask is not installed')) {
         setShowInstall(true);
       } else {
         notifyError(message);
       }
     } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleLegacyWalletLogin = async () => {
-    if (submitting) return;
-    setSubmitting(true);
-    try {
-      if (!wallet.walletInstalled) {
-        setShowInstall(true);
-        return;
-      }
-      const address = wallet.isConnected ? wallet.walletAddress : await wallet.connect();
-
-      if (typeof window.processlogin === 'function') {
-        const el = document.getElementById('userwallet') as HTMLInputElement | null;
-        if (el) el.value = address;
-        window.processlogin();
-        return;
-      }
-
-      const token = data.csrfToken || '';
-      const body = new URLSearchParams();
-      body.set('_token', token);
-      body.set('wallet', address);
-
-      const res = await fetch(apiUrl('/submit-sign-in', data.baseUrl), {
-        method: 'POST',
-        headers: {
-          Accept: 'application/json',
-          'X-CSRF-TOKEN': token,
-          'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-        },
-        credentials: 'same-origin',
-        body,
-      });
-      const json = (await res.json()) as { success?: boolean; error?: string };
-      if (json.success) {
-        window.location.href = apiUrl('/dashboard', data.baseUrl);
-      } else {
-        notifyError(json.error || 'Login failed');
-      }
-    } catch (error) {
-      notifyError(error instanceof Error ? error.message : 'Login failed');
-    } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   };
@@ -164,120 +134,89 @@ export function LoginPage({ data }: LoginPageProps) {
         <div className="mb-7 flex flex-col items-center text-center">
           <Logo href={data.links.home} size="lg" imgClassName="max-w-[200px]" />
           <div className="mt-5 h-px w-16 bg-gradient-to-r from-transparent via-q-cyan/50 to-transparent" />
-          <h1 className="mt-5 text-2xl font-bold text-white">Login your account</h1>
-          <p className="mt-1.5 text-sm text-q-muted">
-            {mode === 'secure'
-              ? 'Email, password, and your registered wallet'
-              : 'Connect the wallet linked to your account'}
-          </p>
+          <h1 className="mt-5 text-2xl font-bold text-white">Login</h1>
         </div>
 
-        <input id="userwallet" name="userwallet" type="hidden" defaultValue={wallet.walletAddress} readOnly />
-
-        <div className="mb-5 grid grid-cols-2 gap-2 rounded-xl border border-white/[0.08] bg-white/[0.03] p-1">
-          <button
-            type="button"
-            onClick={() => setMode('secure')}
-            className={`rounded-lg py-2 text-xs font-semibold transition ${
-              mode === 'secure' ? 'bg-q-cyan/20 text-q-cyan' : 'text-q-muted hover:text-white'
-            }`}
-          >
-            Email Login
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode('legacy')}
-            className={`rounded-lg py-2 text-xs font-semibold transition ${
-              mode === 'legacy' ? 'bg-q-cyan/20 text-q-cyan' : 'text-q-muted hover:text-white'
-            }`}
-          >
-            Wallet Login
-          </button>
-        </div>
-
-        {mode === 'secure' ? (
-          <div className="space-y-4">
-            <label className="block">
-              <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.16em] text-q-cyan">
-                Email
-              </span>
-              <div className="relative">
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@wallet.io"
-                  autoComplete="username"
-                  className="w-full rounded-xl border border-white/[0.09] bg-[#0a0d16] px-4 py-3.5 pr-10 text-sm text-white outline-none transition focus:border-q-cyan/50"
-                />
-                <Mail className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-q-muted" />
-              </div>
-            </label>
-
-            <label className="block">
-              <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.16em] text-q-cyan">
-                Password
-              </span>
-              <div className="relative">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  autoComplete="current-password"
-                  className="w-full rounded-xl border border-white/[0.09] bg-[#0a0d16] px-4 py-3.5 pr-10 text-sm text-white outline-none transition focus:border-q-cyan/50"
-                />
-                <button
-                  type="button"
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-q-muted hover:text-q-cyan"
-                  onClick={() => setShowPassword((v) => !v)}
-                  aria-label="Toggle password"
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
-            </label>
-
-            {wallet.isConnected ? (
-              <div className="rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-xs text-emerald-300">
-                Connected: {wallet.walletAddress}
-              </div>
-            ) : null}
-
-            <button
-              type="button"
-              disabled={submitting || wallet.isConnecting}
-              onClick={() => void handleSecureLogin()}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-q-gradient-br px-5 py-3.5 text-sm font-bold text-[#041018] shadow-btn-glow transition hover:brightness-110 disabled:opacity-60"
-            >
-              <Lock className="h-4 w-4" />
-              {submitting || wallet.isConnecting ? 'Signing in…' : 'Sign In'}
-            </button>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <div className="rounded-2xl border border-q-cyan/20 bg-q-cyan/5 px-4 py-3.5">
-              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-q-cyan">Wallet</p>
-              <p className="mt-1 truncate text-sm text-white">
-                {wallet.isConnected ? wallet.walletAddress : 'Connect your registered wallet'}
-              </p>
+        <div className="space-y-4">
+          <label className="block">
+            <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.16em] text-q-cyan">
+              Email
+            </span>
+            <div className="relative">
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@email.com"
+                autoComplete="username"
+                disabled={submitting}
+                className="w-full rounded-xl border border-white/[0.09] bg-[#0a0d16] px-4 py-3.5 pr-10 text-sm text-white outline-none transition focus:border-q-cyan/50"
+              />
+              <Mail className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-q-muted" />
             </div>
-            <button
+          </label>
+
+          <label className="block">
+            <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.16em] text-q-cyan">
+              Password
+            </span>
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Password"
+                autoComplete="current-password"
+                disabled={submitting}
+                className="w-full rounded-xl border border-white/[0.09] bg-[#0a0d16] px-4 py-3.5 pr-20 text-sm text-white outline-none transition focus:border-q-cyan/50"
+              />
+              <button
+                type="button"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-q-muted hover:text-white"
+                onClick={() => setShowPassword((v) => !v)}
+                aria-label="Toggle password"
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+          </label>
+
+          <div className="rounded-xl border border-white/[0.09] bg-[#0a0d16] px-4 py-3.5">
+            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-q-cyan">Wallet</p>
+            <p className="mt-1 break-all font-mono text-sm text-white">
+              {wallet.isConnected ? obscure(wallet.walletAddress) : 'Not connected'}
+            </p>
+          </div>
+
+          {!wallet.isConnected ? (
+            <GradientButton
               type="button"
+              fullWidth
+              className="!rounded-full !py-3.5 !font-bold !text-[#041018]"
               disabled={submitting || wallet.isConnecting}
-              onClick={() => void handleLegacyWalletLogin()}
-              className="btn-connect inline-flex w-full items-center justify-center gap-2 rounded-full bg-q-gradient-br px-5 py-3.5 text-sm font-bold text-[#041018] shadow-btn-glow transition hover:brightness-110 disabled:opacity-60"
+              onClick={() => void handleConnect()}
             >
               <Wallet className="h-4 w-4" />
-              {submitting || wallet.isConnecting ? 'Connecting…' : wallet.isConnected ? 'Login' : 'Connect Wallet'}
-            </button>
-          </div>
-        )}
+              {wallet.isConnecting ? 'Connecting…' : 'Connect Wallet'}
+            </GradientButton>
+          ) : null}
 
-        <p className="mt-6 flex items-center justify-between gap-3 text-sm text-q-muted">
-          <span>Don&apos;t have an Account?</span>
-          <a href={data.links.signUp} className="font-semibold text-q-cyan transition hover:text-white">
-            Create Account
+          <GradientButton
+            type="button"
+            fullWidth
+            className="!rounded-full !py-3.5 !font-bold !text-[#041018]"
+            disabled={submitting || !wallet.isConnected}
+            onClick={() => void handleLogin()}
+          >
+            <Lock className="h-4 w-4" />
+            {submitting ? 'Signing in…' : 'Login'}
+          </GradientButton>
+        </div>
+
+        <p className="mt-6 text-center text-sm text-q-muted">
+          New here?{' '}
+          <a href={data.links.signUp} className="font-semibold text-q-cyan hover:text-white">
+            Create account
           </a>
         </p>
       </Card>

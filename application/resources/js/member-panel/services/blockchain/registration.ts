@@ -23,15 +23,10 @@ function isAddress(value: string): boolean {
 }
 
 /**
- * Exact BTCPlanCore sequence (verified from BTCPlanCore.sol + testFlow.ts):
- *
- * 1) register(sponsor)            — gas only; requires sponsor.isActive (or address(0))
- * 2) approve(core, tokenAmount)   — REQUIRED; activatePackage uses btcbToken.safeTransferFrom
- * 3) activatePackage(amount)      — new users must use 50 (getNextEligiblePackage)
- *
- * Do NOT reverse this order. activatePackage reverts if the user is not registered.
- * If register already succeeded but Laravel never persisted the user, this resumes
- * from the current on-chain state and recovers prior tx hashes via event logs.
+ * BTCPlanCore sequence:
+ * 1) register(sponsor)
+ * 2) approve(core, tokenAmount) when needed
+ * 3) activatePackage(50) for new members
  */
 export async function registerOnChain(
   signer: JsonRpcSigner,
@@ -43,22 +38,19 @@ export async function registerOnChain(
     const wallet = await signer.getAddress();
     let sponsor = sponsorAddress?.trim() || '0x0000000000000000000000000000000000000000';
     if (!isAddress(sponsor)) {
-      throw new Error(
-        'Sponsor wallet address is required for on-chain registration. Resolve the sponsor id first.',
-      );
+      throw new Error('Sponsor not found.');
     }
     if (sponsor.toLowerCase() === wallet.toLowerCase()) {
-      throw new Error('Cannot sponsor yourself');
+      throw new Error('Cannot sponsor yourself.');
     }
 
-    // Contract rule: new users must start at package 50 cycle 1
     if (packageAmount !== 50) {
-      throw new Error('New members must activate the $50 package first');
+      throw new Error('New members must activate the $50 package first.');
     }
 
     const cfg = await loadBlockchainConfig();
     if (!cfg.core || !cfg.token) {
-      throw new Error('Contract addresses are not configured (CORE_CONTRACT / TOKEN_CONTRACT)');
+      throw new Error('Blockchain is not configured. Please contact support.');
     }
 
     const core = await getCoreContract(signer);
@@ -82,33 +74,25 @@ export async function registerOnChain(
       resumed = true;
       const onChainSponsor = String(onChainUser.sponsor || '').toLowerCase();
       if (onChainSponsor && onChainSponsor !== sponsor.toLowerCase()) {
-        throw new Error(
-          'This wallet is already registered on-chain under a different sponsor.',
-        );
+        throw new Error('This wallet is already registered under a different sponsor.');
       }
 
-      onStatus?.('Wallet already registered on-chain — recovering prior transactions…');
+      onStatus?.('Resuming registration…');
       const prior = await findPriorRegistrationTxs(signer, wallet);
       if (!prior.registerTxHash) {
-        throw new Error(
-          'Wallet is registered on-chain but the registration transaction could not be found. Contact support.',
-        );
+        throw new Error('Registration is incomplete. Please contact support.');
       }
       registerTxHash = prior.registerTxHash;
       if (prior.sponsor && prior.sponsor !== sponsor.toLowerCase()) {
-        throw new Error('On-chain sponsor does not match the referral wallet.');
+        throw new Error('Sponsor does not match on-chain registration.');
       }
 
       if (alreadyPackaged) {
         if (!prior.packageTxHash) {
-          throw new Error(
-            'Package is already active on-chain but the package transaction could not be found. Contact support.',
-          );
+          throw new Error('Activation is incomplete. Please contact support.');
         }
         if (prior.packageAmount !== null && prior.packageAmount !== packageAmount) {
-          throw new Error(
-            `On-chain package is $${prior.packageAmount}, expected $${packageAmount}.`,
-          );
+          throw new Error('Package amount does not match on-chain activation.');
         }
         packageTxHash = prior.packageTxHash;
         packageCycle = prior.packageCycle ?? Number(onChainUser.packageCycle) ?? 1;
@@ -131,108 +115,73 @@ export async function registerOnChain(
         };
       }
     } else {
-      // ---------- Step 1: register(sponsor) ----------
-      onStatus?.('Step 1/3 — Confirm registration in MetaMask…');
+      onStatus?.('Confirm registration in MetaMask…');
       const registerTx = await core.register(sponsor);
       onStatus?.('Waiting for registration confirmation…');
       const registerReceipt = await registerTx.wait();
       if (!registerReceipt || registerReceipt.status !== 1) {
-        throw new Error('Registration transaction failed on-chain');
+        throw new Error('Registration failed.');
       }
       registerTxHash = String(registerTx.hash);
       blockNumber = Number(registerReceipt.blockNumber ?? 0);
 
       const confirmed = await core.users(wallet);
       if (!confirmed.isActive) {
-        throw new Error('On-chain registration did not activate your wallet');
+        throw new Error('Registration failed.');
       }
     }
 
-    // ---------- Step 2: ERC-20 approve (required for safeTransferFrom) ----------
-    onStatus?.('Calculating package payment amount…');
+    onStatus?.('Preparing package payment…');
     const [expectedPackage, expectedCycle] = await core.getNextEligiblePackage(wallet);
     if (Number(expectedPackage) !== packageAmount) {
-      throw new Error(`Invalid package sequence. Expected $${expectedPackage.toString()}`);
+      throw new Error('Invalid package selection.');
     }
     packageCycle = Number(expectedCycle);
 
     const tokenAmount: bigint = await core.getPackageBTCBAmount(BigInt(packageAmount));
     if (tokenAmount <= 0n) {
-      throw new Error('Invalid BTCB package amount from price feed');
+      throw new Error('Unable to calculate package payment.');
     }
     tokenAmountStr = tokenAmount.toString();
 
     const balance: bigint = await token.balanceOf(wallet);
     if (balance < tokenAmount) {
-      const symbol = await token.symbol().catch(() => 'BTCB');
       const decimals = Number(await token.decimals().catch(() => 18));
       throw new Error(
-        `Insufficient ${symbol} balance. Need ${formatUnits(tokenAmount, decimals)}, have ${formatUnits(balance, decimals)}. ` +
-          `Token=${cfg.token}. If bootstrap funded this wallet, confirm MetaMask TOKEN / network matches Laravel TOKEN_CONTRACT.`,
+        `Insufficient package balance. Need ${formatUnits(tokenAmount, decimals)} BTCB.`,
       );
     }
 
     const allowance: bigint = await token.allowance(wallet, cfg.core);
     if (allowance < tokenAmount) {
-      onStatus?.(
-        resumed
-          ? 'Approve BTCB spending for Quantara Core in MetaMask…'
-          : 'Step 2/3 — Approve BTCB spending for Quantara Core in MetaMask…',
-      );
-      // approve(address,uint256) → 0x095ea7b3 on MockBTCB — NOT on BTCPlanCore
-      console.info('[registration] approve', {
-        functionName: 'approve',
-        selector: '0x095ea7b3',
-        token: cfg.token,
-        spender: cfg.core,
-        amount: tokenAmount.toString(),
-      });
+      onStatus?.('Confirm approval in MetaMask…');
       const approveTx = await token.approve(cfg.core, tokenAmount);
       onStatus?.('Waiting for approval confirmation…');
       const approveReceipt = await approveTx.wait();
       if (!approveReceipt || approveReceipt.status !== 1) {
-        throw new Error('Token approval failed on-chain');
+        throw new Error('Approval cancelled.');
       }
       approveTxHash = String(approveTx.hash);
 
       const refreshed = await token.allowance(wallet, cfg.core);
       if (refreshed < tokenAmount) {
-        throw new Error('Allowance still insufficient after approval');
+        throw new Error('Approval failed.');
       }
-    } else {
-      onStatus?.(
-        resumed
-          ? 'Existing BTCB allowance is sufficient…'
-          : 'Step 2/3 — Existing BTCB allowance is sufficient…',
-      );
     }
 
-    // ---------- Step 3: activatePackage(amount) ----------
-    onStatus?.(
-      resumed
-        ? 'Confirm package payment in MetaMask…'
-        : 'Step 3/3 — Confirm package payment in MetaMask…',
-    );
-    // activatePackage(uint256) → 0x8fc01623 on BTCPlanCore (pulls via safeTransferFrom)
-    console.info('[registration] activatePackage', {
-      functionName: 'activatePackage',
-      selector: '0x8fc01623',
-      core: cfg.core,
-      amount: packageAmount,
-      tokenForPull: cfg.token,
-    });
+    onStatus?.('Confirm package activation in MetaMask…');
     const packageTx = await core.activatePackage(BigInt(packageAmount));
-    onStatus?.('Waiting for package activation confirmation…');
+    onStatus?.('Waiting for activation confirmation…');
     const packageReceipt = await packageTx.wait();
     if (!packageReceipt || packageReceipt.status !== 1) {
-      throw new Error('Package activation failed on-chain');
+      throw new Error('Activation failed.');
     }
     packageTxHash = String(packageTx.hash);
     blockNumber = Number(packageReceipt.blockNumber ?? blockNumber);
 
     const activated = await core.users(wallet);
     if (Number(activated.packageAmount) !== packageAmount) {
-      throw new Error('On-chain package amount did not update after activation');
+      throw new Error('Activation failed.');
     }
 
     return {
@@ -257,6 +206,7 @@ export async function completeRegistrationWithLaravel(payload: {
   csrfToken: string;
   firstname: string;
   lastname: string;
+  username: string;
   email: string;
   password: string;
   wallet: string;
@@ -268,7 +218,6 @@ export async function completeRegistrationWithLaravel(payload: {
   token_amount?: string;
   leg?: string;
 }) {
-  // POST /api/auth/register uses api.session (no CSRF). Auth proof = verified txs.
   const res = await fetch(apiUrl('/api/auth/register', payload.baseUrl), {
     method: 'POST',
     headers: {
@@ -280,6 +229,7 @@ export async function completeRegistrationWithLaravel(payload: {
     body: JSON.stringify({
       firstname: payload.firstname,
       lastname: payload.lastname,
+      username: payload.username,
       email: payload.email,
       password: payload.password,
       wallet: payload.wallet,
@@ -294,9 +244,7 @@ export async function completeRegistrationWithLaravel(payload: {
   });
 
   if (res.status === 419) {
-    throw new Error(
-      'Registration session expired (HTTP 419). Refresh the page and submit again — on-chain txs are already confirmed.',
-    );
+    throw new Error('Session expired. Please refresh and try again.');
   }
 
   let json: {
@@ -311,11 +259,11 @@ export async function completeRegistrationWithLaravel(payload: {
   try {
     json = await res.json();
   } catch {
-    throw new Error('Registration server returned an invalid response');
+    throw new Error('Registration failed. Please try again.');
   }
 
   if (!res.ok || !json.success) {
-    throw new Error(json.error || `Registration failed (HTTP ${res.status})`);
+    throw new Error(json.error || 'Registration failed. Please try again.');
   }
 
   if (json.token) {

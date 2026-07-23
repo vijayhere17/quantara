@@ -11,6 +11,7 @@ declare global {
     processlogin?: () => void;
     processregister?: () => void;
     erroralert?: (message: string) => void;
+    successalert?: (message: string) => void;
   }
 }
 
@@ -146,9 +147,19 @@ export async function connectQuantaraWallet(): Promise<string> {
 }
 
 export function notifyError(message: string) {
+  const text = String(message || 'Something went wrong.').trim();
   if (typeof window.erroralert === 'function') {
-    window.erroralert(message);
+    window.erroralert(text);
   } else {
-    window.alert(message);
+    window.alert(text);
+  }
+}
+
+export function notifySuccess(message: string) {
+  const text = String(message || 'Success.').trim();
+  if (typeof window.successalert === 'function') {
+    window.successalert(text);
+  } else {
+    window.alert(text);
   }
 }
