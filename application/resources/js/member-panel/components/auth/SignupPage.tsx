@@ -17,6 +17,7 @@ import { Logo } from '../ui/Logo';
 import { RegistrationSuccessPage } from './RegistrationSuccessPage';
 import { InstallWalletModal } from './InstallWalletModal';
 import { useWallet } from '../../hooks/useWallet';
+import { apiUrl } from '../../lib/apiBase';
 import { notifyError } from '../../lib/walletConnect';
 import {
   completeRegistrationWithLaravel,
@@ -83,7 +84,7 @@ export function SignupPage({ data }: SignupPageProps) {
       body.set('_token', data.csrfToken);
       body.set('sponsor_id', sponsorId.trim());
 
-      void fetch(`${data.baseUrl.replace(/\/$/, '')}/check-sponsor-id`, {
+      void fetch(apiUrl('/check-sponsor-id', data.baseUrl), {
         method: 'POST',
         headers: {
           Accept: 'application/json',
@@ -192,7 +193,7 @@ export function SignupPage({ data }: SignupPageProps) {
 
       // Auto-open dashboard with synchronized session
       window.setTimeout(() => {
-        window.location.href = laravel.redirect || `${data.baseUrl.replace(/\/$/, '')}/dashboard`;
+        window.location.href = laravel.redirect || apiUrl('/dashboard', data.baseUrl);
       }, 1200);
     } catch (error) {
       console.error(error);

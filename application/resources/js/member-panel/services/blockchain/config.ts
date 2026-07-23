@@ -1,5 +1,7 @@
 /** Shared chain + contract config for Quantara Web3 auth */
 
+import { apiUrl, getApiBaseUrl } from '../../lib/apiBase';
+
 export const BSC_CHAIN_ID = 56;
 export const LOCAL_CHAIN_ID = 31337;
 
@@ -30,26 +32,71 @@ const FALLBACK_BSC: BlockchainPublicConfig = {
 };
 
 let cachedConfig: BlockchainPublicConfig | null = null;
+let lastConfigError: string | null = null;
 
-export async function loadBlockchainConfig(baseUrl = ''): Promise<BlockchainPublicConfig> {
-  if (cachedConfig) return cachedConfig;
+export function getLastBlockchainConfigError(): string | null {
+  return lastConfigError;
+}
+
+export function clearBlockchainConfigCache(): void {
+  cachedConfig = null;
+  lastConfigError = null;
+}
+
+/**
+ * Load public blockchain config from Laravel.
+ * Always uses the application base URL from boot / #basePath / VITE_APP_URL
+ * so subdirectory installs (e.g. APP_URL=http://localhost/btc) resolve correctly.
+ */
+export async function loadBlockchainConfig(baseUrl?: string): Promise<BlockchainPublicConfig> {
+  if (cachedConfig?.core) return cachedConfig;
+
+  const resolvedBase = getApiBaseUrl(baseUrl);
+  const endpoint = apiUrl('/api/blockchain/config', resolvedBase);
 
   try {
-    const res = await fetch(`${baseUrl.replace(/\/$/, '')}/api/blockchain/config`, {
+    const res = await fetch(endpoint, {
       headers: { Accept: 'application/json' },
+      credentials: 'same-origin',
     });
+
+    if (!res.ok) {
+      lastConfigError = `Failed to load blockchain config from ${endpoint} (HTTP ${res.status})`;
+      throw new Error(lastConfigError);
+    }
+
     const json = (await res.json()) as { success?: boolean; data?: BlockchainPublicConfig };
-    if (json?.data?.core) {
+    if (json?.data?.core && json?.data?.token) {
       cachedConfig = json.data;
+      lastConfigError = null;
       return cachedConfig;
     }
-  } catch {
-    // fall through
+
+    lastConfigError =
+      `Blockchain config at ${endpoint} did not include CORE_CONTRACT / TOKEN_CONTRACT. ` +
+      'Check Laravel .env and /api/blockchain/config.';
+  } catch (error) {
+    if (!lastConfigError) {
+      lastConfigError =
+        error instanceof Error
+          ? error.message
+          : `Failed to reach blockchain config at ${endpoint}`;
+    }
   }
 
+  // Local Hardhat fallback only when API is unreachable AND boot signals local chain
   const boot = (window as unknown as { __QUANTARA_BOOT__?: { chainId?: number } }).__QUANTARA_BOOT__;
-  cachedConfig = boot?.chainId === LOCAL_CHAIN_ID ? FALLBACK_LOCAL : FALLBACK_BSC;
-  return cachedConfig;
+  if (boot?.chainId === LOCAL_CHAIN_ID) {
+    cachedConfig = FALLBACK_LOCAL;
+    return cachedConfig;
+  }
+
+  // Do NOT cache empty BSC fallback — allows retry after boot/baseUrl is available
+  throw new Error(
+    lastConfigError ||
+      `Contract addresses are not configured. Could not load ${endpoint}. ` +
+        'Ensure APP_URL matches the browser path and CORE_CONTRACT / TOKEN_CONTRACT are set.',
+  );
 }
 
 export function getBscNetworkParams(chainId = BSC_CHAIN_ID) {
@@ -71,3 +118,6 @@ export function getBscNetworkParams(chainId = BSC_CHAIN_ID) {
     blockExplorerUrls: ['https://bscscan.com/'],
   };
 }
+
+// Keep FALLBACK_BSC referenced for potential test/mock use without caching it blindly
+export { FALLBACK_BSC };
