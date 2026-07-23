@@ -16,6 +16,7 @@ import { Input } from '../ui/Input';
 import { Logo } from '../ui/Logo';
 import { RegistrationSuccessPage } from './RegistrationSuccessPage';
 import { InstallWalletModal } from './InstallWalletModal';
+import { DemoFaucetButton } from './DemoFaucetButton';
 import { useWallet } from '../../hooks/useWallet';
 import { apiUrl } from '../../lib/apiBase';
 import { notifyError } from '../../lib/walletConnect';
@@ -446,6 +447,8 @@ export function SignupPage({ data }: SignupPageProps) {
                 <span className="max-w-[60%] truncate font-semibold text-white">{wallet.walletAddress || '—'}</span>
               </div>
             </div>
+
+            <DemoFaucetButton walletAddress={wallet.walletAddress} />
 
             <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 py-3 text-sm text-q-soft">
               <input

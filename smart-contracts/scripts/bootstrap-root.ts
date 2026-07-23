@@ -1,42 +1,38 @@
 import hre from "hardhat";
 import fs from "fs";
 import path from "path";
+import {
+  DEMO_BTCB_AMOUNT,
+  DEMO_ACCOUNT_INDEXES,
+  fundDemoAccounts,
+  printAccountBalances,
+} from "./lib/fundDemoAccounts";
 
 /**
- * Bootstrap the genesis/root on-chain user for an already-deployed BTCPlanCore.
+ * Bootstrap the genesis/root on-chain user for an already-deployed BTCPlanCore,
+ * then fund Hardhat demo accounts #1–#3 with MockBTCB.
  *
- * Contract rule (BTCPlanCore.register):
- * - address(0) is the only allowed sponsor for the first user
- * - every later sponsor must have users[sponsor].isActive == true
- *
- * Constructor / deploy wiring alone do NOT register anyone in `users`.
- * This script performs the missing step:
- *   core.register(address(0))  // as the deployer / owner wallet
- *
- * Usage (against a running Hardhat node):
- *   CORE_CONTRACT=0x... npx hardhat run scripts/bootstrap-root.ts --network localhost
- *
- * Or with addresses from deployed-addresses.json:
- *   npx hardhat run scripts/bootstrap-root.ts --network localhost
+ *   npm run bootstrap:root
  */
 async function main() {
   const { ethers } = await hre.network.connect();
-  const [deployer] = await ethers.getSigners();
+  const signers = await ethers.getSigners();
+  const deployer = signers[0];
 
   const addressesPath = path.resolve("deployed-addresses.json");
   let coreAddress = (process.env.CORE_CONTRACT || "").trim();
+  let tokenAddress = (process.env.TOKEN_CONTRACT || "").trim();
 
-  if (!coreAddress && fs.existsSync(addressesPath)) {
-    const json = JSON.parse(fs.readFileSync(addressesPath, "utf8")) as {
-      BTCPlanCore?: string;
-      RootUser?: string;
-    };
-    coreAddress = json.BTCPlanCore || "";
+  let json: Record<string, string> = {};
+  if (fs.existsSync(addressesPath)) {
+    json = JSON.parse(fs.readFileSync(addressesPath, "utf8")) as Record<string, string>;
+    if (!coreAddress) coreAddress = json.BTCPlanCore || "";
+    if (!tokenAddress) tokenAddress = json.MockBTCB || "";
   }
 
   if (!coreAddress || !ethers.isAddress(coreAddress)) {
     throw new Error(
-      "CORE_CONTRACT is missing. Set CORE_CONTRACT in the environment or ensure deployed-addresses.json exists.",
+      "CORE_CONTRACT is missing. Set CORE_CONTRACT or ensure deployed-addresses.json exists.",
     );
   }
 
@@ -53,7 +49,7 @@ async function main() {
   if (deployer.address.toLowerCase() !== owner.toLowerCase()) {
     console.warn(
       "WARNING: signer is not core.owner(). register() uses msg.sender — " +
-        "the wallet that calls this becomes the root user, not necessarily the Solidity owner.",
+        "the wallet that calls this becomes the root user.",
     );
   }
 
@@ -63,40 +59,59 @@ async function main() {
     console.log("  wallet :", before.wallet);
     console.log("  sponsor:", before.sponsor);
     console.log("  package:", before.packageAmount.toString());
-    return;
+  } else {
+    console.log("Calling register(address(0)) as genesis/root...");
+    const tx = await core.register(ethers.ZeroAddress);
+    const receipt = await tx.wait();
+    console.log("Tx hash:", receipt?.hash || tx.hash);
+
+    const after = await core.users(deployer.address);
+    if (!after.isActive) {
+      throw new Error("Bootstrap failed — users[signer].isActive is still false");
+    }
   }
 
-  console.log("Calling register(address(0)) as genesis/root...");
-  const tx = await core.register(ethers.ZeroAddress);
-  const receipt = await tx.wait();
-  console.log("Tx hash:", receipt?.hash || tx.hash);
-
-  const after = await core.users(deployer.address);
-  if (!after.isActive) {
-    throw new Error("Bootstrap failed — users[signer].isActive is still false");
-  }
-
-  // Persist root wallet into deployed-addresses.json when present
-  if (fs.existsSync(addressesPath)) {
-    const json = JSON.parse(fs.readFileSync(addressesPath, "utf8")) as Record<
-      string,
-      string
-    >;
-    json.RootUser = deployer.address;
-    json.BTCPlanCore = coreAddress;
-    fs.writeFileSync(addressesPath, JSON.stringify(json, null, 2));
-  }
+  json.RootUser = deployer.address;
+  json.BTCPlanCore = coreAddress;
+  if (tokenAddress) json.MockBTCB = tokenAddress;
+  fs.writeFileSync(addressesPath, JSON.stringify(json, null, 2));
 
   console.log("=======================================");
   console.log("Root bootstrap complete");
   console.log("=======================================");
-  console.log("Root wallet (use as Laravel sponsor):", deployer.address);
-  console.log("users[root].isActive:", after.isActive);
-  console.log("users[root].sponsor :", after.sponsor);
-  console.log("");
-  console.log("Next: ensure your Laravel sponsor/admin user.username or");
-  console.log("wallet_addr equals this root wallet, then new members can");
-  console.log("register under that sponsor id.");
+  console.log("Root wallet (Laravel sponsor):", deployer.address);
+
+  // ---------- Demo faucet for Hardhat accounts #1–#3 ----------
+  if (!tokenAddress || !ethers.isAddress(tokenAddress)) {
+    console.warn(
+      "TOKEN_CONTRACT / MockBTCB missing — skip demo funding. Set TOKEN_CONTRACT or run bootstrap:demo.",
+    );
+    return;
+  }
+
+  const token = await ethers.getContractAt("MockBTCB", tokenAddress);
+  console.log(
+    `\n→ Funding Hardhat accounts #1–#3 with ${DEMO_BTCB_AMOUNT} MockBTCB...`,
+  );
+  const funded = await fundDemoAccounts({
+    ethers,
+    token,
+    deployer,
+    signers,
+  });
+  for (const row of funded) {
+    console.log(
+      `  Account #${row.index} ${row.address} ← ${row.method} (balance ${row.balance} BTCB)`,
+    );
+  }
+
+  console.log("\nBalances:");
+  await printAccountBalances({
+    ethers,
+    token,
+    signers,
+    indexes: [0, ...DEMO_ACCOUNT_INDEXES],
+  });
 }
 
 main().catch((err) => {
