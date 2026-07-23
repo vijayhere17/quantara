@@ -676,8 +676,13 @@ async function main() {
     // No pause() in any Quantara contract — report explicitly
     row("Paused Status", "N/A (no pause() in source)", c.dim);
 
-      try {
-      if (token && name !== "MockBTCPriceFeed" && name !== "ChainlinkBTCPriceFeed" && name !== "PriceFeed") {
+    try {
+      if (
+        token &&
+        name !== "MockBTCPriceFeed" &&
+        name !== "ChainlinkBTCPriceFeed" &&
+        name !== "PriceFeed"
+      ) {
         const bal = await token.balanceOf(await ctr.getAddress());
         const sym = await token.symbol().catch(() => "TOKEN");
         row("Token Balance", `${fmtUnits(bal)} ${sym}`);
