@@ -101,6 +101,10 @@ export async function assertSponsorActiveOnChain(core: Contract, sponsor: string
   }
   const row = await core.users(sponsor);
   if (!row.isActive) {
-    throw new Error('Sponsor is not registered on-chain yet');
+    throw new Error(
+      'Sponsor is not registered on-chain yet. The genesis/root wallet must call ' +
+        'BTCPlanCore.register(address(0)) after deploy (see npm run bootstrap:root). ' +
+        'Then use that root wallet as the Laravel sponsor.',
+    );
   }
 }
