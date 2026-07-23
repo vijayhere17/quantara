@@ -1,9 +1,19 @@
-import { useEffect, useRef, useState } from 'react';
-import { Wallet } from 'lucide-react';
+import {
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Package,
+  UserRound,
+  Users,
+  Wallet,
+} from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { PackageCard } from '../investments/PackageCard';
 import { Card } from '../ui/Card';
 import { GradientButton } from '../ui/GradientButton';
 import { Input } from '../ui/Input';
 import { Logo } from '../ui/Logo';
+import { RegistrationSuccessPage } from './RegistrationSuccessPage';
 import { InstallWalletModal } from './InstallWalletModal';
 import { useWallet } from '../../hooks/useWallet';
 import { apiUrl } from '../../lib/apiBase';
@@ -13,40 +23,49 @@ import {
   registerOnChain,
 } from '../../services/blockchain/registration';
 import { createBrowserProvider } from '../../services/blockchain/wallet';
-import type { AuthBoot } from '../../types';
+import type { AuthBoot, RegistrationSuccessPayload } from '../../types';
 
 type SignupPageProps = {
   data: AuthBoot;
 };
 
-const STARTER_PACKAGE = 50;
+const STEPS = [
+  { id: 'referral', label: 'Referral' },
+  { id: 'info', label: 'Info' },
+  { id: 'package', label: 'Package' },
+  { id: 'wallet', label: 'Wallet' },
+  { id: 'payment', label: 'Payment' },
+] as const;
 
-function obscure(address: string) {
-  if (!address || address.length < 12) return address || '—';
-  return `${address.slice(0, 6)}…${address.slice(-4)}`;
-}
+type StepId = (typeof STEPS)[number]['id'];
 
 /**
- * Production signup — single form, one Register click.
- * On-chain: register → approve → activatePackage($50) → Laravel verify → session login.
+ * Real Web3 registration:
+ * form → connect wallet → BTCPlanCore.register(sponsor)
+ * → approve + activatePackage(amount) → Laravel verifies txs → create user → login
  */
 export function SignupPage({ data }: SignupPageProps) {
+  const packages = data.packages ?? [];
+  const unlockedAmount = packages.find((p) => !p.locked)?.amount ?? 50;
   const wallet = useWallet();
-  const submittingRef = useRef(false);
 
+  const [step, setStep] = useState<StepId>('referral');
   const [sponsorId, setSponsorId] = useState(data.referralCode ?? '');
   const [sponsorName, setSponsorName] = useState('');
   const [sponsorWallet, setSponsorWallet] = useState('');
-  const [sponsorError, setSponsorError] = useState('');
-  const [fullName, setFullName] = useState('');
-  const [username, setUsername] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [packageAmount] = useState(STARTER_PACKAGE);
+  const [terms, setTerms] = useState(false);
+  const [selectedAmount, setSelectedAmount] = useState(unlockedAmount);
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
   const [showInstall, setShowInstall] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [successPayload, setSuccessPayload] = useState<RegistrationSuccessPayload | null>(null);
+
+  const stepIndex = STEPS.findIndex((s) => s.id === step);
 
   useEffect(() => {
     if (data.referralCode) setSponsorId(data.referralCode);
@@ -56,7 +75,6 @@ export function SignupPage({ data }: SignupPageProps) {
     if (!sponsorId.trim()) {
       setSponsorName('');
       setSponsorWallet('');
-      setSponsorError('');
       return;
     }
 
@@ -85,89 +103,71 @@ export function SignupPage({ data }: SignupPageProps) {
           if (json.success && json.wallet) {
             setSponsorName(json.name || 'Verified');
             setSponsorWallet(json.wallet);
-            setSponsorError('');
           } else {
             setSponsorName('');
             setSponsorWallet('');
-            setSponsorError('Sponsor not found.');
           }
         })
         .catch(() => {
           setSponsorName('');
           setSponsorWallet('');
-          setSponsorError('Sponsor not found.');
         });
-    }, 400);
+    }, 450);
 
     return () => window.clearTimeout(timer);
   }, [sponsorId, data.baseUrl, data.csrfToken]);
 
-  const handleConnect = async () => {
-    if (!wallet.walletInstalled) {
-      setShowInstall(true);
-      return;
-    }
-    try {
-      await wallet.connect();
-    } catch (error) {
-      notifyError(error instanceof Error ? error.message : 'Wallet connection failed.');
-    }
-  };
+  const selectedPackage = useMemo(
+    () => packages.find((p) => p.amount === selectedAmount) ?? packages[0],
+    [packages, selectedAmount],
+  );
 
-  const validate = (): string | null => {
-    if (!sponsorId.trim()) return 'Please enter a sponsor.';
-    if (!sponsorWallet) return 'Sponsor not found.';
-    if (!fullName.trim()) return 'Please enter your full name.';
-    if (!username.trim()) return 'Please enter a username.';
-    if (!/^[a-zA-Z0-9_]{3,32}$/.test(username.trim())) {
-      return 'Username must be 3–32 letters, numbers, or underscores.';
-    }
-    if (!email.trim()) return 'Please enter your email.';
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return 'Please enter a valid email.';
-    if (password.length < 6) return 'Password must be at least 6 characters.';
-    if (password !== confirmPassword) return 'Passwords do not match.';
-    if (!wallet.isConnected || !wallet.walletAddress) return 'Please connect your wallet.';
-    return null;
-  };
+  const goNext = () => setStep(STEPS[Math.min(stepIndex + 1, STEPS.length - 1)].id);
+  const goBack = () => setStep(STEPS[Math.max(stepIndex - 1, 0)].id);
 
   const handleRegister = async () => {
-    if (busy || submittingRef.current) return;
-
-    const validationError = validate();
-    if (validationError) {
-      notifyError(validationError);
+    if (busy) return;
+    if (!terms) {
+      notifyError('Please accept Quantara terms of services.');
       return;
     }
-
+    if (!sponsorId.trim()) {
+      notifyError('Please enter a sponsor id.');
+      return;
+    }
+    if (!sponsorWallet || !/^0x[a-fA-F0-9]{40}$/.test(sponsorWallet)) {
+      notifyError('Sponsor must be verified before on-chain registration.');
+      return;
+    }
+    if (!email.trim() || password.length < 6) {
+      notifyError('Email and password (min 6 chars) are required.');
+      return;
+    }
     if (!wallet.walletInstalled) {
       setShowInstall(true);
       return;
     }
 
-    submittingRef.current = true;
     setBusy(true);
     setStatus('Connecting wallet…');
-
     try {
       const session = await createBrowserProvider();
-      const nameParts = fullName.trim().split(/\s+/);
-      const firstname = nameParts[0] || '';
-      const lastname = nameParts.slice(1).join(' ') || '';
 
+      // Contract requires register(sponsor address) — never pass the referral username raw
+      setStatus('Submitting on-chain registration…');
       const onChain = await registerOnChain(
         session.signer,
         sponsorWallet,
-        packageAmount,
+        selectedAmount,
         setStatus,
       );
 
-      setStatus('Creating your account…');
+      setStatus('Verifying blockchain transactions with Quantara…');
       const laravel = await completeRegistrationWithLaravel({
         baseUrl: data.baseUrl,
         csrfToken: data.csrfToken,
-        firstname,
-        lastname,
-        username: username.trim(),
+        firstname: firstName,
+        lastname: lastName,
         email: email.trim(),
         password,
         wallet: onChain.wallet,
@@ -179,10 +179,24 @@ export function SignupPage({ data }: SignupPageProps) {
         token_amount: onChain.tokenAmount,
       });
 
-      notifySuccess('Registration successful.');
-      window.location.href = laravel.redirect || apiUrl('/dashboard', data.baseUrl);
+      setSuccessPayload({
+        memberId: String(laravel.user?.username || onChain.wallet),
+        walletAddress: onChain.wallet,
+        sponsorId: sponsorId.trim(),
+        packageLabel: selectedPackage?.label || `$${selectedAmount}`,
+        transactionHash: onChain.registerTxHash,
+        registrationDate: new Date().toLocaleString(),
+        network: 'BNB Smart Chain',
+      });
+      setSuccess(true);
+
+      // Auto-open dashboard with synchronized session
+      window.setTimeout(() => {
+        window.location.href = laravel.redirect || apiUrl('/dashboard', data.baseUrl);
+      }, 1200);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Registration failed.';
+      console.error(error);
+      const message = error instanceof Error ? error.message : 'Registration failed';
       if (
         message.toLowerCase().includes('metamask is not installed') ||
         message.includes('WALLET_NOT_INSTALLED')
@@ -193,10 +207,13 @@ export function SignupPage({ data }: SignupPageProps) {
       }
       setStatus('');
     } finally {
-      submittingRef.current = false;
       setBusy(false);
     }
   };
+
+  if (success) {
+    return <RegistrationSuccessPage data={data} details={successPayload} />;
+  }
 
   return (
     <>
@@ -204,134 +221,254 @@ export function SignupPage({ data }: SignupPageProps) {
 
       <Card
         hover={false}
-        className="mx-auto w-full max-w-[460px] border-q-cyan/25 p-6 shadow-[0_0_0_1px_rgba(0,217,255,0.10),0_0_48px_rgba(124,58,237,0.12)] sm:p-8"
+        className="mx-auto w-full max-w-[760px] border-q-cyan/25 p-5 shadow-[0_0_0_1px_rgba(0,217,255,0.10),0_0_48px_rgba(124,58,237,0.12)] sm:p-8"
       >
-        <div className="mb-7 flex flex-col items-center text-center">
+        <div className="mb-6 flex flex-col items-center text-center">
           <Logo href={data.links.home} size="lg" imgClassName="max-w-[200px]" />
-          <div className="mt-5 h-px w-16 bg-gradient-to-r from-transparent via-q-cyan/50 to-transparent" />
-          <h1 className="mt-5 text-2xl font-bold text-white">Create account</h1>
+          <h1 className="mt-5 text-2xl font-bold text-white">Create your account</h1>
         </div>
 
-        <div className="space-y-4">
-          <Input
-            label="Sponsor"
-            name="sponsor_id"
-            value={sponsorId}
-            onChange={(e) => setSponsorId(e.target.value)}
-            placeholder="Sponsor ID or wallet"
-            autoComplete="off"
-            disabled={busy}
-          />
-          {sponsorName && sponsorWallet ? (
-            <p className="text-xs text-emerald-400">Sponsor verified · {sponsorName}</p>
-          ) : null}
-          {sponsorError && sponsorId.trim() ? (
-            <p className="text-xs text-rose-400">{sponsorError}</p>
-          ) : null}
+        <ol className="mb-7 flex flex-wrap items-center justify-center gap-2 sm:gap-3">
+          {STEPS.map((s, index) => {
+            const active = index === stepIndex;
+            const done = index < stepIndex;
+            return (
+              <li key={s.id} className="flex items-center gap-2">
+                <span
+                  className={[
+                    'inline-flex h-8 min-w-8 items-center justify-center rounded-full border px-2 text-xs font-bold transition',
+                    active
+                      ? 'border-q-cyan/50 bg-q-cyan/15 text-q-cyan'
+                      : done
+                        ? 'border-emerald-400/40 bg-emerald-400/15 text-emerald-300'
+                        : 'border-white/10 bg-white/[0.03] text-q-muted',
+                  ].join(' ')}
+                >
+                  {done ? <Check className="h-3.5 w-3.5" /> : index + 1}
+                </span>
+                <span className={`hidden text-xs font-semibold sm:inline ${active ? 'text-white' : 'text-q-muted'}`}>
+                  {s.label}
+                </span>
+                {index < STEPS.length - 1 ? (
+                  <ChevronRight className="hidden h-3.5 w-3.5 text-q-muted/50 sm:inline" />
+                ) : null}
+              </li>
+            );
+          })}
+        </ol>
 
-          <Input
-            label="Full Name"
-            name="full_name"
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-            placeholder="Your full name"
-            autoComplete="name"
-            disabled={busy}
-          />
-
-          <Input
-            label="Username"
-            name="username"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            placeholder="Choose a username"
-            autoComplete="username"
-            disabled={busy}
-          />
-
-          <Input
-            label="Email"
-            name="email"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@email.com"
-            autoComplete="email"
-            disabled={busy}
-          />
-
-          <Input
-            label="Password"
-            name="password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Min 6 characters"
-            autoComplete="new-password"
-            disabled={busy}
-          />
-
-          <Input
-            label="Confirm Password"
-            name="password_confirmation"
-            type="password"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            placeholder="Confirm password"
-            autoComplete="new-password"
-            disabled={busy}
-          />
-
-          <label className="block w-full">
-            <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.16em] text-q-cyan">
-              Package
-            </span>
-            <div className="rounded-xl border border-q-cyan/40 bg-q-cyan/10 px-4 py-3.5 text-sm font-semibold text-white">
-              ${packageAmount} Starter
+        {step === 'referral' ? (
+          <section className="space-y-5 animate-fade-in">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-q-cyan/15 text-q-cyan">
+                <Users className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-white">Referral ID</h2>
+                <p className="text-sm text-q-muted">Enter your sponsor ID.</p>
+              </div>
             </div>
-          </label>
-
-          <div className="rounded-xl border border-white/[0.09] bg-[#0a0d16] px-4 py-3.5">
-            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-q-cyan">Wallet</p>
-            <p className="mt-1 break-all font-mono text-sm text-white">
-              {wallet.isConnected ? obscure(wallet.walletAddress) : 'Not connected'}
-            </p>
-          </div>
-
-          {!wallet.isConnected ? (
+            <Input
+              label="Sponsor / Referral ID"
+              name="sponsor_display"
+              value={sponsorId}
+              onChange={(e) => setSponsorId(e.target.value)}
+              placeholder="Sponsor wallet address"
+            />
+            {sponsorName && sponsorWallet ? (
+              <p className="rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-300">
+                Sponsor verified: <span className="font-semibold">{sponsorName}</span>
+                <span className="mt-1 block font-mono text-[11px] text-emerald-200/70">{sponsorWallet}</span>
+              </p>
+            ) : null}
             <GradientButton
               type="button"
               fullWidth
               className="!rounded-full !py-3.5 !font-bold !text-[#041018]"
-              disabled={busy || wallet.isConnecting}
-              onClick={() => void handleConnect()}
+              disabled={!sponsorId.trim() || !sponsorName || !sponsorWallet}
+              onClick={goNext}
             >
-              <Wallet className="h-4 w-4" />
-              {wallet.isConnecting ? 'Connecting…' : 'Connect Wallet'}
+              Continue
+              <ChevronRight className="h-4 w-4" />
             </GradientButton>
-          ) : null}
+          </section>
+        ) : null}
 
-          {status ? (
-            <p className="rounded-xl border border-q-cyan/20 bg-q-cyan/10 px-4 py-3 text-center text-sm text-q-cyan">
-              {status}
-            </p>
-          ) : null}
+        {step === 'info' ? (
+          <section className="space-y-5 animate-fade-in">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-q-cyan/15 text-q-cyan">
+                <UserRound className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-white">User Information</h2>
+                <p className="text-sm text-q-muted">Used for login after registration.</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Input label="First Name" name="firstname" value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="First name" />
+              <Input label="Last Name" name="lastname" value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Last name" />
+            </div>
+            <Input label="Email" name="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@wallet.io" />
+            <Input label="Password" name="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Min 6 characters" />
+            <GradientButton
+              type="button"
+              fullWidth
+              className="!rounded-full !py-3.5 !font-bold !text-[#041018]"
+              disabled={!email.trim() || password.length < 6}
+              onClick={goNext}
+            >
+              Continue
+              <ChevronRight className="h-4 w-4" />
+            </GradientButton>
+            <button type="button" onClick={goBack} className="inline-flex w-full items-center justify-center gap-1 text-sm text-q-muted hover:text-white">
+              <ChevronLeft className="h-4 w-4" /> Back
+            </button>
+          </section>
+        ) : null}
 
-          <GradientButton
-            type="button"
-            fullWidth
-            className="!rounded-full !py-3.5 !font-bold !text-[#041018]"
-            disabled={busy || !wallet.isConnected}
-            onClick={() => void handleRegister()}
-          >
-            {busy ? 'Registering…' : 'Register'}
-          </GradientButton>
-        </div>
+        {step === 'package' ? (
+          <section className="space-y-5 animate-fade-in">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-q-cyan/15 text-q-cyan">
+                <Package className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-white">Choose Package</h2>
+                <p className="text-sm text-q-muted">Starter package for new members.</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {packages.map((pkg) => (
+                <PackageCard
+                  key={pkg.amount}
+                  pkg={pkg}
+                  selected={selectedAmount === pkg.amount && !pkg.locked}
+                  onSelect={() => {
+                    if (!pkg.locked) setSelectedAmount(pkg.amount);
+                  }}
+                />
+              ))}
+            </div>
+            <GradientButton type="button" fullWidth className="!rounded-full !py-3.5 !font-bold !text-[#041018]" onClick={goNext}>
+              Continue with {selectedPackage?.label || '$50'}
+              <ChevronRight className="h-4 w-4" />
+            </GradientButton>
+            <button type="button" onClick={goBack} className="inline-flex w-full items-center justify-center gap-1 text-sm text-q-muted hover:text-white">
+              <ChevronLeft className="h-4 w-4" /> Back
+            </button>
+          </section>
+        ) : null}
+
+        {step === 'wallet' ? (
+          <section className="space-y-5 animate-fade-in">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-q-cyan/15 text-q-cyan">
+                <Wallet className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-white">Wallet Connect</h2>
+                <p className="text-sm text-q-muted">Connect MetaMask to continue.</p>
+              </div>
+            </div>
+            <div className="rounded-2xl border border-q-cyan/20 bg-q-cyan/5 px-4 py-4">
+              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-q-cyan">Connected Wallet</p>
+              <p className="mt-1 break-all text-sm text-white">
+                {wallet.walletAddress || 'No wallet connected yet'}
+              </p>
+            </div>
+            {!wallet.isConnected ? (
+              <GradientButton
+                type="button"
+                fullWidth
+                className="!rounded-full !py-3.5 !font-bold !text-[#041018]"
+                disabled={wallet.isConnecting}
+                onClick={() => {
+                  if (!wallet.walletInstalled) {
+                    setShowInstall(true);
+                    return;
+                  }
+                  void wallet.connect().catch((err) => notifyError(err.message));
+                }}
+              >
+                <Wallet className="h-4 w-4" />
+                {wallet.isConnecting ? 'Connecting…' : 'Connect Wallet'}
+              </GradientButton>
+            ) : (
+              <GradientButton type="button" fullWidth className="!rounded-full !py-3.5 !font-bold !text-[#041018]" onClick={goNext}>
+                Continue
+                <ChevronRight className="h-4 w-4" />
+              </GradientButton>
+            )}
+            <button type="button" onClick={goBack} className="inline-flex w-full items-center justify-center gap-1 text-sm text-q-muted hover:text-white">
+              <ChevronLeft className="h-4 w-4" /> Back
+            </button>
+          </section>
+        ) : null}
+
+        {step === 'payment' ? (
+          <section className="space-y-5 animate-fade-in">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-q-cyan/15 text-q-cyan">
+                <Wallet className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-white">Payment & Register</h2>
+                <p className="text-sm text-q-muted">
+                  Confirm each MetaMask prompt to finish registration.
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-white/[0.08] bg-[#0a0d16]/80 px-4 py-3 text-sm">
+              <div className="flex justify-between gap-3 border-b border-white/[0.06] py-2.5">
+                <span className="text-q-muted">Package</span>
+                <span className="font-semibold text-white">{selectedPackage?.label || '$50'}</span>
+              </div>
+              <div className="flex justify-between gap-3 border-b border-white/[0.06] py-2.5">
+                <span className="text-q-muted">Sponsor</span>
+                <span className="max-w-[60%] truncate font-semibold text-white">{sponsorId || '—'}</span>
+              </div>
+              <div className="flex justify-between gap-3 py-2.5">
+                <span className="text-q-muted">Wallet</span>
+                <span className="max-w-[60%] truncate font-semibold text-white">{wallet.walletAddress || '—'}</span>
+              </div>
+            </div>
+
+            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 py-3 text-sm text-q-soft">
+              <input
+                type="checkbox"
+                className="mt-0.5 h-4 w-4 rounded border-white/20 bg-[#0a0d16] text-q-cyan"
+                checked={terms}
+                onChange={(e) => setTerms(e.target.checked)}
+              />
+              <span>I agree to the Terms &amp; Conditions.</span>
+            </label>
+
+            {status ? (
+              <p className="rounded-xl border border-q-cyan/20 bg-q-cyan/10 px-4 py-3 text-sm text-q-cyan">{status}</p>
+            ) : null}
+
+            <GradientButton
+              type="button"
+              fullWidth
+              className="!rounded-full !py-3.5 !font-bold !text-[#041018]"
+              disabled={busy || !terms || !wallet.isConnected}
+              onClick={() => void handleRegister()}
+            >
+              {busy ? 'Processing…' : 'Register'}
+            </GradientButton>
+
+            <button type="button" onClick={goBack} className="inline-flex w-full items-center justify-center gap-1 text-sm text-q-muted hover:text-white">
+              <ChevronLeft className="h-4 w-4" /> Back
+            </button>
+          </section>
+        ) : null}
 
         <p className="mt-6 text-center text-sm text-q-muted">
           Already have an account?{' '}
           <a href={data.links.signIn} className="font-semibold text-q-cyan hover:text-white">
-            Login
+            Sign In
           </a>
         </p>
       </Card>

@@ -33,6 +33,7 @@ export { IncentiveReportPage } from './earnings/IncentiveReportPage';
 export { CreateTicketPage } from './support/CreateTicketPage';
 export { AuroraBackground } from './layout/AuroraBackground';
 export { AuthLayout } from './layout/AuthLayout';
+export { AuthSideSlider } from './layout/AuthSideSlider';
 
 export { Card } from './ui/Card';
 export { Badge } from './ui/Badge';

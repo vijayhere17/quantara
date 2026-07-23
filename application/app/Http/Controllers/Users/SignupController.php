@@ -84,71 +84,17 @@ class SignupController extends Controller
         }
     }
 
+    /**
+     * Legacy signup endpoint — disabled.
+     * Members must complete MetaMask register → approve → activatePackage,
+     * then POST /api/auth/register (AuthController) after on-chain confirmation.
+     * Never create a user here before blockchain verification.
+     */
     public function submitSignup(Request $request){
-        try{
-            $request->validate([
-                // 'firstname' => 'required',
-                // 'lastname' => 'required',
-                'userwallet' => 'required',
-                'sponsor_id' => 'required',
-                'leg' => 'required'
-            ]);
-
-            $data = $request->all();
-            
-            $isapi = $data["isapi"];
-
-            $sponsor = User::where('username','=',$data["sponsor_id"])->first();
-            if($sponsor == null)
-            {
-                return response()->json(array('success'=> false, 'error'=> 'Invalid sponsor id'), 200);
-            }
-
-            $chk_wallet = User::where('username','=',$data["userwallet"])->first();
-            if($chk_wallet != null)
-            {
-                return response()->json(array('success'=> false, 'error'=> 'Wallet address already registered'), 200);
-            }
-
-            $referral_id = $sponsor->id;
-
-            $parent_id = null; // $this->getEligibleParent($referral_id, $data["leg"]);
-
-			$parents = null; // $this->getParents($parent_id);
-            
-            $referral_uplines = $this->getReferralUplines($referral_id);
-
-            $member = User::create([
-                // 'firstname' => $data['firstname'],
-                // 'lastname' => $data['lastname'],
-                // 'email' => $data['email'],
-                'username' => $data['userwallet'],
-                'leg' => $data["leg"],
-                'referral_id' => $referral_id,
-                'referral_uplines' => $referral_uplines
-            ]);
-
-            $this->processReferralUplines($member->id, $referral_uplines);
-
-            // $this->setMemberListUpline($member->id, $member->parent_id, $data["leg"]);
-
-            // $this->setMemberPointsEmpty($member->id);    
-            
-            $emailrCon = app('App\Http\Controllers\EmailController');
-            // $send = $emailrCon->sendRegistrationEmail($member, $data['password']);
-            
-            $parts = explode('-', $member->username);
-            $cleanString = $parts[0];
-            
-            $umember = User::find($member->id);
-            $umember->wallet_addr = $cleanString;
-            $umember->save();
-    
-            return response()->json(array('success'=> true, 'error'=> ''), 200);
-        }catch(\Exception $exception){
-            Log::error($exception);
-            return response()->json(array('success'=>false,'error'=> 'Invalid request data send.'), 200);
-        }
+        return response()->json([
+            'success' => false,
+            'error' => 'Please complete MetaMask registration before creating an account.',
+        ], 200);
     }
 
     public function getDirectChildObj($parent_id, $leg){

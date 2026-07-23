@@ -204,9 +204,9 @@ export async function registerOnChain(
 export async function completeRegistrationWithLaravel(payload: {
   baseUrl: string;
   csrfToken: string;
-  firstname: string;
-  lastname: string;
-  username: string;
+  firstname?: string;
+  lastname?: string;
+  username?: string;
   email: string;
   password: string;
   wallet: string;
@@ -218,6 +218,7 @@ export async function completeRegistrationWithLaravel(payload: {
   token_amount?: string;
   leg?: string;
 }) {
+  // Laravel creates the user only after both register + package txs verify on-chain.
   const res = await fetch(apiUrl('/api/auth/register', payload.baseUrl), {
     method: 'POST',
     headers: {
@@ -227,9 +228,9 @@ export async function completeRegistrationWithLaravel(payload: {
     },
     credentials: 'same-origin',
     body: JSON.stringify({
-      firstname: payload.firstname,
-      lastname: payload.lastname,
-      username: payload.username,
+      firstname: payload.firstname || '',
+      lastname: payload.lastname || '',
+      username: payload.username || undefined,
       email: payload.email,
       password: payload.password,
       wallet: payload.wallet,
