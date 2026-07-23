@@ -6,24 +6,34 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
+        if (!Schema::hasTable('staked_users')) {
+            return;
+        }
+
         Schema::table('staked_users', function (Blueprint $table) {
-            $table->unsignedBigInteger('roi_tier_id')->nullable()->after('kit_id');
-            $table->dateTime('capital_withdrawn_at')->nullable()->after('is_deleted');
+            if (!Schema::hasColumn('staked_users', 'roi_tier_id')) {
+                $table->unsignedBigInteger('roi_tier_id')->nullable();
+            }
+            if (!Schema::hasColumn('staked_users', 'capital_withdrawn_at')) {
+                $table->dateTime('capital_withdrawn_at')->nullable();
+            }
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
+        if (!Schema::hasTable('staked_users')) {
+            return;
+        }
+
         Schema::table('staked_users', function (Blueprint $table) {
-            $table->dropColumn(['roi_tier_id', 'capital_withdrawn_at']);
+            foreach (['roi_tier_id', 'capital_withdrawn_at'] as $col) {
+                if (Schema::hasColumn('staked_users', $col)) {
+                    $table->dropColumn($col);
+                }
+            }
         });
     }
 };

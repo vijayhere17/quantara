@@ -6,11 +6,12 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
+        if (Schema::hasTable('booster_achievers')) {
+            return;
+        }
+
         Schema::create('booster_achievers', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('member_id')->unique();
@@ -21,9 +22,6 @@ return new class extends Migration
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('booster_achievers');
