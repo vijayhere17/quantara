@@ -158,22 +158,22 @@ describe("BTCPlanCore", function () {
     expect(roi.isActive).to.equal(true);
     expect(roi.principal).to.equal(tokenAmount);
 
-    // Exact BPS: 25 / 3 / 2 / 65 / 5 (+ dust to working)
+    // Exact BPS: 30 regen / 25 ROI / 3 reserve / 2 community / 40 working (+ dust to working)
+    const regeneration = (tokenAmount * 3000n) / 10000n;
     const interdependent = (tokenAmount * 2500n) / 10000n;
     const reserve = (tokenAmount * 300n) / 10000n;
     const community = (tokenAmount * 200n) / 10000n;
-    let working = (tokenAmount * 6500n) / 10000n;
-    const charity = (tokenAmount * 500n) / 10000n;
+    let working = (tokenAmount * 4000n) / 10000n;
     const distributed =
-      interdependent + reserve + community + working + charity;
+      regeneration + interdependent + reserve + community + working;
     if (distributed < tokenAmount) {
       working += tokenAmount - distributed;
     }
 
+    expect(await treasury.regenerationFundBalance()).to.equal(regeneration);
     expect(await treasury.interdependentFundBalance()).to.equal(interdependent);
     expect(await treasury.reserveFundBalance()).to.equal(reserve);
     expect(await treasury.communityBuilderFundBalance()).to.equal(community);
-    expect(await treasury.charityFundBalance()).to.equal(charity);
     expect(await treasury.workingFundBalance()).to.equal(working);
 
     await core.connect(user).register(owner.address);

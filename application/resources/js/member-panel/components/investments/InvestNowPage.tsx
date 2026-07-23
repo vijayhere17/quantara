@@ -1,5 +1,5 @@
-import { ChevronRight, Rocket } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { ChevronRight, Rocket, Wallet } from 'lucide-react';
+import { useEffect, useMemo, useState, type ComponentType } from 'react';
 import { Card } from '../ui/Card';
 import { GradientButton } from '../ui/GradientButton';
 import { Input } from '../ui/Input';
@@ -7,25 +7,48 @@ import { PageContainer } from '../ui/PageContainer';
 import { PageHeader } from '../ui/PageHeader';
 import { ProgressBar } from '../ui/ProgressBar';
 import { SectionTitle } from '../ui/SectionTitle';
-import { PackageCard } from './PackageCard';
+import { InstallWalletModal } from '../auth/InstallWalletModal';
+import { isPackageSelectable, isUnlimitedPackage, PackageCard } from './PackageCard';
+import { useWallet } from '../../hooks/useWallet';
+import { notifyError, notifySuccess } from '../../lib/walletConnect';
+import { loadBlockchainConfig } from '../../services/blockchain/config';
+import {
+  activatePackageOnChain,
+  completePackageActivationWithLaravel,
+} from '../../services/blockchain/upgrade';
+import { createBrowserProvider } from '../../services/blockchain/wallet';
 import type { InvestNowBoot } from '../../types';
 
 type InvestNowPageProps = {
   data: InvestNowBoot;
 };
 
+type DemoFaucetProps = {
+  walletAddress?: string;
+};
+
 export function InvestNowPage({ data }: InvestNowPageProps) {
+  const wallet = useWallet();
   const defaultSelected =
-    data.packages.find((pkg) => !pkg.locked && pkg.buys < pkg.maxBuys)?.amount ??
+    data.packages.find((pkg) => isPackageSelectable(pkg))?.amount ??
     data.packages[0]?.amount ??
     100;
 
   const [selectedAmount, setSelectedAmount] = useState<number>(defaultSelected);
+  const [status, setStatus] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [showInstall, setShowInstall] = useState(false);
+  const [showDemoFaucet, setShowDemoFaucet] = useState(false);
+  const [DemoFaucetButton, setDemoFaucetButton] = useState<ComponentType<DemoFaucetProps> | null>(
+    null,
+  );
 
   const selected = useMemo(
     () => data.packages.find((pkg) => pkg.amount === selectedAmount) ?? data.packages[0],
     [data.packages, selectedAmount],
   );
+
+  const canActivate = selected ? isPackageSelectable(selected) : false;
 
   const payable = useMemo(() => {
     const rate = data.btcRate || 62000;
@@ -34,8 +57,87 @@ export function InvestNowPage({ data }: InvestNowPageProps) {
 
   const nextProgress = data.nextPackageProgress ?? 50;
 
+  useEffect(() => {
+    let cancelled = false;
+    void loadBlockchainConfig(data.baseUrl)
+      .then(async (cfg) => {
+        if (cancelled || !cfg.demoFaucet) return;
+        const mod = await import('../auth/DemoFaucetButton');
+        if (cancelled) return;
+        setDemoFaucetButton(() => mod.DemoFaucetButton);
+        setShowDemoFaucet(true);
+      })
+      .catch(() => {
+        // Demo faucet is optional — ignore config failures here
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [data.baseUrl]);
+
+  const handleActivate = async () => {
+    if (busy) return;
+    if (!selected || !canActivate) {
+      notifyError(
+        selected && isUnlimitedPackage(selected)
+          ? 'Unable to activate this package.'
+          : 'This package is locked or already fully purchased.',
+      );
+      return;
+    }
+    if (!wallet.walletInstalled) {
+      setShowInstall(true);
+      return;
+    }
+
+    setBusy(true);
+    setStatus('Connecting wallet…');
+    try {
+      const session = await createBrowserProvider();
+
+      const onChain = await activatePackageOnChain(
+        session.signer,
+        selected.amount,
+        setStatus,
+      );
+
+      setStatus('Verifying activation with Quantara…');
+      const laravel = await completePackageActivationWithLaravel({
+        baseUrl: data.baseUrl,
+        package_amount: onChain.packageAmount,
+        package_tx_hash: onChain.packageTxHash,
+        approve_tx_hash: onChain.approveTxHash,
+        wallet: onChain.wallet,
+        token_amount: onChain.tokenAmount,
+      });
+
+      setStatus('Package activated successfully.');
+      notifySuccess(laravel.message || 'Package activated successfully.');
+
+      window.setTimeout(() => {
+        window.location.reload();
+      }, 1200);
+    } catch (error) {
+      console.error(error);
+      const message = error instanceof Error ? error.message : 'Package activation failed';
+      if (
+        message.toLowerCase().includes('metamask is not installed') ||
+        message.includes('WALLET_NOT_INSTALLED')
+      ) {
+        setShowInstall(true);
+      } else {
+        notifyError(message);
+      }
+      setStatus('');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <PageContainer maxWidth="narrow">
+      <InstallWalletModal open={showInstall} onClose={() => setShowInstall(false)} />
+
       <PageHeader
         title="BTC Plan Activation"
         subtitle="Activate your investment package securely through our smart contracts on BNB Smart Chain."
@@ -68,7 +170,7 @@ export function InvestNowPage({ data }: InvestNowPageProps) {
                   pkg={pkg}
                   selected={selectedAmount === pkg.amount}
                   onSelect={() => {
-                    if (!pkg.locked) setSelectedAmount(pkg.amount);
+                    if (isPackageSelectable(pkg)) setSelectedAmount(pkg.amount);
                   }}
                 />
                 {index < data.packages.length - 1 && (index + 1) % 4 !== 0 ? (
@@ -79,7 +181,8 @@ export function InvestNowPage({ data }: InvestNowPageProps) {
           </div>
 
           <p className="mt-4 text-center text-xs text-q-muted sm:text-sm">
-            You must purchase each package 2 times before unlocking the next package.
+            You must purchase each package 2 times before unlocking the next package. The $10000
+            package is unlimited.
           </p>
 
           <div className="mt-8 space-y-5">
@@ -95,15 +198,51 @@ export function InvestNowPage({ data }: InvestNowPageProps) {
               <span className="text-sm font-bold text-q-cyan sm:text-base">{payable}</span>
             </div>
 
+            <div className="rounded-2xl border border-q-cyan/20 bg-q-cyan/5 px-4 py-4">
+              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-q-cyan">
+                Connected Wallet
+              </p>
+              <p className="mt-1 break-all text-sm text-white">
+                {wallet.walletAddress || 'Connect MetaMask to activate'}
+              </p>
+            </div>
+
+            {!wallet.isConnected ? (
+              <GradientButton
+                fullWidth
+                className="!py-3.5 !text-base !font-bold !text-[#041018]"
+                disabled={wallet.isConnecting || busy}
+                onClick={() => {
+                  if (!wallet.walletInstalled) {
+                    setShowInstall(true);
+                    return;
+                  }
+                  void wallet.connect().catch((err) => notifyError(err.message));
+                }}
+              >
+                <Wallet className="h-4 w-4" />
+                {wallet.isConnecting ? 'Connecting…' : 'Connect Wallet'}
+              </GradientButton>
+            ) : null}
+
+            {showDemoFaucet && DemoFaucetButton ? (
+              <DemoFaucetButton walletAddress={wallet.walletAddress || undefined} />
+            ) : null}
+
+            {status ? (
+              <p className="rounded-xl border border-q-cyan/20 bg-q-cyan/10 px-4 py-3 text-sm text-q-cyan">
+                {status}
+              </p>
+            ) : null}
+
             <GradientButton
               fullWidth
               className="!py-3.5 !text-base !font-bold !text-[#041018]"
-              onClick={() => {
-                // UI only — no blockchain/backend calls.
-              }}
+              disabled={busy || !canActivate || !wallet.isConnected}
+              onClick={() => void handleActivate()}
             >
               <Rocket className="h-4 w-4" />
-              Activate Package
+              {busy ? 'Processing…' : 'Activate Package'}
             </GradientButton>
           </div>
         </div>
@@ -172,8 +311,8 @@ export function InvestNowPage({ data }: InvestNowPageProps) {
         <SectionTitle title="Investment Warning" />
         <p className="mt-3 text-sm leading-relaxed text-q-soft">
           Package activation is irreversible once confirmed on-chain. Verify your selected amount and
-          wallet network (BNB Smart Chain) before activating. This UI does not submit blockchain
-          transactions.
+          wallet network (BNB Smart Chain) before activating. You will confirm real MetaMask
+          transactions — no simulated hashes are used.
         </p>
       </Card>
     </PageContainer>

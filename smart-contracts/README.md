@@ -17,18 +17,18 @@ BTCPlanCore
   └── package completion (notified by IncomeManager)
 
 TreasuryManager
-  └── 25% ROI / 3% Reserve / 2% Community / 70% Working (65% + 5% charity)
+  └── 30% Regeneration / 25% ROI / 3% Reserve / 2% Community / 40% Working
 
 IncomeManager  ← single source of truth for income + caps
-  ├── ROI cap: 3X principal
-  ├── Total cap: 4X principal (ROI + Contribution + Booster + Rank + Community)
+  ├── ROI cap: 3X principal (also stops when total income hits 3X)
+  ├── Working cap: 4X principal (Contribution + Booster + Rank + SameRank + Community)
   └── notifies BTCPlanCore.completePackage on cap
 
 Reward calculators (no cap duplication):
   InterdependentReward → IncomeManager + Treasury.paySelfRoi
   ContributionReward   → IncomeManager + Treasury.payWorkingIncome
   ContributionBooster  → IncomeManager + Treasury.payWorkingIncome
-  RankReward           → IncomeManager + Treasury.payWorkingIncome
+  RankReward           → IncomeManager + Treasury.payWorkingIncome (+ same-rank achievement)
   CommunityBuilder     → IncomeManager + Treasury.payCommunityBuilder
 ```
 

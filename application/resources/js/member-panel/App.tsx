@@ -7,6 +7,7 @@ import { DownlineReportPage } from './components/network/DownlineReportPage';
 import { InvestNowPage } from './components/investments/InvestNowPage';
 import { MyInvestmentsPage } from './components/investments/MyInvestmentsPage';
 import { EarningWalletPage } from './components/investments/EarningWalletPage';
+import { WithdrawPage } from './components/withdraw/WithdrawPage';
 import { IncentiveReportPage } from './components/earnings/IncentiveReportPage';
 import { CreateTicketPage } from './components/support/CreateTicketPage';
 import { LoginPage } from './components/auth/LoginPage';
@@ -25,6 +26,7 @@ import {
   mockProfileData,
   mockRegistrationSuccessData,
   mockSignupData,
+  mockWithdrawData,
 } from './data/mock';
 import type {
   AuthBoot,
@@ -38,6 +40,7 @@ import type {
   MyReferralsBoot,
   ProfileBoot,
   SupportTicketBoot,
+  WithdrawBoot,
 } from './types';
 
 function isAuthPage(page: MemberBoot['page']): page is AuthBoot['page'] {
@@ -65,6 +68,7 @@ function resolveBoot(): MemberBoot {
   if (path.endsWith('/buy-robo')) return mockInvestNowData;
   if (path.endsWith('/bot-request')) return mockMyInvestmentsData;
   if (path.endsWith('/earning-wallet')) return mockEarningWalletData;
+  if (path.endsWith('/new-withdrawal') || path.endsWith('/withdrawal')) return mockWithdrawData;
   if (path.endsWith('/create-ticket')) return mockCreateTicketData;
   if (path.includes('/earning/')) {
     const title = path.split('/').pop() || 'ROI History';
@@ -92,6 +96,8 @@ function renderPage(data: MemberBoot) {
       return <MyInvestmentsPage data={data as MyInvestmentsBoot} />;
     case 'earning-wallet':
       return <EarningWalletPage data={data as EarningWalletBoot} />;
+    case 'withdraw':
+      return <WithdrawPage data={data as WithdrawBoot} />;
     case 'incentive-report':
       return <IncentiveReportPage data={data as IncentiveReportBoot} />;
     case 'create-ticket':

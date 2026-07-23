@@ -2,8 +2,11 @@
 
 namespace App\Services;
 
+use App\Models\BlockchainPackageActivation;
+use App\Models\User;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use RuntimeException;
 
 /**
@@ -312,5 +315,103 @@ class BlockchainService
             Log::error('verifyPackageActivation failed', ['error' => $e->getMessage()]);
             return ['ok' => false, 'error' => $e->getMessage()];
         }
+    }
+
+    /**
+     * Alias — DB hint for next eligible package (see getNextEligiblePackageHint).
+     */
+    public function getNextEligiblePackage(?User $user): array
+    {
+        return $this->getNextEligiblePackageHint($user);
+    }
+
+    /**
+     * DB-side hint for the next eligible package (mirrors BTCPlanCore.getNextEligiblePackage).
+     * Uses last mirrored activation / user.package_* columns — not a live chain call.
+     *
+     * @return array{amount:int,cycle:int,source:string,last_amount?:int|null,last_cycle?:int|null}
+     */
+    public function getNextEligiblePackageHint(?User $user): array
+    {
+        $ladder = [50, 100, 300, 500, 1000, 3000, 5000, 10000];
+
+        if ($user === null) {
+            return ['amount' => 50, 'cycle' => 1, 'source' => 'default', 'last_amount' => null, 'last_cycle' => null];
+        }
+
+        $lastAmount = null;
+        $lastCycle = null;
+
+        if (Schema::hasTable('blockchain_package_activations')) {
+            $last = BlockchainPackageActivation::where('user_id', $user->id)
+                ->orderByDesc('id')
+                ->first();
+            if ($last !== null) {
+                $lastAmount = (int) $last->package_amount;
+                $lastCycle = $last->package_cycle !== null ? (int) $last->package_cycle : null;
+            }
+        }
+
+        if ($lastAmount === null || $lastAmount <= 0) {
+            $lastAmount = (int) ($user->package_amount ?: $user->package_id ?: 0);
+        }
+        if ($lastCycle === null || $lastCycle <= 0) {
+            $lastCycle = (int) ($user->package_cycle ?? 0);
+        }
+
+        // New / never activated
+        if ($lastAmount <= 0) {
+            return [
+                'amount' => 50,
+                'cycle' => 1,
+                'source' => 'db_hint',
+                'last_amount' => null,
+                'last_cycle' => null,
+            ];
+        }
+
+        // Cycle 1 → same amount cycle 2
+        if ($lastCycle <= 1) {
+            return [
+                'amount' => $lastAmount,
+                'cycle' => 2,
+                'source' => 'db_hint',
+                'last_amount' => $lastAmount,
+                'last_cycle' => $lastCycle ?: 1,
+            ];
+        }
+
+        // After cycle 2 at max package → unlimited 10000 C2
+        $max = $ladder[count($ladder) - 1];
+        if ($lastAmount >= $max) {
+            return [
+                'amount' => $max,
+                'cycle' => 2,
+                'source' => 'db_hint',
+                'last_amount' => $lastAmount,
+                'last_cycle' => $lastCycle,
+            ];
+        }
+
+        // Advance to next ladder amount, cycle 1
+        $nextAmount = $max;
+        foreach ($ladder as $idx => $amt) {
+            if ($amt === $lastAmount && isset($ladder[$idx + 1])) {
+                $nextAmount = $ladder[$idx + 1];
+                break;
+            }
+            if ($amt > $lastAmount) {
+                $nextAmount = $amt;
+                break;
+            }
+        }
+
+        return [
+            'amount' => $nextAmount,
+            'cycle' => 1,
+            'source' => 'db_hint',
+            'last_amount' => $lastAmount,
+            'last_cycle' => $lastCycle,
+        ];
     }
 }

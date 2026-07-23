@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IIncomeManager} from "./interfaces/IIncomeManager.sol";
 import {IRankReward} from "./interfaces/IRankReward.sol";
 import {ITreasuryManager} from "./interfaces/ITreasuryManager.sol";
@@ -15,8 +16,9 @@ import {ITreasuryManager} from "./interfaces/ITreasuryManager.sol";
  * - Max daily distribution budget: 5% of ROI pool
  * - Max user daily ROI rate: 1%
  * - Max ROI income: 3X package (enforced by IncomeManager)
+ * - Once total income hits 3X, ROI stops (IncomeManager)
  */
-contract InterdependentReward {
+contract InterdependentReward is ReentrancyGuard {
     address public owner;
     address public coreContract;
 
@@ -161,7 +163,7 @@ contract InterdependentReward {
         return (account.principal * currentDailyRoi * daysPassed) / 10000;
     }
 
-    function claimRoi() external {
+    function claimRoi() external nonReentrant {
         require(address(incomeManager) != address(0), "Income manager not set");
         require(address(treasury) != address(0), "Treasury not set");
 
@@ -187,7 +189,7 @@ contract InterdependentReward {
             payableRoi = remainingDailyBudget;
         }
 
-        // Cap validation — IncomeManager is source of truth (ROI 3X independent)
+        // Cap validation — IncomeManager is source of truth
         payableRoi = incomeManager.recordIncome(
             msg.sender,
             payableRoi,
@@ -197,7 +199,21 @@ contract InterdependentReward {
         require(payableRoi > 0, "ROI cap reached");
 
         dailyBudgetUsed += payableRoi;
-        account.lastClaimAt = block.timestamp;
+
+        // Preserve unpaid accrued days when only a partial daily-budget payout is made.
+        if (payableRoi >= pendingRoi) {
+            account.lastClaimAt = block.timestamp;
+        } else {
+            uint256 daysPassed = (block.timestamp - account.lastClaimAt) / 1 days;
+            uint256 secondsPaid = (payableRoi * daysPassed * 1 days) / pendingRoi;
+            if (secondsPaid == 0) {
+                secondsPaid = 1;
+            }
+            account.lastClaimAt += secondsPaid;
+            if (account.lastClaimAt > block.timestamp) {
+                account.lastClaimAt = block.timestamp;
+            }
+        }
 
         treasury.paySelfRoi(msg.sender, payableRoi);
 
@@ -207,9 +223,7 @@ contract InterdependentReward {
             rankReward.processSameRankIncome(msg.sender, payableRoi);
         }
 
-        if (!account.isActive) {
-            // deactivated via onRoiCapReached during recordIncome
-        } else if (incomeManager.isRoiCapReached(msg.sender)) {
+        if (account.isActive && incomeManager.isRoiCapReached(msg.sender)) {
             _deactivateLocal(account);
         }
 

@@ -17,4 +17,8 @@ interface ITreasuryManager {
     function workingFundBalance() external view returns (uint256);
 
     function interdependentFundBalance() external view returns (uint256);
+
+    function regenerationFundBalance() external view returns (uint256);
+
+    function reserveFundBalance() external view returns (uint256);
 }

@@ -29,6 +29,7 @@ export type MemberLinks = {
   investNow: string;
   myInvestments: string;
   wallet: string;
+  withdraw?: string;
   roiHistory: string;
   contributionReward: string;
   boosterReward: string;
@@ -60,6 +61,7 @@ export type MemberPage =
   | 'invest-now'
   | 'my-investments'
   | 'earning-wallet'
+  | 'withdraw'
   | 'incentive-report'
   | 'create-ticket'
   | 'login'
@@ -235,6 +237,18 @@ export type InvestNowBoot = MemberShellData & {
     treasuryAllocation: string;
   };
   nextPackageProgress: number;
+  /** Optional connected member wallet for activation UX */
+  walletAddress?: string;
+};
+
+export type WithdrawBoot = MemberShellData & {
+  page: 'withdraw';
+  /** Available earning balance (preferred over wallet.earningWallet) */
+  balance?: string | number;
+  walletAddress?: string;
+  coinRate?: number;
+  minAmount?: number;
+  adminChargePercent?: number;
 };
 
 export type InvestmentRow = {
@@ -300,6 +314,7 @@ export type MemberBoot =
   | InvestNowBoot
   | MyInvestmentsBoot
   | EarningWalletBoot
+  | WithdrawBoot
   | IncentiveReportBoot
   | SupportTicketBoot
   | AuthBoot;

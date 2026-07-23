@@ -73,7 +73,7 @@ describe("IncomeManager", function () {
     expect(await income.workingEarned(owner.address)).to.equal(principal * 2n);
   });
 
-  it("Should enforce independent 4X Working cap without reducing ROI 3X", async function () {
+  it("Should stop ROI when Working already pushed total past 3X", async function () {
     const { owner, income, planCore } = await deploy();
 
     const principal = await income.principal(owner.address);
@@ -91,12 +91,25 @@ describe("IncomeManager", function () {
       await income.recordIncome.staticCall(owner.address, 10n, 2)
     ).to.equal(0n);
 
-    // ROI capacity still fully available
-    expect(await income.getRemainingRoiCap(owner.address)).to.equal(
-      principal * 3n
+    // Business plan: total already at 4X (>= 3X) → ROI stopped
+    expect(await income.getRemainingRoiCap(owner.address)).to.equal(0n);
+    expect(await income.isRoiCapReached(owner.address)).to.equal(true);
+  });
+
+  it("Should allow ROI only up to total 3X when working already earned", async function () {
+    const { owner, income } = await deploy();
+
+    const principal = await income.principal(owner.address);
+    await income.recordIncome(owner.address, principal * 2n, 1); // 2X working
+
+    // ROI room = min(3X stream, 1X to hit total 3X) = 1X
+    expect(await income.getRemainingRoiCap(owner.address)).to.equal(principal);
+    const accepted = await income.recordIncome.staticCall(
+      owner.address,
+      principal * 3n,
+      0,
     );
-    await income.recordIncome(owner.address, principal * 3n, 0);
-    expect(await income.roiEarned(owner.address)).to.equal(principal * 3n);
+    expect(accepted).to.equal(principal);
   });
 
   it("Should track SameRank income separately", async function () {

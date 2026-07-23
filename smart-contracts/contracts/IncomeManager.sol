@@ -10,10 +10,11 @@ import {IRankReward} from "./interfaces/IRankReward.sol";
  * @notice Single source of truth for user income tracking and independent caps.
  *
  * Independent caps (per active package principal):
- * - ROI cap:     3X principal  (ROI only)
+ * - ROI cap:     3X principal  (ROI only), AND ROI stops when TOTAL income hits 3X
  * - Working cap: 4X principal  (Contribution + Booster + Rank + SameRank + Community)
  *
- * ROI does NOT reduce Working capacity and Working does NOT reduce ROI capacity.
+ * Business plan: once total income reaches 3X, stop ROI. Working may continue to 4X.
+ * Working does NOT reduce ROI stream capacity except via the total-3X ROI stop.
  *
  * Progression unlock (packageCompleted):
  * - Triggered when ROI cap is hit OR Working cap is hit (whichever first).
@@ -305,11 +306,23 @@ contract IncomeManager is IIncomeManager {
         address user,
         UserIncome memory income
     ) internal view returns (uint256) {
-        uint256 cap = income.principal * _roiMultiplier(user);
-        if (income.roiEarned >= cap) {
+        if (income.principal == 0) {
             return 0;
         }
-        return cap - income.roiEarned;
+
+        // Stream cap: ROI earned may not exceed ROI_CAP_MULTIPLIER (or rank multiplier) × principal
+        uint256 streamCap = income.principal * _roiMultiplier(user);
+        uint256 streamRemaining = income.roiEarned >= streamCap
+            ? 0
+            : streamCap - income.roiEarned;
+
+        // Business plan: once TOTAL income reaches 3X, stop ROI
+        uint256 totalCap = income.principal * ROI_CAP_MULTIPLIER;
+        uint256 totalRemaining = income.totalEarned >= totalCap
+            ? 0
+            : totalCap - income.totalEarned;
+
+        return streamRemaining < totalRemaining ? streamRemaining : totalRemaining;
     }
 
     function _remainingWorkingCap(

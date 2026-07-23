@@ -30,12 +30,18 @@ class User extends Authenticatable
         'chain_id',
         'package_id',
         'package_amount',
+        'package_cycle',
         'registration_block',
         'registration_timestamp',
         'wallet_status',
         'registration_status',
         'activation_date',
         'kit_id',
+        'self_investment',
+        'team_investment',
+        'direct_business',
+        'total_earning',
+        'total_return',
         'status',
     ];
 
