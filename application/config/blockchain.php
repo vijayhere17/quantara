@@ -2,12 +2,30 @@
 
 return [
 
-    'rpc_url' => env('BLOCKCHAIN_RPC', 'https://bsc-dataseed.binance.org/'),
+    /*
+    |--------------------------------------------------------------------------
+    | BNB Smart Chain / Hardhat RPC
+    |--------------------------------------------------------------------------
+    |
+    | BLOCKCHAIN_RPC is the authoritative JSON-RPC endpoint used for all
+    | on-chain verification. Never invent transaction hashes or addresses.
+    |
+    | Defaults:
+    |   Mainnet 56 → https://bsc-dataseed.binance.org/
+    |   Testnet 97 → set BLOCKCHAIN_RPC to a BSC testnet RPC
+    |   Local 31337 → http://127.0.0.1:8545
+    |
+    */
+    'rpc_url' => env('BLOCKCHAIN_RPC', env('BSC_RPC_URL', 'https://bsc-dataseed.binance.org/')),
 
-    'chain_id' => (int) env('BLOCKCHAIN_CHAIN_ID', 56),
+    'chain_id' => (int) env('BLOCKCHAIN_CHAIN_ID', env('CHAIN_ID', 56)),
 
+    /*
+    | Contract addresses — always from environment in production.
+    | TOKEN_CONTRACT and TOKEN_ADDRESS are aliases (BEP-20 payment token).
+    */
     'contracts' => [
-        'token' => env('TOKEN_CONTRACT'),
+        'token' => env('TOKEN_CONTRACT', env('TOKEN_ADDRESS')),
         'core' => env('CORE_CONTRACT'),
         'treasury' => env('TREASURY_CONTRACT'),
         'reward' => env('REWARD_CONTRACT'),
@@ -26,6 +44,21 @@ return [
     ],
 
     'abi_path' => storage_path('app/blockchain/abi'),
+
+    /*
+    | Block explorers (no trailing slash)
+    */
+    'explorers' => [
+        56 => 'https://bscscan.com',
+        97 => 'https://testnet.bscscan.com',
+        31337 => '',
+    ],
+
+    'network_names' => [
+        56 => 'BNB Smart Chain',
+        97 => 'BNB Smart Chain Testnet',
+        31337 => 'Hardhat Local',
+    ],
 
     'events' => [
         // keccak256("UserRegistered(address,address)")

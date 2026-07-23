@@ -1,18 +1,29 @@
 import { BrowserProvider, JsonRpcSigner, Eip1193Provider } from 'ethers';
-import { BSC_CHAIN_ID, getBscNetworkParams, loadBlockchainConfig } from './config';
+import { BSC_CHAIN_ID, getNetworkParams, loadBlockchainConfig } from './config';
 
 export type EthereumProvider = Eip1193Provider & {
   isMetaMask?: boolean;
+  isTrust?: boolean;
+  isTrustWallet?: boolean;
   providers?: EthereumProvider[];
   on?: (event: string, handler: (...args: unknown[]) => void) => void;
   removeListener?: (event: string, handler: (...args: unknown[]) => void) => void;
 };
 
+/**
+ * Resolve MetaMask, Trust Wallet, or any EIP-1193 injected provider
+ * (including WalletConnect-in-app browsers that inject window.ethereum).
+ */
 export function resolveInjectedProvider(): EthereumProvider | null {
   const eth = window.ethereum as EthereumProvider | undefined;
   if (!eth) return null;
   if (Array.isArray(eth.providers) && eth.providers.length > 0) {
-    return eth.providers.find((p) => p.isMetaMask) || eth.providers[0] || eth;
+    return (
+      eth.providers.find((p) => p.isMetaMask) ||
+      eth.providers.find((p) => p.isTrust || p.isTrustWallet) ||
+      eth.providers[0] ||
+      eth
+    );
   }
   return eth;
 }
@@ -21,13 +32,25 @@ export function hasInjectedWallet(): boolean {
   return Boolean(resolveInjectedProvider());
 }
 
+export function getWalletBrand(provider?: EthereumProvider | null): string {
+  const p = provider || resolveInjectedProvider();
+  if (!p) return 'Web3 wallet';
+  if (p.isTrust || p.isTrustWallet) return 'Trust Wallet';
+  if (p.isMetaMask) return 'MetaMask';
+  return 'Web3 wallet';
+}
+
+/**
+ * Ensure the wallet is on the configured chain (56 / 97 / 31337).
+ * Prompts switch / add-chain when mismatched.
+ */
 export async function ensureCorrectChain(provider: EthereumProvider, chainId = BSC_CHAIN_ID) {
   const cfg = await loadBlockchainConfig();
   const target = cfg.chainId || chainId;
-  const params = getBscNetworkParams(target);
+  const params = getNetworkParams(target);
   const current = await provider.request({ method: 'eth_chainId' });
   if (typeof current === 'string' && current.toLowerCase() === params.chainIdHex.toLowerCase()) {
-    return;
+    return target;
   }
 
   try {
@@ -46,13 +69,31 @@ export async function ensureCorrectChain(provider: EthereumProvider, chainId = B
             chainName: params.chainName,
             rpcUrls: params.rpcUrls,
             nativeCurrency: params.nativeCurrency,
-            blockExplorerUrls: params.blockExplorerUrls,
+            blockExplorerUrls: params.blockExplorerUrls.length
+              ? params.blockExplorerUrls
+              : undefined,
           },
         ],
       });
-      return;
+      return target;
     }
-    throw error;
+    throw Object.assign(new Error('Wrong blockchain network. Please switch to ' + params.chainName), {
+      cause: error,
+      code: 4902,
+    });
+  }
+
+  return target;
+}
+
+function markConnected(address: string) {
+  window.is_connected = true;
+  window.setQuantaraWalletConnected?.(true);
+  const el = document.getElementById('userwallet') as HTMLInputElement | null;
+  if (el) {
+    el.value = address;
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
   }
 }
 
@@ -65,7 +106,10 @@ export async function createBrowserProvider(): Promise<{
 }> {
   const injected = resolveInjectedProvider();
   if (!injected) {
-    throw Object.assign(new Error('WALLET_NOT_INSTALLED'), { code: 'WALLET_NOT_INSTALLED' });
+    throw Object.assign(
+      new Error('WALLET_NOT_INSTALLED'),
+      { code: 'WALLET_NOT_INSTALLED' },
+    );
   }
 
   const accounts = (await injected.request({ method: 'eth_requestAccounts' })) as string[];
@@ -80,14 +124,44 @@ export async function createBrowserProvider(): Promise<{
   const network = await provider.getNetwork();
   const address = await signer.getAddress();
 
-  window.is_connected = true;
-  window.setQuantaraWalletConnected?.(true);
-  const el = document.getElementById('userwallet') as HTMLInputElement | null;
-  if (el) {
-    el.value = address;
-    el.dispatchEvent(new Event('input', { bubbles: true }));
-    el.dispatchEvent(new Event('change', { bubbles: true }));
+  markConnected(address);
+
+  return {
+    injected,
+    provider,
+    signer,
+    address,
+    chainId: Number(network.chainId),
+  };
+}
+
+/**
+ * Silent reconnect when the wallet already authorized this origin (no popup).
+ */
+export async function tryReconnectBrowserProvider(): Promise<{
+  injected: EthereumProvider;
+  provider: BrowserProvider;
+  signer: JsonRpcSigner;
+  address: string;
+  chainId: number;
+} | null> {
+  const injected = resolveInjectedProvider();
+  if (!injected) return null;
+
+  const accounts = (await injected.request({ method: 'eth_accounts' })) as string[];
+  if (!accounts?.[0]) return null;
+
+  try {
+    await ensureCorrectChain(injected);
+  } catch {
+    // Still attach; UI can prompt switch
   }
+
+  const provider = new BrowserProvider(injected);
+  const signer = await provider.getSigner();
+  const network = await provider.getNetwork();
+  const address = await signer.getAddress();
+  markConnected(address);
 
   return {
     injected,
@@ -113,10 +187,10 @@ export function mapWalletError(error: unknown): string {
     return 'Transaction rejected.';
   }
   if (err?.code === 'WALLET_NOT_INSTALLED') {
-    return 'MetaMask is not installed.';
+    return 'Install MetaMask, Trust Wallet, or another BEP-20 wallet to continue.';
   }
   if (err?.code === 4902) {
-    return 'Wrong blockchain network.';
+    return 'Wrong blockchain network. Switch to BNB Smart Chain.';
   }
 
   const raw =
@@ -152,11 +226,23 @@ export function mapWalletError(error: unknown): string {
   if (lower.includes('user rejected') || lower.includes('rejected the request')) {
     return 'Transaction rejected.';
   }
+  if (lower.includes('insufficient funds') && lower.includes('gas')) {
+    return 'Insufficient BNB for gas fees.';
+  }
   if (lower.includes('insufficient') && lower.includes('balance')) {
     return 'Insufficient package balance.';
   }
   if (lower.includes('transfer amount exceeds balance') || lower.includes('insufficient funds')) {
     return 'Insufficient package balance.';
+  }
+  if (lower.includes('nonce too low') || lower.includes('already known')) {
+    return 'Pending or replacement transaction detected. Wait for confirmation.';
+  }
+  if (lower.includes('replacement transaction')) {
+    return 'Replacement transaction in progress. Wait for confirmation.';
+  }
+  if (lower.includes('timeout') || lower.includes('timed out') || lower.includes('stalled')) {
+    return 'RPC timeout. Please try again.';
   }
   if (lower.includes('wrong') && lower.includes('network')) {
     return 'Wrong blockchain network.';

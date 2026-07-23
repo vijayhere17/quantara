@@ -185,12 +185,24 @@ const RANK_NAMES = [
 type AddressBook = Record<string, string>;
 
 /** Address-book keys that are wallets / metadata, not contracts */
-const NON_CONTRACT_KEYS = new Set(["RootUser", "root", "deployer", "Deployer"]);
+const NON_CONTRACT_KEYS = new Set([
+  "RootUser",
+  "root",
+  "deployer",
+  "Deployer",
+  "TreasuryWallet",
+  "network",
+  "explorer",
+  "chainId",
+]);
 
 /** Known contract artifact names that may appear in deployed-addresses.json */
 const KNOWN_ARTIFACTS = [
   "MockBTCB",
+  "Token",
   "MockBTCPriceFeed",
+  "ChainlinkBTCPriceFeed",
+  "PriceFeed",
   "BTCPlanCore",
   "TreasuryManager",
   "IncomeManager",
@@ -440,7 +452,10 @@ const PRICE_ABI = [
 
 const ABI_BY_NAME: Record<string, string[]> = {
   MockBTCB: ERC20_ABI,
+  Token: ERC20_ABI,
   MockBTCPriceFeed: PRICE_ABI,
+  ChainlinkBTCPriceFeed: PRICE_ABI,
+  PriceFeed: PRICE_ABI,
   BTCPlanCore: CORE_ABI,
   TreasuryManager: TREASURY_ABI,
   IncomeManager: INCOME_ABI,
@@ -560,6 +575,13 @@ async function main() {
 
   header("QUANTARA FULL PRODUCTION QA");
   row("Network chainId", network.chainId.toString(), c.cyan);
+  const explorerBase =
+    Number(network.chainId) === 56
+      ? "https://bscscan.com"
+      : Number(network.chainId) === 97
+        ? "https://testnet.bscscan.com"
+        : "";
+  row("Explorer", explorerBase || "(local — no public explorer)", c.cyan);
   row("Latest block", latestBlock, c.cyan);
   row("Deployer / Account #0", deployer.address, c.cyan);
   row("Timestamp", new Date().toISOString(), c.dim);
@@ -618,6 +640,7 @@ async function main() {
   const rank = contracts.RankReward;
   const community = contracts.CommunityBuilder;
   const token =
+    contracts.Token ||
     contracts.MockBTCB ||
     (core
       ? new ethers.Contract(await core.btcbToken(), ERC20_ABI, provider)
@@ -653,10 +676,11 @@ async function main() {
     // No pause() in any Quantara contract — report explicitly
     row("Paused Status", "N/A (no pause() in source)", c.dim);
 
-    try {
-      if (token && name !== "MockBTCPriceFeed") {
+      try {
+      if (token && name !== "MockBTCPriceFeed" && name !== "ChainlinkBTCPriceFeed" && name !== "PriceFeed") {
         const bal = await token.balanceOf(await ctr.getAddress());
-        row("Token Balance", `${fmtUnits(bal)} BTCB`);
+        const sym = await token.symbol().catch(() => "TOKEN");
+        row("Token Balance", `${fmtUnits(bal)} ${sym}`);
       }
     } catch {
       /* ignore */

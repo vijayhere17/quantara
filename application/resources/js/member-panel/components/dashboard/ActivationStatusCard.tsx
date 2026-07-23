@@ -2,6 +2,7 @@ import { CheckCircle2, Link2, Package } from 'lucide-react';
 import { Badge } from '../ui/Badge';
 import { Card } from '../ui/Card';
 import type { DashboardBoot } from '../../types';
+import { describeNetwork, getExplorerTxUrl } from '../../services/blockchain/explorer';
 
 type ActivationStatusCardProps = {
   registration?: DashboardBoot['registration'];
@@ -17,17 +18,16 @@ function shortHash(value?: string | null) {
 export function ActivationStatusCard({ registration, walletAddress }: ActivationStatusCardProps) {
   const status = registration?.status || 'pending';
   const active = status === 'completed' || Boolean(registration?.packageTxHash);
-  const explorerBase =
-    registration?.chainId === 97
-      ? 'https://testnet.bscscan.com'
-      : registration?.chainId === 56 || !registration?.chainId
-        ? 'https://bscscan.com'
-        : null;
+  const chainId = registration?.chainId ?? null;
 
   const rows: Array<{ label: string; value: string; href?: string | null }> = [
     {
       label: 'Wallet',
       value: walletAddress ? shortHash(walletAddress) : shortHash(null),
+    },
+    {
+      label: 'Connected Network',
+      value: chainId ? describeNetwork(chainId) : '—',
     },
     {
       label: 'Package',
@@ -40,26 +40,23 @@ export function ActivationStatusCard({ registration, walletAddress }: Activation
     {
       label: 'Register tx',
       value: shortHash(registration?.transactionHash),
-      href:
-        explorerBase && registration?.transactionHash
-          ? `${explorerBase}/tx/${registration.transactionHash}`
-          : null,
+      href: registration?.transactionHash
+        ? getExplorerTxUrl(registration.transactionHash, chainId)
+        : null,
     },
     {
       label: 'Approve tx',
       value: shortHash(registration?.approveTxHash),
-      href:
-        explorerBase && registration?.approveTxHash
-          ? `${explorerBase}/tx/${registration.approveTxHash}`
-          : null,
+      href: registration?.approveTxHash
+        ? getExplorerTxUrl(registration.approveTxHash, chainId)
+        : null,
     },
     {
       label: 'Package tx',
       value: shortHash(registration?.packageTxHash),
-      href:
-        explorerBase && registration?.packageTxHash
-          ? `${explorerBase}/tx/${registration.packageTxHash}`
-          : null,
+      href: registration?.packageTxHash
+        ? getExplorerTxUrl(registration.packageTxHash, chainId)
+        : null,
     },
     {
       label: 'Block',

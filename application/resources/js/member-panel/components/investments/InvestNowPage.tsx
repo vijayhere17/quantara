@@ -10,6 +10,7 @@ import { SectionTitle } from '../ui/SectionTitle';
 import { InstallWalletModal } from '../auth/InstallWalletModal';
 import { isPackageSelectable, isUnlimitedPackage, PackageCard } from './PackageCard';
 import { useWallet } from '../../hooks/useWallet';
+import { NetworkWalletStatus } from '../wallet/NetworkWalletStatus';
 import { notifyError, notifySuccess } from '../../lib/walletConnect';
 import { loadBlockchainConfig } from '../../services/blockchain/config';
 import {
@@ -194,7 +195,7 @@ export function InvestNowPage({ data }: InvestNowPageProps) {
             />
 
             <div className="flex items-center justify-between gap-3 rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 py-3.5">
-              <span className="text-sm text-q-muted">Payable (BTCB)</span>
+              <span className="text-sm text-q-muted">Payable (BEP-20)</span>
               <span className="text-sm font-bold text-q-cyan sm:text-base">{payable}</span>
             </div>
 
@@ -203,9 +204,11 @@ export function InvestNowPage({ data }: InvestNowPageProps) {
                 Connected Wallet
               </p>
               <p className="mt-1 break-all text-sm text-white">
-                {wallet.walletAddress || 'Connect MetaMask to activate'}
+                {wallet.walletAddress || 'Connect a BEP-20 wallet to activate'}
               </p>
             </div>
+
+            <NetworkWalletStatus wallet={wallet} />
 
             {!wallet.isConnected ? (
               <GradientButton
