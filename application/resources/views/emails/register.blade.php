@@ -25,7 +25,7 @@
                     <tr>
                         <td style="text-align:center;">
                           <a href="{{ URL::to('/') }}" title="logo" target="_blank">
-                            <img width="220" src="{{ URL::to('/') }}/assets/logo/quantara-logo.png" alt="Quantara">
+                            <img width="220" src="http://localhost/btc/assets/logo/quantara-logo.png" alt="Quantara">
                           </a>
                         </td>
                     </tr>

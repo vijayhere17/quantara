@@ -14,7 +14,7 @@ const sizeClass: Record<NonNullable<LogoProps['size']>, string> = {
 };
 
 /** Canonical Quantara brand mark — place file at /assets/logo/quantara-logo.png */
-export const QUANTARA_LOGO_SRC = '/assets/logo/quantara-logo.png';
+export const QUANTARA_LOGO_SRC = 'http://localhost/btc/assets/logo/quantara-logo.png';
 
 export function Logo({
   href,
