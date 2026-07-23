@@ -14,6 +14,9 @@
         "rmunate/php2js": "^4.3",
         "yajra/laravel-datatables": "10.0"
     },
+    "suggest": {
+        "ext-gmp": "Preferred for wei/hex big-integer compares in blockchain approval verification (App\\Services\\BigInteger). BCMath or pure-PHP fallback is used when missing."
+    },
     "require-dev": {
         "fakerphp/faker": "^1.9.1",
         "laravel/pint": "^1.0",

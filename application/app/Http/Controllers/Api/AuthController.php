@@ -7,10 +7,10 @@ use App\Http\Controllers\Users\SignupController;
 use App\Models\User;
 use App\Services\BlockchainService;
 use App\Services\PackageActivationService;
+use App\Services\WalletSignatureService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Schema;
@@ -352,15 +352,16 @@ class AuthController extends Controller
 
     /**
      * POST /api/auth/login
+     * Wallet-only: MetaMask connect + personal_sign challenge (no email/password).
      * Route middleware: api + api.session (session login, no CSRF).
      */
     public function login(Request $request)
     {
         try {
             $request->validate([
-                'email' => 'required|email',
-                'password' => 'required|string',
                 'wallet' => 'required|string|size:42',
+                'signature' => 'required|string|size:132',
+                'message' => 'required|string|max:2000',
             ]);
 
             $key = 'api-login:' . $request->ip();
@@ -369,12 +370,30 @@ class AuthController extends Controller
             }
             RateLimiter::hit($key, 300);
 
-            $email = strtolower(trim($request->input('email')));
             $wallet = $this->blockchain->normalizeAddress($request->input('wallet'));
+            $sigCheck = app(WalletSignatureService::class)->verifyLoginMessage(
+                $wallet,
+                (string) $request->input('message'),
+                (string) $request->input('signature')
+            );
+            if (!($sigCheck['ok'] ?? false)) {
+                return response()->json([
+                    'success' => false,
+                    'error' => $sigCheck['error'] ?? 'Wallet signature verification failed.',
+                ], 200);
+            }
 
-            $user = User::where('email', $email)->where('status', 0)->first();
-            if ($user === null || empty($user->password) || !Hash::check($request->input('password'), $user->password)) {
-                return response()->json(['success' => false, 'error' => 'Invalid login credentials.'], 200);
+            $user = User::where(function ($q) use ($wallet) {
+                $q->whereRaw('LOWER(wallet_addr) = ?', [$wallet])
+                    ->orWhereRaw('LOWER(username) = ?', [$wallet]);
+            })->where('status', 0)->first();
+
+            if ($user === null) {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'Wallet is not registered. Please create an account first.',
+                    'code' => 'WALLET_NOT_REGISTERED',
+                ], 200);
             }
 
             $stored = $this->blockchain->normalizeAddress($user->wallet_addr ?: $user->username);
@@ -393,7 +412,6 @@ class AuthController extends Controller
             Auth::guard('web')->login($user);
             $request->session()->regenerate();
 
-            // Keep wallet verification in sync on every successful email+wallet login
             if (($user->wallet_status ?? null) !== 'verified') {
                 $user->wallet_status = 'verified';
                 if (empty($user->wallet_addr)) {
@@ -412,6 +430,11 @@ class AuthController extends Controller
                 'user' => $this->buildUserPayload($user),
                 'dashboard' => $this->buildDashboardPayload($user),
                 'redirect' => url('/dashboard'),
+            ], 200);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'error' => collect($e->errors())->flatten()->first() ?: 'Validation failed',
             ], 200);
         } catch (\Throwable $e) {
             Log::error('Web3 login failed', ['error' => $e->getMessage()]);

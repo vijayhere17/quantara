@@ -238,19 +238,19 @@ export function SignupPage({ data }: SignupPageProps) {
 
       <Card
         hover={false}
-        className="mx-auto w-full max-w-[760px] border-q-cyan/25 p-5 shadow-[0_0_0_1px_rgba(0,217,255,0.10),0_0_48px_rgba(124,58,237,0.12)] sm:p-8"
+        className="mx-auto w-full max-w-[760px] min-w-0 overflow-hidden border-q-cyan/25 p-4 shadow-[0_0_0_1px_rgba(0,217,255,0.10),0_0_48px_rgba(124,58,237,0.12)] sm:p-8"
       >
         <div className="mb-6 flex flex-col items-center text-center">
           <Logo href={data.links.home} size="lg" imgClassName="max-w-[200px]" />
           <h1 className="mt-5 text-2xl font-bold text-white">Create your account</h1>
         </div>
 
-        <ol className="mb-7 flex flex-wrap items-center justify-center gap-2 sm:gap-3">
+        <ol className="mb-7 flex max-w-full flex-wrap items-center justify-center gap-1.5 overflow-x-auto sm:gap-3">
           {STEPS.map((s, index) => {
             const active = index === stepIndex;
             const done = index < stepIndex;
             return (
-              <li key={s.id} className="flex items-center gap-2">
+              <li key={s.id} className="flex shrink-0 items-center gap-1.5 sm:gap-2">
                 <span
                   className={[
                     'inline-flex h-8 min-w-8 items-center justify-center rounded-full border px-2 text-xs font-bold transition',
@@ -424,46 +424,64 @@ export function SignupPage({ data }: SignupPageProps) {
         ) : null}
 
         {step === 'payment' ? (
-          <section className="space-y-5 animate-fade-in">
-            <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-q-cyan/15 text-q-cyan">
+          <section className="min-w-0 space-y-5 animate-fade-in">
+            <div className="flex min-w-0 items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-q-cyan/15 text-q-cyan">
                 <Wallet className="h-5 w-5" />
               </div>
-              <div>
+              <div className="min-w-0 flex-1">
                 <h2 className="text-lg font-bold text-white">Payment & Register</h2>
-                <p className="text-sm text-q-muted">
+                <p className="break-words text-sm text-q-muted">
                   Confirm each MetaMask prompt to finish registration.
                 </p>
               </div>
             </div>
 
-            <div className="rounded-2xl border border-white/[0.08] bg-[#0a0d16]/80 px-4 py-3 text-sm">
-              <div className="flex justify-between gap-3 border-b border-white/[0.06] py-2.5">
-                <span className="text-q-muted">Package</span>
-                <span className="font-semibold text-white">{selectedPackage?.label || '$50'}</span>
+            <div className="min-w-0 overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0a0d16]/80 px-3 py-2 text-sm sm:px-4 sm:py-3">
+              <div className="flex min-w-0 items-start justify-between gap-3 border-b border-white/[0.06] py-2.5">
+                <span className="shrink-0 text-q-muted">Package</span>
+                <span className="min-w-0 text-right font-semibold text-white">
+                  {selectedPackage?.label || '$50'}
+                </span>
               </div>
-              <div className="flex justify-between gap-3 border-b border-white/[0.06] py-2.5">
-                <span className="text-q-muted">Sponsor</span>
-                <span className="max-w-[60%] truncate font-semibold text-white">{sponsorId || '—'}</span>
+              <div className="flex min-w-0 items-start justify-between gap-3 border-b border-white/[0.06] py-2.5">
+                <span className="shrink-0 text-q-muted">Sponsor</span>
+                <span
+                  className="min-w-0 break-all text-right font-mono text-xs font-semibold text-white sm:text-sm"
+                  title={sponsorId || undefined}
+                >
+                  {sponsorId
+                    ? `${sponsorId.slice(0, 6)}…${sponsorId.slice(-4)}`
+                    : '—'}
+                </span>
               </div>
-              <div className="flex justify-between gap-3 py-2.5">
-                <span className="text-q-muted">Wallet</span>
-                <span className="max-w-[60%] truncate font-semibold text-white">{wallet.walletAddress || '—'}</span>
+              <div className="flex min-w-0 items-start justify-between gap-3 py-2.5">
+                <span className="shrink-0 text-q-muted">Wallet</span>
+                <span
+                  className="min-w-0 break-all text-right font-mono text-xs font-semibold text-white sm:text-sm"
+                  title={wallet.walletAddress || undefined}
+                >
+                  {wallet.walletAddress
+                    ? `${wallet.walletAddress.slice(0, 6)}…${wallet.walletAddress.slice(-4)}`
+                    : '—'}
+                </span>
               </div>
             </div>
 
             <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 py-3 text-sm text-q-soft">
               <input
                 type="checkbox"
-                className="mt-0.5 h-4 w-4 rounded border-white/20 bg-[#0a0d16] text-q-cyan"
+                className="mt-0.5 h-4 w-4 shrink-0 rounded border-white/20 bg-[#0a0d16] text-q-cyan"
                 checked={terms}
                 onChange={(e) => setTerms(e.target.checked)}
               />
-              <span>I agree to the Terms &amp; Conditions.</span>
+              <span className="min-w-0 break-words">I agree to the Terms &amp; Conditions.</span>
             </label>
 
             {status ? (
-              <p className="rounded-xl border border-q-cyan/20 bg-q-cyan/10 px-4 py-3 text-sm text-q-cyan">{status}</p>
+              <p className="break-words rounded-xl border border-q-cyan/20 bg-q-cyan/10 px-4 py-3 text-sm text-q-cyan">
+                {status}
+              </p>
             ) : null}
 
             {showDemoFaucet ? (

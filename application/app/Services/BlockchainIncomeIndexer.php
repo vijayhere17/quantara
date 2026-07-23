@@ -195,13 +195,7 @@ class BlockchainIncomeIndexer
 
     protected function tokenWeiToUsd(string $amountHex): float
     {
-        $hex = preg_replace('/^0x/i', '', $amountHex) ?: '0';
-        $wei = gmp_init($hex, 16);
-        // 1e18
-        $divisor = gmp_init('1000000000000000000');
-        $whole = gmp_div_q($wei, $divisor);
-        $frac = gmp_div_r($wei, $divisor);
-        $token = (float) gmp_strval($whole) + ((float) gmp_strval($frac) / 1e18);
+        $token = BigInteger::weiToTokenFloat($amountHex, 18);
 
         $rate = function_exists('getcoinrate') ? (float) getcoinrate() : 0.0;
         if ($rate <= 0) {
