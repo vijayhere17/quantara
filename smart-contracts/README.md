@@ -46,7 +46,8 @@ npx hardhat build
 npx hardhat test mocha
 npx hardhat node   # terminal 1
 npm run deploy     # terminal 2 — deploys, wires, AND registers root
-npm run bootstrap:root   # for an already-deployed core missing root
+npm run bootstrap:root   # root + fund Hardhat accounts #1–#3
+npm run bootstrap:demo   # deploy (if needed) → root → fund → print balances
 npx hardhat run scripts/testFlow.ts
 npx hardhat run scripts/testIncomeCap.ts
 ```
@@ -94,3 +95,18 @@ Without step 2, every non-zero sponsor fails with "Sponsor not registered" (fron
 Do **not** bypass sponsor validation. Always bootstrap the root via `register(address(0))`.
 
 After bootstrap, set your Laravel sponsor/admin `username` / `wallet_addr` to the root wallet printed by deploy / bootstrap.
+
+## Local demo faucet (Hardhat only)
+
+New wallets have **0 MockBTCB** until funded. Constructor mints supply only to the deployer.
+
+```bash
+npx hardhat node          # terminal 1
+npm run bootstrap:demo    # deploy (if needed) → root → mint 1000 BTCB to accounts #1–#3
+# or, on an existing deploy:
+npm run bootstrap:root    # root + fund #1–#3
+```
+
+`MockBTCB.mint(address,uint256)` is used when available; otherwise tokens are transferred from the deployer.
+
+The signup UI shows **Get Demo BTCB** only when `BLOCKCHAIN_CHAIN_ID=31337` and `APP_ENV=local`. It is never enabled in production.

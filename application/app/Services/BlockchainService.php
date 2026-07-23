@@ -35,6 +35,9 @@ class BlockchainService
 
     public function getConfig(): array
     {
+        $isLocalChain = $this->chainId === 31337;
+        $isLocalApp = app()->environment(['local', 'testing']);
+
         return [
             'rpc' => $this->rpc,
             'chainId' => $this->chainId,
@@ -42,6 +45,8 @@ class BlockchainService
             'token' => $this->token,
             'treasury' => $this->treasury,
             'reward' => $this->reward,
+            // Local Hardhat demo faucet only — never true in production
+            'demoFaucet' => $isLocalChain && $isLocalApp,
         ];
     }
 

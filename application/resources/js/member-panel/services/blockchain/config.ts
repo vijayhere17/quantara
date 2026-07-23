@@ -12,6 +12,8 @@ export type BlockchainPublicConfig = {
   token: string;
   treasury: string;
   reward?: string;
+  /** Local Hardhat demo faucet — never true in production */
+  demoFaucet?: boolean;
 };
 
 const FALLBACK_LOCAL: BlockchainPublicConfig = {
