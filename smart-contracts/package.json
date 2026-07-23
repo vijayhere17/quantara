@@ -13,6 +13,7 @@
     "bootstrap:demo": "hardhat run scripts/bootstrap-demo.ts --network localhost",
     "demo:harness": "hardhat run scripts/demo-harness.ts",
     "qa:full": "hardhat run scripts/qa/full-production-qa.ts --network localhost",
+    "qa:referral": "hardhat run scripts/qa/referral-income-audit.ts",
     "qa:bsc-testnet": "hardhat run scripts/qa/full-production-qa.ts --network bscTestnet",
     "qa:bsc": "hardhat run scripts/qa/full-production-qa.ts --network bsc",
     "test:flow": "hardhat run scripts/testFlow.ts",

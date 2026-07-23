@@ -64,17 +64,43 @@ class BlockchainIncomeIndexer
 
         while ($cursor <= $toBlock) {
             $end = min($cursor + $chunk - 1, $toBlock);
-            $logs = $this->blockchain->getLogs([
-                'fromBlock' => '0x' . dechex($cursor),
-                'toBlock' => '0x' . dechex($end),
-                'topics' => [$topics],
-            ]);
+            $addresses = $this->contractAddresses();
+            $logs = [];
 
-            if (!is_array($logs)) {
-                $errors++;
-                Log::warning('Income indexer getLogs failed', ['from' => $cursor, 'to' => $end]);
-                $cursor = $end + 1;
-                continue;
+            if ($addresses === []) {
+                $batch = $this->blockchain->getLogs([
+                    'fromBlock' => '0x' . dechex($cursor),
+                    'toBlock' => '0x' . dechex($end),
+                    'topics' => [$topics],
+                ]);
+                if (!is_array($batch)) {
+                    $errors++;
+                    Log::warning('Income indexer getLogs failed', ['from' => $cursor, 'to' => $end]);
+                    $cursor = $end + 1;
+                    continue;
+                }
+                $logs = $batch;
+            } else {
+                foreach ($addresses as $address) {
+                    $batch = $this->blockchain->getLogs([
+                        'fromBlock' => '0x' . dechex($cursor),
+                        'toBlock' => '0x' . dechex($end),
+                        'address' => $address,
+                        'topics' => [$topics],
+                    ]);
+                    if (!is_array($batch)) {
+                        $errors++;
+                        Log::warning('Income indexer getLogs failed', [
+                            'from' => $cursor,
+                            'to' => $end,
+                            'address' => $address,
+                        ]);
+                        continue;
+                    }
+                    foreach ($batch as $log) {
+                        $logs[] = $log;
+                    }
+                }
             }
 
             foreach ($logs as $index => $log) {
@@ -118,9 +144,10 @@ class BlockchainIncomeIndexer
         }
 
         $wallet = $meta['wallet'];
-        $user = User::whereRaw('LOWER(wallet_addr) = ?', [$wallet])
-            ->orWhereRaw('LOWER(username) = ?', [$wallet])
-            ->first();
+        $user = User::where(function ($query) use ($wallet) {
+            $query->whereRaw('LOWER(wallet_addr) = ?', [$wallet])
+                ->orWhereRaw('LOWER(username) = ?', [$wallet]);
+        })->first();
 
         if ($user === null) {
             return false;
@@ -204,6 +231,104 @@ class BlockchainIncomeIndexer
         }
 
         return round($token * $rate, 8);
+    }
+
+    /**
+     * @return list<string>
+     */
+    protected function contractAddresses(): array
+    {
+        $cfg = (array) config('blockchain.contracts', []);
+        $local = (array) config('blockchain.local', []);
+        $chainId = (int) config('blockchain.chain_id', 56);
+
+        $keys = [
+            'core',
+            'treasury',
+            'reward',
+            'token',
+            'income',
+            'contribution',
+            'booster',
+            'rank',
+            'community',
+        ];
+        $out = [];
+        foreach ($keys as $key) {
+            $addr = (string) ($cfg[$key] ?? '');
+            if ($addr === '' && $chainId === 31337) {
+                $addr = (string) ($local[$key] ?? '');
+            }
+            $this->collectAddress($out, $addr);
+        }
+
+        // Merge deployed-addresses.json when present (ContributionReward etc.)
+        foreach ($this->loadDeployedAddressBook() as $addr) {
+            $this->collectAddress($out, $addr);
+        }
+
+        return array_values($out);
+    }
+
+    /**
+     * @param  array<string,string>  $out
+     */
+    protected function collectAddress(array &$out, string $addr): void
+    {
+        $addr = strtolower(trim($addr));
+        if (preg_match('/^0x[a-f0-9]{40}$/', $addr)) {
+            $out[$addr] = $addr;
+        }
+    }
+
+    /**
+     * @return list<string>
+     */
+    protected function loadDeployedAddressBook(): array
+    {
+        $candidates = [
+            base_path('../smart-contracts/deployed-addresses.json'),
+            base_path('smart-contracts/deployed-addresses.json'),
+            storage_path('app/blockchain/deployed-addresses.json'),
+        ];
+
+        $wanted = [
+            'BTCPlanCore',
+            'TreasuryManager',
+            'IncomeManager',
+            'InterdependentReward',
+            'ContributionReward',
+            'ContributionBooster',
+            'RankReward',
+            'CommunityBuilder',
+            'Token',
+            'MockBTCB',
+        ];
+
+        foreach ($candidates as $path) {
+            if (!is_file($path)) {
+                continue;
+            }
+            try {
+                $json = json_decode((string) file_get_contents($path), true);
+                if (!is_array($json)) {
+                    continue;
+                }
+                $addrs = [];
+                foreach ($wanted as $key) {
+                    if (!empty($json[$key]) && is_string($json[$key])) {
+                        $addrs[] = $json[$key];
+                    }
+                }
+                if ($addrs !== []) {
+                    return $addrs;
+                }
+            } catch (\Throwable) {
+                // ignore
+            }
+        }
+
+        return [];
     }
 
     protected function getCursor(): int

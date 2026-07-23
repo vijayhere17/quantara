@@ -390,6 +390,11 @@ async function main() {
   console.log(`  CORE_CONTRACT=${await core.getAddress()}`);
   console.log(`  TREASURY_CONTRACT=${await treasury.getAddress()}`);
   console.log(`  REWARD_CONTRACT=${await interReward.getAddress()}`);
+  console.log(`  INCOME_CONTRACT=${await income.getAddress()}`);
+  console.log(`  CONTRIBUTION_CONTRACT=${await contributionReward.getAddress()}`);
+  console.log(`  BOOSTER_CONTRACT=${await booster.getAddress()}`);
+  console.log(`  RANK_CONTRACT=${await rank.getAddress()}`);
+  console.log(`  COMMUNITY_CONTRACT=${await community.getAddress()}`);
 }
 
 main().catch((err) => {

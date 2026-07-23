@@ -29,6 +29,12 @@ return [
         'core' => env('CORE_CONTRACT'),
         'treasury' => env('TREASURY_CONTRACT'),
         'reward' => env('REWARD_CONTRACT'),
+        // Optional — used by income indexer eth_getLogs address filters
+        'income' => env('INCOME_CONTRACT'),
+        'contribution' => env('CONTRIBUTION_CONTRACT'),
+        'booster' => env('BOOSTER_CONTRACT'),
+        'rank' => env('RANK_CONTRACT'),
+        'community' => env('COMMUNITY_CONTRACT'),
     ],
 
     /*
