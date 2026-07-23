@@ -142,6 +142,24 @@ export function mapWalletError(error: unknown): string {
   if (lower.includes('transfer amount exceeds balance') || lower.includes('insufficient funds')) {
     return 'Insufficient token or BNB balance for this transaction.';
   }
+  if (
+    lower.includes('unrecognized-selector') ||
+    lower.includes('unrecognized selector') ||
+    lower.includes('function selector was not recognized')
+  ) {
+    return (
+      'Contract rejected the function selector (ABI/bytecode mismatch). ' +
+      'For Get Demo BTCB this usually means MockBTCB was deployed without mint(). ' +
+      'Run FORCE_DEPLOY=1 npm run bootstrap:demo and update TOKEN_CONTRACT, or skip the faucet if already funded.'
+    );
+  }
+  if (lower.includes('require(false)')) {
+    return (
+      'Transaction reverted (require(false) / empty revert). ' +
+      'Often caused by calling mint() on an older MockBTCB without that function. ' +
+      'If your wallet already has MockBTCB, skip Get Demo BTCB and complete registration.'
+    );
+  }
 
   return raw || 'Wallet request failed.';
 }

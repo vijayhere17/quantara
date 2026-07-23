@@ -212,7 +212,7 @@ const id = () => {
   return '_' + Math.random().toString(36).substr(2, 9);
 };
 
-if(url){
+if(typeof url !== 'undefined' && url){
   var toastTypes = ["success","error","warning","info","question"]
   var src = ["https://svgshare.com/i/jVz.svg","https://svgshare.com/i/jUv.svg","https://svgshare.com/i/jW0.svg","https://svgshare.com/i/jWA.svg","https://svgshare.com/i/jUw.svg"];
   for (var i = 0; i < document.getElementsByClassName("alert-img").length; i++) {

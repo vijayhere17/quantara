@@ -65,6 +65,7 @@ class AuthController extends Controller
     /**
      * POST /api/auth/register
      * Creates the user ONLY after both register + activatePackage txs verify on-chain.
+     * Route middleware: api + api.session (session login, no CSRF).
      */
     public function register(Request $request)
     {
@@ -233,6 +234,7 @@ class AuthController extends Controller
 
     /**
      * POST /api/auth/login
+     * Route middleware: api + api.session (session login, no CSRF).
      */
     public function login(Request $request)
     {

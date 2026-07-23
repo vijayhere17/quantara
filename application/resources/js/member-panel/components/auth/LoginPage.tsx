@@ -48,7 +48,6 @@ export function LoginPage({ data }: LoginPageProps) {
         headers: {
           Accept: 'application/json',
           'Content-Type': 'application/json',
-          'X-CSRF-TOKEN': data.csrfToken,
           'X-Requested-With': 'XMLHttpRequest',
         },
         credentials: 'same-origin',
@@ -58,6 +57,11 @@ export function LoginPage({ data }: LoginPageProps) {
           wallet: address,
         }),
       });
+
+      if (res.status === 419) {
+        notifyError('Login session expired (HTTP 419). Refresh the page and try again.');
+        return;
+      }
 
       const json = (await res.json()) as {
         success?: boolean;

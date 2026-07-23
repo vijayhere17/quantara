@@ -35,6 +35,10 @@ export function DemoFaucetButton({ walletAddress, onFunded }: DemoFaucetButtonPr
       const result = await claimDemoBTCB('1000');
       setLastBalance(result.balance);
       onFunded?.(result.balance);
+      if (result.method === 'already-funded') {
+        // Soft success — no mint tx needed
+        setLastBalance(result.balance);
+      }
     } catch (error) {
       notifyError(error instanceof Error ? error.message : 'Demo faucet failed');
     } finally {
@@ -68,6 +72,12 @@ export function DemoFaucetButton({ walletAddress, onFunded }: DemoFaucetButtonPr
           Balance: {lastBalance} BTCB
         </p>
       ) : null}
+      <p className="mt-2 text-[10px] leading-relaxed text-amber-100/60">
+        If Hardhat logs <code className="text-amber-200">MockBTCB#&lt;unrecognized-selector&gt;</code>,
+        your token was deployed before <code className="text-amber-200">mint()</code>. Skip this
+        button when already funded, or redeploy with{' '}
+        <code className="text-amber-200">FORCE_DEPLOY=1 npm run bootstrap:demo</code>.
+      </p>
     </div>
   );
 }

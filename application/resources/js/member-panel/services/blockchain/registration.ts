@@ -167,7 +167,8 @@ export async function registerOnChain(
       const symbol = await token.symbol().catch(() => 'BTCB');
       const decimals = Number(await token.decimals().catch(() => 18));
       throw new Error(
-        `Insufficient ${symbol} balance. Need ${formatUnits(tokenAmount, decimals)}, have ${formatUnits(balance, decimals)}.`,
+        `Insufficient ${symbol} balance. Need ${formatUnits(tokenAmount, decimals)}, have ${formatUnits(balance, decimals)}. ` +
+          `Token=${cfg.token}. If bootstrap funded this wallet, confirm MetaMask TOKEN / network matches Laravel TOKEN_CONTRACT.`,
       );
     }
 
@@ -178,6 +179,14 @@ export async function registerOnChain(
           ? 'Approve BTCB spending for Quantara Core in MetaMask…'
           : 'Step 2/3 — Approve BTCB spending for Quantara Core in MetaMask…',
       );
+      // approve(address,uint256) → 0x095ea7b3 on MockBTCB — NOT on BTCPlanCore
+      console.info('[registration] approve', {
+        functionName: 'approve',
+        selector: '0x095ea7b3',
+        token: cfg.token,
+        spender: cfg.core,
+        amount: tokenAmount.toString(),
+      });
       const approveTx = await token.approve(cfg.core, tokenAmount);
       onStatus?.('Waiting for approval confirmation…');
       const approveReceipt = await approveTx.wait();
@@ -204,6 +213,14 @@ export async function registerOnChain(
         ? 'Confirm package payment in MetaMask…'
         : 'Step 3/3 — Confirm package payment in MetaMask…',
     );
+    // activatePackage(uint256) → 0x8fc01623 on BTCPlanCore (pulls via safeTransferFrom)
+    console.info('[registration] activatePackage', {
+      functionName: 'activatePackage',
+      selector: '0x8fc01623',
+      core: cfg.core,
+      amount: packageAmount,
+      tokenForPull: cfg.token,
+    });
     const packageTx = await core.activatePackage(BigInt(packageAmount));
     onStatus?.('Waiting for package activation confirmation…');
     const packageReceipt = await packageTx.wait();
@@ -251,12 +268,12 @@ export async function completeRegistrationWithLaravel(payload: {
   token_amount?: string;
   leg?: string;
 }) {
+  // POST /api/auth/register uses api.session (no CSRF). Auth proof = verified txs.
   const res = await fetch(apiUrl('/api/auth/register', payload.baseUrl), {
     method: 'POST',
     headers: {
       Accept: 'application/json',
       'Content-Type': 'application/json',
-      'X-CSRF-TOKEN': payload.csrfToken,
       'X-Requested-With': 'XMLHttpRequest',
     },
     credentials: 'same-origin',
@@ -275,6 +292,12 @@ export async function completeRegistrationWithLaravel(payload: {
       leg: payload.leg || 'L',
     }),
   });
+
+  if (res.status === 419) {
+    throw new Error(
+      'Registration session expired (HTTP 419). Refresh the page and submit again — on-chain txs are already confirmed.',
+    );
+  }
 
   let json: {
     success?: boolean;
