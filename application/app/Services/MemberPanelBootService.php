@@ -2,9 +2,12 @@
 
 namespace App\Services;
 
+use App\Models\BlockchainPackageActivation;
 use App\Models\EarningWallet;
 use App\Models\LevelReferral;
+use App\Models\StakeMaster;
 use App\Models\User;
+use App\Models\UserStaked;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Schema;
 
@@ -187,6 +190,219 @@ class MemberPanelBootService
         }
 
         return $out;
+    }
+
+    /**
+     * My Investments: prefer blockchain_package_activations (Web3 source of truth),
+     * fall back to staked_users when ledger table is empty/legacy-only.
+     *
+     * @return array{
+     *   summary: array{totalInvested:string,activeInvestment:string,completedPackages:int,roiEarned:string},
+     *   investments: list<array<string,mixed>>
+     * }
+     */
+    public function buildInvestmentHistory(?User $user = null): array
+    {
+        $user = $user ?? Auth::user();
+        if ($user === null) {
+            return [
+                'summary' => [
+                    'totalInvested' => '0.0000',
+                    'activeInvestment' => '0.0000',
+                    'completedPackages' => 0,
+                    'roiEarned' => '0.0000',
+                ],
+                'investments' => [],
+            ];
+        }
+
+        $roiEarned = $this->sumEarningType((int) $user->id, 2);
+        $workingEarned = $this->sumEarningType((int) $user->id, 1);
+        $chainId = (int) ($user->chain_id ?: config('blockchain.chain_id', 56));
+        $explorerBase = (string) (config('blockchain.explorers.' . $chainId) ?? '');
+
+        $investments = [];
+
+        if (Schema::hasTable('blockchain_package_activations')) {
+            $rows = BlockchainPackageActivation::where('user_id', $user->id)
+                ->orderByDesc('id')
+                ->get();
+
+            foreach ($rows as $row) {
+                $amount = (float) ($row->package_amount ?? 0);
+                $cycle = (int) ($row->package_cycle ?? 1);
+                $kit = $this->resolveKitName($amount);
+                $tx = strtolower((string) ($row->tx_hash ?? ''));
+                $status = $this->investmentStatus((string) ($row->status ?? 'verified'), $amount, $user);
+                $roiCap = $amount * 3;
+                $workingCap = $amount * 4;
+
+                // Match optional staked_users row for receive_return
+                $stakedRoi = $this->stakedReceiveReturn($user->id, $tx, $amount);
+
+                $investments[] = [
+                    'request' => 'PKG-' . ($row->id ?? '0') . '-C' . $cycle,
+                    'amount' => $this->formatMoney($amount),
+                    'packageAmount' => $this->formatMoney($amount),
+                    'packageName' => $kit,
+                    'btcPlan' => $kit . ' · Cycle ' . $cycle,
+                    'activationOn' => $this->formatDate($row->created_at),
+                    'txnHash' => $tx,
+                    'txnHashUrl' => ($explorerBase !== '' && $tx !== '')
+                        ? (rtrim($explorerBase, '/') . '/tx/' . $tx)
+                        : null,
+                    'maturity' => 'Cap-based (ROI 3X / Working 4X)',
+                    'status' => $status,
+                    'roiEarned' => $this->formatMoney($stakedRoi),
+                    'roiRemaining' => $this->formatMoney(max(0, $roiCap - $stakedRoi)),
+                    'roiCap' => $this->formatMoney($roiCap),
+                    'workingIncome' => $this->formatMoney($workingEarned),
+                    'totalEarned' => $this->formatMoney($roiEarned + $workingEarned),
+                    'blockchainStatus' => strtolower((string) ($row->status ?? 'verified')) === 'verified'
+                        ? 'On-chain verified'
+                        : (string) ($row->status ?? 'pending'),
+                    'packageCycle' => $cycle,
+                    'blockNumber' => $row->block_number,
+                ];
+            }
+        }
+
+        // Legacy / fallback rows not yet in blockchain ledger
+        if ($investments === [] && Schema::hasTable('staked_users')) {
+            $stakes = UserStaked::where('member_id', $user->id)
+                ->orderByDesc('id')
+                ->get();
+
+            foreach ($stakes as $stake) {
+                $amount = (float) ($stake->paid_amount ?? $stake->total_amount ?? 0);
+                $kit = null;
+                if (!empty($stake->kit_id) && Schema::hasTable('stake_masters')) {
+                    $kitModel = StakeMaster::find($stake->kit_id);
+                    $kit = $kitModel?->name ?: ('$' . $this->formatMoney($amount));
+                }
+                $kit = $kit ?: $this->resolveKitName($amount);
+                $tx = '';
+                $desc = (string) ($stake->description ?? '');
+                if (preg_match('/blockchain:(0x[a-fA-F0-9]{64})/', $desc, $m)) {
+                    $tx = strtolower($m[1]);
+                } elseif (preg_match('/0x[a-fA-F0-9]{64}/', $desc, $m)) {
+                    $tx = strtolower($m[0]);
+                }
+
+                $roiCap = $amount * 3;
+                $stakedRoi = (float) ($stake->receive_return ?? 0);
+                $up = (int) ($stake->up_status ?? 0);
+                $status = $up === 2 ? 'completed' : ($up === 1 ? 'pending' : 'active');
+
+                $investments[] = [
+                    'request' => 'STK-' . $stake->id,
+                    'amount' => $this->formatMoney($amount),
+                    'packageAmount' => $this->formatMoney($amount),
+                    'packageName' => $kit,
+                    'btcPlan' => $kit,
+                    'activationOn' => $this->formatDate($stake->created_at),
+                    'txnHash' => $tx,
+                    'txnHashUrl' => ($explorerBase !== '' && $tx !== '')
+                        ? (rtrim($explorerBase, '/') . '/tx/' . $tx)
+                        : null,
+                    'maturity' => $this->formatDate($stake->return_date ?? null) ?: '—',
+                    'status' => $status,
+                    'roiEarned' => $this->formatMoney($stakedRoi),
+                    'roiRemaining' => $this->formatMoney(max(0, $roiCap - $stakedRoi)),
+                    'roiCap' => $this->formatMoney($roiCap),
+                    'workingIncome' => $this->formatMoney($workingEarned),
+                    'totalEarned' => $this->formatMoney($roiEarned + $workingEarned),
+                    'blockchainStatus' => $tx !== '' ? 'Mirrored from stake ledger' : 'Off-chain / legacy',
+                    'packageCycle' => null,
+                    'blockNumber' => null,
+                ];
+            }
+        }
+
+        $totalInvested = 0.0;
+        $activeInvestment = 0.0;
+        $completed = 0;
+        foreach ($investments as $inv) {
+            $amt = (float) ($inv['packageAmount'] ?? $inv['amount'] ?? 0);
+            $totalInvested += $amt;
+            if (($inv['status'] ?? '') === 'active') {
+                $activeInvestment += $amt;
+            }
+            if (($inv['status'] ?? '') === 'completed') {
+                $completed++;
+            }
+        }
+
+        // Prefer user.self_investment when present
+        if (Schema::hasColumn('users', 'self_investment') && (float) ($user->self_investment ?? 0) > 0) {
+            $totalInvested = (float) $user->self_investment;
+        }
+
+        return [
+            'summary' => [
+                'totalInvested' => $this->formatMoney($totalInvested),
+                'activeInvestment' => $this->formatMoney($activeInvestment > 0 ? $activeInvestment : $totalInvested),
+                'completedPackages' => $completed,
+                'roiEarned' => $this->formatMoney($roiEarned),
+            ],
+            'investments' => $investments,
+        ];
+    }
+
+    protected function sumEarningType(int $memberId, int $earningType): float
+    {
+        if (!Schema::hasTable('ewallet_logs')) {
+            return 0.0;
+        }
+
+        return (float) EarningWallet::where('member_id', $memberId)
+            ->where('txn_type', 1)
+            ->where('earning_type', $earningType)
+            ->sum('amount');
+    }
+
+    protected function resolveKitName(float $amount): string
+    {
+        if ($amount <= 0) {
+            return 'Package';
+        }
+        if (Schema::hasTable('stake_masters')) {
+            $kit = StakeMaster::where('amount', $amount)->first();
+            if ($kit !== null && !empty($kit->name)) {
+                return (string) $kit->name;
+            }
+        }
+        return '$' . rtrim(rtrim(number_format($amount, 2, '.', ''), '0'), '.') . ' Package';
+    }
+
+    protected function investmentStatus(string $ledgerStatus, float $amount, User $user): string
+    {
+        $ledgerStatus = strtolower(trim($ledgerStatus));
+        if ($ledgerStatus === 'completed' || $ledgerStatus === 'expired') {
+            return $ledgerStatus;
+        }
+        if ($amount > 0 && (float) ($user->package_amount ?? $user->package_id ?? 0) > 0) {
+            return 'active';
+        }
+        return $ledgerStatus === 'verified' ? 'active' : 'pending';
+    }
+
+    protected function stakedReceiveReturn(int $memberId, string $txHash, float $amount): float
+    {
+        if (!Schema::hasTable('staked_users')) {
+            return 0.0;
+        }
+
+        $query = UserStaked::where('member_id', $memberId);
+        if ($txHash !== '') {
+            $match = (clone $query)->where('description', 'like', '%' . $txHash . '%')->first();
+            if ($match !== null) {
+                return (float) ($match->receive_return ?? 0);
+            }
+        }
+
+        $match = $query->where('paid_amount', $amount)->orderByDesc('id')->first();
+        return (float) ($match->receive_return ?? 0);
     }
 
     protected function memberLabel(User $row): string
