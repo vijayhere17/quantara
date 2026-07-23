@@ -182,6 +182,18 @@ CALL quantara_add_column('blockchain_package_activations', 'updated_at', '`updat
 CALL quantara_add_index('blockchain_package_activations', 'blockchain_package_activations_tx_hash_unique', 'UNIQUE INDEX `blockchain_package_activations_tx_hash_unique` (`tx_hash`)');
 CALL quantara_add_index('blockchain_package_activations', 'blockchain_package_activations_user_id_index', 'INDEX `blockchain_package_activations_user_id_index` (`user_id`)');
 CALL quantara_add_index('blockchain_package_activations', 'blockchain_package_activations_wallet_index', 'INDEX `blockchain_package_activations_wallet_index` (`wallet`)');
+CALL quantara_add_index('blockchain_package_activations', 'bpa_approve_tx_hash_unique', 'UNIQUE INDEX `bpa_approve_tx_hash_unique` (`approve_tx_hash`)');
+
+-- blockchain_sync_cursors
+CREATE TABLE IF NOT EXISTS `blockchain_sync_cursors` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `name` VARCHAR(64) NOT NULL,
+  `last_block` BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  `created_at` TIMESTAMP NULL,
+  `updated_at` TIMESTAMP NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `blockchain_sync_cursors_name_unique` (`name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- blockchain_income_events
 CALL quantara_add_column('blockchain_income_events', 'user_id', '`user_id` BIGINT UNSIGNED NOT NULL');

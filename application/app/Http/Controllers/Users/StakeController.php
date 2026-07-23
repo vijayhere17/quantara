@@ -842,6 +842,12 @@ $tokenAbi = json_decode(
                 continue;
             }
 
+            // Blockchain-mirrored stakes: ROI / contribution / booster settle on-chain.
+            // Never pay offline Daily ROI against description blockchain:<tx> (double-income).
+            if (is_string($log->description) && str_starts_with($log->description, 'blockchain:')) {
+                continue;
+            }
+
             // Rate is read from the snapshot on the stake row itself (set at activation/migration from the
             // resolved ROI tier), not re-derived from stake_masters, so it stays locked in at investment time.
             $per = $log->apy;

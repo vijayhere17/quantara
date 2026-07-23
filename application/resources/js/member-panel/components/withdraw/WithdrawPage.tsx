@@ -19,6 +19,8 @@ type WithdrawPageProps = {
 export function WithdrawPage({ data }: WithdrawPageProps) {
   const wallet = useWallet();
   const [amount, setAmount] = useState('');
+  const [otp, setOtp] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState('');
   const [showInstall, setShowInstall] = useState(false);
@@ -46,71 +48,103 @@ export function WithdrawPage({ data }: WithdrawPageProps) {
 
   const withdrawalWallet = wallet.walletAddress || data.walletAddress || data.user.username;
 
-  const handleSubmit = async () => {
-    if (busy) return;
+  const postWithdrawal = async (confirm: boolean) => {
+    const body = new URLSearchParams();
+    body.set('_token', data.csrfToken);
+    body.set('amount', String(parsedAmount));
+    body.set('wallet', withdrawalWallet);
+    body.set('otp', confirm ? otp.trim() : '');
+    body.set('status', confirm ? 'true' : 'false');
 
+    const res = await fetch(apiUrl('/process-withdrawal-request', data.baseUrl), {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+        'X-CSRF-TOKEN': data.csrfToken,
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      credentials: 'same-origin',
+      body,
+    });
+
+    if (res.status === 419) {
+      throw new Error('Session expired. Please refresh and try again.');
+    }
+
+    let json: { success?: boolean; error?: string; balance?: string | number };
+    try {
+      json = await res.json();
+    } catch {
+      throw new Error('Withdrawal request failed. Please try again.');
+    }
+
+    if (!res.ok || !json.success) {
+      throw new Error(json.error || 'Withdrawal request failed.');
+    }
+
+    return json;
+  };
+
+  const validateForm = (): boolean => {
     const bal = Number.parseFloat(balance) || 0;
     if (bal <= 0) {
       notifyError('Account balance is $0');
-      return;
+      return false;
     }
     if (!parsedAmount || parsedAmount <= 0) {
       notifyError('Please enter a valid amount.');
-      return;
+      return false;
     }
     if (parsedAmount < minAmount) {
       notifyError(`Minimum withdrawal $${minAmount}`);
-      return;
+      return false;
     }
     if (parsedAmount > bal) {
       notifyError('Insufficient account balance.');
-      return;
+      return false;
     }
     if (!withdrawalWallet) {
       notifyError('Please connect a withdrawal wallet address.');
-      return;
+      return false;
     }
     if (!wallet.walletInstalled && !data.walletAddress) {
       setShowInstall(true);
+      return false;
+    }
+    return true;
+  };
+
+  const handleRequestOtp = async () => {
+    if (busy || !validateForm()) return;
+
+    setBusy(true);
+    setStatus('Sending withdrawal OTP to your email…');
+    try {
+      await postWithdrawal(false);
+      setOtpSent(true);
+      setStatus('OTP sent. Enter the code from your email to confirm.');
+      notifySuccess('Withdrawal OTP sent to your email.');
+    } catch (error) {
+      console.error(error);
+      notifyError(error instanceof Error ? error.message : 'Failed to send OTP');
+      setStatus('');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleConfirm = async () => {
+    if (busy || !validateForm()) return;
+    if (!/^\d{6}$/.test(otp.trim())) {
+      notifyError('Enter the 6-digit OTP from your email.');
       return;
     }
 
     setBusy(true);
-    setStatus('Submitting withdrawal request…');
+    setStatus('Confirming withdrawal…');
     try {
-      const body = new URLSearchParams();
-      body.set('_token', data.csrfToken);
-      body.set('amount', String(parsedAmount));
-      body.set('wallet', withdrawalWallet);
-      body.set('otp', '346789');
-      body.set('status', 'true');
-
-      const res = await fetch(apiUrl('/process-withdrawal-request', data.baseUrl), {
-        method: 'POST',
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-          'X-CSRF-TOKEN': data.csrfToken,
-          'X-Requested-With': 'XMLHttpRequest',
-        },
-        credentials: 'same-origin',
-        body,
-      });
-
-      if (res.status === 419) {
-        throw new Error('Session expired. Please refresh and try again.');
-      }
-
-      let json: { success?: boolean; error?: string; balance?: string | number };
-      try {
-        json = await res.json();
-      } catch {
-        throw new Error('Withdrawal request failed. Please try again.');
-      }
-
-      if (!res.ok || !json.success) {
-        throw new Error(json.error || 'Withdrawal request failed.');
-      }
+      const json = await postWithdrawal(true);
 
       if (json.balance != null) {
         setBalance(String(json.balance));
@@ -119,6 +153,8 @@ export function WithdrawPage({ data }: WithdrawPageProps) {
       }
 
       setAmount('');
+      setOtp('');
+      setOtpSent(false);
       setStatus('');
       notifySuccess('Withdrawal request submitted successfully.');
     } catch (error) {
@@ -171,7 +207,11 @@ export function WithdrawPage({ data }: WithdrawPageProps) {
             name="amount"
             type="number"
             value={amount}
-            onChange={(e) => setAmount(e.target.value)}
+            onChange={(e) => {
+              setAmount(e.target.value);
+              setOtpSent(false);
+              setOtp('');
+            }}
             placeholder={`Minimum $${minAmount}`}
           />
 
@@ -199,6 +239,19 @@ export function WithdrawPage({ data }: WithdrawPageProps) {
             </p>
           </div>
 
+          {otpSent ? (
+            <Input
+              label="Email OTP"
+              name="otp"
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              value={otp}
+              onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              placeholder="6-digit code"
+            />
+          ) : null}
+
           {!wallet.isConnected ? (
             <GradientButton
               fullWidth
@@ -223,15 +276,27 @@ export function WithdrawPage({ data }: WithdrawPageProps) {
             </p>
           ) : null}
 
-          <GradientButton
-            fullWidth
-            className="!py-3.5 !text-base !font-bold !text-[#041018]"
-            disabled={busy || !withdrawalWallet}
-            onClick={() => void handleSubmit()}
-          >
-            <ArrowDownToLine className="h-4 w-4" />
-            {busy ? 'Submitting…' : 'Request Withdrawal'}
-          </GradientButton>
+          {!otpSent ? (
+            <GradientButton
+              fullWidth
+              className="!py-3.5 !text-base !font-bold !text-[#041018]"
+              disabled={busy || !withdrawalWallet}
+              onClick={() => void handleRequestOtp()}
+            >
+              <ArrowDownToLine className="h-4 w-4" />
+              {busy ? 'Sending OTP…' : 'Send OTP'}
+            </GradientButton>
+          ) : (
+            <GradientButton
+              fullWidth
+              className="!py-3.5 !text-base !font-bold !text-[#041018]"
+              disabled={busy || !withdrawalWallet || otp.trim().length !== 6}
+              onClick={() => void handleConfirm()}
+            >
+              <ArrowDownToLine className="h-4 w-4" />
+              {busy ? 'Confirming…' : 'Confirm Withdrawal'}
+            </GradientButton>
+          )}
         </div>
       </Card>
     </PageContainer>

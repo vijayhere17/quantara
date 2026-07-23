@@ -50,6 +50,14 @@ class PackageActivationService
             if ($existing !== null) {
                 return $member->fresh(['kit', 'referral']) ?? $member;
             }
+
+            // Never reuse an Approval hash across activations
+            if ($approveTx !== null && $approveTx !== '') {
+                $approveUsed = \App\Models\BlockchainPackageActivation::where('approve_tx_hash', $approveTx)->exists();
+                if ($approveUsed) {
+                    throw new RuntimeException('Approval transaction already used.');
+                }
+            }
         }
 
         return DB::transaction(function () use (

@@ -117,17 +117,14 @@ class WithdrawalController extends Controller
             
             if($data["status"] === 'true')
             {
-                if($data["otp"] != '346789')
+                if(Cookie::get('withdrawalotp') == null)
                 {
-                    if(Cookie::get('withdrawalotp') == null)
-                    {
-                         return response()->json(array('success'=>false,'error'=> 'OTP is expire.'), 200); 
-                    }
-                    
-                    if(Cookie::get('withdrawalotp') != $data["otp"])
-                    {
-                       return response()->json(array('success'=>false,'error'=> 'Invalid withdrawal OTP.'), 200); 
-                    }
+                     return response()->json(array('success'=>false,'error'=> 'OTP is expire.'), 200); 
+                }
+                
+                if(Cookie::get('withdrawalotp') != $data["otp"])
+                {
+                   return response()->json(array('success'=>false,'error'=> 'Invalid withdrawal OTP.'), 200); 
                 }
                 
                 Cookie::forget('withdrawalotp');
@@ -159,7 +156,7 @@ class WithdrawalController extends Controller
                 
                 $emailCon = app('App\Http\Controllers\EmailController');
                 $subject = $data["amount"].' Withdrawal OTP';
-                // $emailCon->sendOTPMaster($subject, $member->email, $member, $generate_otp);
+                $emailCon->sendOTPMaster($subject, $member->email, $member, $generate_otp);
                 
                 return response()->json(array('success'=> true, 'error'=> ''), 200);   
             }
@@ -253,17 +250,14 @@ class WithdrawalController extends Controller
             
             if($data["status"] === 'true')
             {
-                if($data["otp"] != '346789')
+                if(Cookie::get('withdrawalotp') == null)
                 {
-                    if(Cookie::get('withdrawalotp') == null)
-                    {
-                         return response()->json(array('success'=>false,'error'=> 'OTP is expire.'), 200); 
-                    }
-                    
-                    if(Cookie::get('withdrawalotp') != $data["otp"])
-                    {
-                       return response()->json(array('success'=>false,'error'=> 'Invalid withdrawal OTP.'), 200); 
-                    }
+                     return response()->json(array('success'=>false,'error'=> 'OTP is expire.'), 200); 
+                }
+                
+                if(Cookie::get('withdrawalotp') != $data["otp"])
+                {
+                   return response()->json(array('success'=>false,'error'=> 'Invalid withdrawal OTP.'), 200); 
                 }
                 
                 Cookie::forget('withdrawalotp');
@@ -292,7 +286,7 @@ class WithdrawalController extends Controller
                 
                 $emailCon = app('App\Http\Controllers\EmailController');
                 $subject = $data["amount"].' Withdrawal OTP';
-                // $emailCon->sendOTPMaster($subject, $member->email, $member, $generate_otp);
+                $emailCon->sendOTPMaster($subject, $member->email, $member, $generate_otp);
                 
                 return response()->json(array('success'=> true, 'error'=> ''), 200);   
             }

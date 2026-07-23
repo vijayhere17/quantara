@@ -24,6 +24,8 @@ class BlockchainService
 
     public const USER_REGISTERED_TOPIC = '0x2138b9314634f9fdd5e49bee3eaf17ca557b6637524d0db759711c3bfcd3d850';
     public const PACKAGE_ACTIVATED_TOPIC = '0xd9e77818478fb96613e336e49129f3b174b896a6a6fa084e7fdcc5e9bd6be9da';
+    /** ERC-20 Approval(address,address,uint256) */
+    public const ERC20_APPROVAL_TOPIC = '0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925';
 
     public function __construct()
     {
@@ -127,16 +129,33 @@ class BlockchainService
         return is_string($hex) ? hexdec($hex) : 0;
     }
 
-    protected function assertSuccessfulReceipt(array $receipt, string $expectedFrom, string $label): ?string
+    /**
+     * eth_getLogs wrapper. Returns list of log objects or null on RPC failure.
+     *
+     * @param  array<string,mixed>  $filter
+     * @return list<array<string,mixed>>|null
+     */
+    public function getLogs(array $filter): ?array
     {
+        $result = $this->rpc('eth_getLogs', [$filter]);
+        return is_array($result) ? $result : null;
+    }
+
+    protected function assertSuccessfulReceipt(
+        array $receipt,
+        string $expectedFrom,
+        string $label,
+        ?string $expectedTo = null
+    ): ?string {
         $status = $receipt['status'] ?? null;
         if ($status !== '0x1' && $status !== 1 && $status !== '1') {
             return $label . ' failed on-chain';
         }
 
         $to = strtolower((string) ($receipt['to'] ?? ''));
-        if ($to !== $this->getCoreAddress()) {
-            return $label . ' was not sent to the core contract';
+        $expectedTo = strtolower($expectedTo ?: $this->getCoreAddress());
+        if ($expectedTo !== '' && $to !== $expectedTo) {
+            return $label . ' was not sent to the expected contract';
         }
 
         // Cross-check the sender from the raw transaction when available
@@ -152,6 +171,95 @@ class BlockchainService
         }
 
         return null;
+    }
+
+    /**
+     * Verify ERC-20 approve(spender=core) receipt + Approval event.
+     *
+     * @return array{ok:bool,error?:string,txHash?:string,blockNumber?:int,amountHex?:string}
+     */
+    public function verifyApprovalTransaction(
+        string $txHash,
+        string $expectedWallet,
+        ?string $minAmountWei = null
+    ): array {
+        try {
+            if ($this->token === '' || $this->core === '') {
+                return ['ok' => false, 'error' => 'Token/core contracts are not configured'];
+            }
+
+            $txHash = $this->normalizeTxHash($txHash);
+            $expectedWallet = $this->normalizeAddress($expectedWallet);
+            $spender = $this->getCoreAddress();
+            $token = $this->getTokenAddress();
+
+            $receipt = $this->getTransactionReceipt($txHash);
+            if ($receipt === null) {
+                return ['ok' => false, 'error' => 'Approval transaction not found or not yet mined'];
+            }
+
+            if ($err = $this->assertSuccessfulReceipt($receipt, $expectedWallet, 'Approval transaction', $token)) {
+                return ['ok' => false, 'error' => $err];
+            }
+
+            $found = false;
+            $amountHex = null;
+            $ownerTopic = '0x' . str_pad(substr($expectedWallet, 2), 64, '0', STR_PAD_LEFT);
+            $spenderTopic = '0x' . str_pad(substr($spender, 2), 64, '0', STR_PAD_LEFT);
+
+            foreach (($receipt['logs'] ?? []) as $log) {
+                if (strtolower((string) ($log['address'] ?? '')) !== $token) {
+                    continue;
+                }
+
+                $topics = $log['topics'] ?? [];
+                if (($topics[0] ?? '') !== self::ERC20_APPROVAL_TOPIC) {
+                    continue;
+                }
+                if (count($topics) < 3) {
+                    continue;
+                }
+
+                if (strtolower((string) $topics[1]) !== $ownerTopic) {
+                    continue;
+                }
+                if (strtolower((string) $topics[2]) !== $spenderTopic) {
+                    continue;
+                }
+
+                $data = substr((string) ($log['data'] ?? '0x'), 2);
+                if (strlen($data) < 64) {
+                    return ['ok' => false, 'error' => 'Approval event data is incomplete'];
+                }
+
+                $amountHex = '0x' . substr($data, 0, 64);
+
+                if ($minAmountWei !== null && $minAmountWei !== '') {
+                    $approved = gmp_init(ltrim(substr($data, 0, 64), '0') ?: '0', 16);
+                    $needed = gmp_init(preg_replace('/^0x/i', '', $minAmountWei) ?: '0', 16);
+                    if (gmp_cmp($approved, $needed) < 0) {
+                        return ['ok' => false, 'error' => 'Approved amount is below package payment'];
+                    }
+                }
+
+                $found = true;
+                break;
+            }
+
+            if (!$found) {
+                return ['ok' => false, 'error' => 'Approval event not found for wallet → core'];
+            }
+
+            return [
+                'ok' => true,
+                'txHash' => $txHash,
+                'blockNumber' => isset($receipt['blockNumber']) ? hexdec($receipt['blockNumber']) : 0,
+                'amountHex' => $amountHex,
+            ];
+        } catch (\Throwable $e) {
+            Log::error('verifyApprovalTransaction failed', ['error' => $e->getMessage()]);
+            return ['ok' => false, 'error' => $e->getMessage()];
+        }
     }
 
     /**

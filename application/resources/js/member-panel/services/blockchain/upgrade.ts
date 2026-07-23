@@ -1,11 +1,12 @@
 import { JsonRpcSigner, formatUnits } from 'ethers';
 import { apiUrl } from '../../lib/apiBase';
+import { ensureTokenApproval } from './approval';
 import { getCoreContract, getTokenContract } from './contract';
 import { loadBlockchainConfig } from './config';
 import { mapWalletError } from './wallet';
 
 export type PackageActivationOnChainResult = {
-  approveTxHash: string | null;
+  approveTxHash: string;
   packageTxHash: string;
   wallet: string;
   packageAmount: number;
@@ -17,8 +18,8 @@ export type PackageActivationOnChainResult = {
 /**
  * Existing-member package upgrade (NO register):
  * 1) getNextEligiblePackage — must match selected amount
- * 2) approve(core, tokenAmount) when needed
- * 3) activatePackage(amount)
+ * 2) ALWAYS approve(core, tokenAmount) via MetaMask → mined hash
+ * 3) activatePackage(amount) → mined hash
  */
 export async function activatePackageOnChain(
   signer: JsonRpcSigner,
@@ -66,23 +67,8 @@ export async function activatePackageOnChain(
       );
     }
 
-    let approveTxHash: string | null = null;
-    const allowance: bigint = await token.allowance(wallet, cfg.core);
-    if (allowance < tokenAmount) {
-      onStatus?.('Confirm approval in MetaMask…');
-      const approveTx = await token.approve(cfg.core, tokenAmount);
-      onStatus?.('Waiting for approval confirmation…');
-      const approveReceipt = await approveTx.wait();
-      if (!approveReceipt || approveReceipt.status !== 1) {
-        throw new Error('Approval cancelled.');
-      }
-      approveTxHash = String(approveTx.hash);
-
-      const refreshed = await token.allowance(wallet, cfg.core);
-      if (refreshed < tokenAmount) {
-        throw new Error('Approval failed.');
-      }
-    }
+    const approved = await ensureTokenApproval(signer, tokenAmount, onStatus);
+    const approveTxHash = approved.approveTxHash;
 
     onStatus?.('Confirm package activation in MetaMask…');
     const packageTx = await core.activatePackage(BigInt(packageAmount));
@@ -117,10 +103,14 @@ export async function completePackageActivationWithLaravel(payload: {
   baseUrl: string;
   package_amount: number;
   package_tx_hash: string;
-  approve_tx_hash?: string | null;
+  approve_tx_hash: string;
   wallet: string;
   token_amount?: string;
 }) {
+  if (!payload.approve_tx_hash || !/^0x[a-fA-F0-9]{64}$/.test(payload.approve_tx_hash)) {
+    throw new Error('Approval transaction hash is required.');
+  }
+
   const headers: Record<string, string> = {
     Accept: 'application/json',
     'Content-Type': 'application/json',
@@ -143,7 +133,7 @@ export async function completePackageActivationWithLaravel(payload: {
     body: JSON.stringify({
       package_amount: payload.package_amount,
       package_tx_hash: payload.package_tx_hash,
-      approve_tx_hash: payload.approve_tx_hash || null,
+      approve_tx_hash: payload.approve_tx_hash,
       wallet: payload.wallet,
       token_amount: payload.token_amount || null,
     }),

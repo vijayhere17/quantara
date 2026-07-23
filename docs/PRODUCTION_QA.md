@@ -1,56 +1,73 @@
-# Quantara Production Completion — QA Report
+# Quantara FINAL PRODUCTION QA Report
 
 Date: 2026-07-23  
-Branch: `cursor/production-completion-2270`
+Branch: `cursor/final-registration-qa-2270`
 
-## Hardhat (source of truth)
+## Verdict
+
+Registration MetaMask lifecycle is corrected so **`approve_tx_hash` is never NULL**.  
+Laravel rejects registration/activation without a verified on-chain Approval whose amount covers the package payment.  
+Hardhat: **33/33 passing**. Treasury BPS **30/25/3/2/40** unchanged.
+
+## Registration lifecycle (enforced)
+
+1. Connect wallet  
+2. MetaMask `register(sponsor)` → mined → verify `UserRegistered`  
+3. MetaMask ERC-20 `approve(core, tokenAmount)` → **always** → mined → Approval event  
+4. MetaMask `activatePackage(50)` → mined → verify `PackageActivated`  
+5. Laravel verifies register + **approve (≥ package tokenAmount)** + package  
+6. Persist user (`transaction_hash`, `approve_tx_hash`, `package_tx_hash`) + ledger  
+7. Auto-login → dashboard  
+
+Resume path recovers prior Approval via logs or forces a new approve — never returns null.
+
+## Bugs found → fixed
+
+| # | Bug | Fix |
+|---|-----|-----|
+| 1 | Approve skipped when allowance already sufficient → `approve_tx_hash` NULL | `ensureTokenApproval()` always opens MetaMask |
+| 2 | Laravel treated approve as optional | `approve_tx_hash` required + `verifyApprovalTransaction` |
+| 3 | Approve amount not enforced from chain | Verify package first; require Approval ≥ `tokenAmountHex` |
+| 4 | Approve hash reusable | Reject reuse + unique index on ledger |
+| 5 | Offline Daily ROI paid on `blockchain:` stakes (double income) | Skip those rows in `runDailyROI` |
+| 6 | Withdrawal OTP backdoor `346789` | Removed; email OTP + React 2-step flow |
+| 7 | No income event indexer | `blockchain:sync-income` + cursor table |
+| 8 | No CAT root/kit seed | `quantara:seed-demo-qa` (local/testing; no fake txs) |
+
+## SQL (if migrate cannot run)
+
+```bash
+# Prefer:
+php artisan migrate
+
+# Or:
+mysql … < application/database/sql/2026_07_23_unique_approve_tx_hash.sql
+# Plus full repair if needed:
+mysql … < application/database/sql/REPAIR_ALL_MIGRATIONS.sql
+```
+
+## Demo / CAT
+
+```bash
+# Local Hardhat demo (ROI / ranks / pools on-chain)
+cd smart-contracts && npm run demo:harness
+
+# Laravel root sponsor + kits (no fake hashes)
+php artisan quantara:seed-demo-qa
+
+# Mirror on-chain incomes into ledgers
+php artisan blockchain:sync-income
+```
+
+## Remaining (ops / contract nuance — not blocking approve fix)
+
+1. Binary tree placement still skipped on Web3 register (referral uplines only).  
+2. Contract HIGH notes: community partial-claim burn; same-rank $0 achievement burn; total-3X via working may delay package unlock until working 4X.  
+3. Production must use real BTCB + Chainlink — never Mock* on mainnet.  
+4. Mail must be configured for withdrawal OTP in non-local environments.
+
+## Hardhat
 
 ```
 npm test  →  33 passing
 ```
-
-Covered:
-- Package ladder + unlimited $10000
-- Treasury 30/25/3/2/40 + reserve withdraw
-- Direct 5/3/2%, booster 10%/30d
-- ROI ≤1% daily, stop at total 3X, working 4X
-- Ranks Q1–Q8 + same-rank matching + achievement bonus
-- Community points Q5–Q8
-
-Demo harness:
-```
-npm run demo:harness
-```
-
-## MetaMask flows
-
-| Flow | Status |
-|------|--------|
-| Register → approve → activate → Laravel verify → login | Wired |
-| Package upgrade (Invest Now) → MetaMask → `/api/packages/activate` | Wired |
-| Withdraw shell → legacy `/process-withdrawal-request` | Wired |
-| Demo faucet (local only) | Mounted when `demoFaucet` |
-
-## Database
-
-Migrations:
-- `2026_07_23_102000_ensure_web3_registration_columns_on_users_table.php`
-- `2026_07_23_120000_create_blockchain_sync_tables.php`
-
-SQL fallback:
-- `application/database/sql/2026_07_23_blockchain_sync.sql`
-
-Run:
-```
-php artisan migrate
-```
-Or execute the SQL file on MySQL if migrate cannot run.
-
-## Remaining (ops / follow-up)
-
-1. Full on-chain income event indexer cron (RoiClaimed, ContributionRewardPaid, etc.) → ledger mirror (service exists; indexer job still needed for continuous sync).
-2. Live dashboard cards should prefer `blockchain_income_events` + on-chain reads over legacy mislabeled earning_types.
-3. Production must use real BTCB + Chainlink feed — never deploy MockBTCB/MockBTCPriceFeed.
-4. Redeploy contracts after treasury BPS change; update `.env` CORE/TREASURY addresses.
-5. Withdraw OTP backdoor / empty-key auto-payout in legacy WithdrawalController still needs hardening before mainnet funds.
-6. Seed `stake_masters` / `roi_tier_masters` / root sponsor if DB is fresh.

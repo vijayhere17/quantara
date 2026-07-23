@@ -93,7 +93,7 @@ class AuthController extends Controller
                 'tx_hash' => 'required|string|size:66',
                 'package_amount' => 'required|integer|in:50',
                 'package_tx_hash' => 'required|string|size:66',
-                'approve_tx_hash' => 'nullable|string|size:66',
+                'approve_tx_hash' => 'required|string|size:66',
                 'token_amount' => 'nullable|string|max:80',
                 'leg' => 'nullable|in:L,R',
             ]);
@@ -101,9 +101,7 @@ class AuthController extends Controller
             $wallet = $this->blockchain->normalizeAddress($request->input('wallet'));
             $txHash = $this->blockchain->normalizeTxHash($request->input('tx_hash'));
             $packageTx = $this->blockchain->normalizeTxHash($request->input('package_tx_hash'));
-            $approveTx = $request->filled('approve_tx_hash')
-                ? $this->blockchain->normalizeTxHash($request->input('approve_tx_hash'))
-                : null;
+            $approveTx = $this->blockchain->normalizeTxHash($request->input('approve_tx_hash'));
             $sponsorId = trim($request->input('sponsor_id'));
             $email = strtolower(trim($request->input('email')));
             $username = trim((string) $request->input('username', ''));
@@ -112,16 +110,18 @@ class AuthController extends Controller
                 $username = $wallet;
             }
             $packageAmount = (int) $request->input('package_amount');
+            $tokenAmount = $request->input('token_amount');
 
-            // Reject dummy / zero hashes
-            if ($this->isDummyTxHash($txHash) || $this->isDummyTxHash($packageTx)) {
+            // Reject dummy / zero hashes — all three must be real mined txs
+            if (
+                $this->isDummyTxHash($txHash) ||
+                $this->isDummyTxHash($packageTx) ||
+                $this->isDummyTxHash($approveTx)
+            ) {
                 return response()->json(['success' => false, 'error' => 'Invalid blockchain transaction hash.'], 200);
             }
-            if ($approveTx !== null && $this->isDummyTxHash($approveTx)) {
-                return response()->json(['success' => false, 'error' => 'Invalid approval transaction hash.'], 200);
-            }
 
-            if ($txHash === $packageTx) {
+            if ($txHash === $packageTx || $txHash === $approveTx || $packageTx === $approveTx) {
                 return response()->json(['success' => false, 'error' => 'Registration failed. Please try again.'], 200);
             }
 
@@ -172,11 +172,45 @@ class AuthController extends Controller
                 ], 200);
             }
 
+            // Verify activation first so Approval amount is enforced from on-chain tokenAmount
             $pkgVerified = $this->blockchain->verifyPackageActivation($packageTx, $wallet, $packageAmount);
             if (!($pkgVerified['ok'] ?? false)) {
                 return response()->json([
                     'success' => false,
                     'error' => 'Activation verification failed.',
+                ], 200);
+            }
+
+            $requiredApproveWei = $pkgVerified['tokenAmountHex'] ?? null;
+            if (!is_string($requiredApproveWei) || $requiredApproveWei === '') {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'Could not determine package payment amount from chain.',
+                ], 200);
+            }
+
+            $approveVerified = $this->blockchain->verifyApprovalTransaction(
+                $approveTx,
+                $wallet,
+                $requiredApproveWei
+            );
+            if (!($approveVerified['ok'] ?? false)) {
+                return response()->json([
+                    'success' => false,
+                    'error' => $approveVerified['error'] ?? 'Approval verification failed.',
+                ], 200);
+            }
+
+            if (
+                User::where('approve_tx_hash', $approveTx)->exists() ||
+                (
+                    Schema::hasTable('blockchain_package_activations') &&
+                    DB::table('blockchain_package_activations')->where('approve_tx_hash', $approveTx)->exists()
+                )
+            ) {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'Approval transaction already used.',
                 ], 200);
             }
 
