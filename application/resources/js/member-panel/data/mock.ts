@@ -10,6 +10,7 @@ import type {
   MyReferralsBoot,
   ProfileBoot,
   SupportTicketBoot,
+  WithdrawBoot,
 } from '../types';
 
 const sharedLinks = {
@@ -20,6 +21,7 @@ const sharedLinks = {
   investNow: '/buy-robo',
   myInvestments: '/bot-request',
   wallet: '/earning-wallet',
+  withdraw: '/new-withdrawal',
   roiHistory: '/earning/1/ROI History',
   contributionReward: '/earning/2/Contribution Reward',
   boosterReward: '/earning/3/Booster Reward',
@@ -233,6 +235,22 @@ export const mockEarningWalletData: EarningWalletBoot = {
     availableBalance: '0.0000',
   },
   transactions: [],
+};
+
+export const mockWithdrawData: WithdrawBoot = {
+  page: 'withdraw',
+  baseUrl: '/',
+  assetsUrl: '/assets',
+  csrfToken: '',
+  currentPath: '/new-withdrawal',
+  user: sharedUser,
+  wallet: sharedWallet,
+  links: sharedLinks,
+  balance: '125.5000',
+  walletAddress: sharedUser.username,
+  coinRate: 1,
+  minAmount: 5,
+  adminChargePercent: 2,
 };
 
 export const mockIncentiveReportData: IncentiveReportBoot = {

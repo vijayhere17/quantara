@@ -8,20 +8,22 @@ import {
   Wallet,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { PackageCard } from '../investments/PackageCard';
+import { PackageCard, isPackageSelectable } from '../investments/PackageCard';
 import { Card } from '../ui/Card';
 import { GradientButton } from '../ui/GradientButton';
 import { Input } from '../ui/Input';
 import { Logo } from '../ui/Logo';
 import { RegistrationSuccessPage } from './RegistrationSuccessPage';
 import { InstallWalletModal } from './InstallWalletModal';
+import { DemoFaucetButton } from './DemoFaucetButton';
 import { useWallet } from '../../hooks/useWallet';
 import { apiUrl } from '../../lib/apiBase';
-import { notifyError, notifySuccess } from '../../lib/walletConnect';
+import { notifyError } from '../../lib/walletConnect';
 import {
   completeRegistrationWithLaravel,
   registerOnChain,
 } from '../../services/blockchain/registration';
+import { loadBlockchainConfig } from '../../services/blockchain/config';
 import { createBrowserProvider } from '../../services/blockchain/wallet';
 import type { AuthBoot, RegistrationSuccessPayload } from '../../types';
 
@@ -64,12 +66,27 @@ export function SignupPage({ data }: SignupPageProps) {
   const [showInstall, setShowInstall] = useState(false);
   const [success, setSuccess] = useState(false);
   const [successPayload, setSuccessPayload] = useState<RegistrationSuccessPayload | null>(null);
+  const [showDemoFaucet, setShowDemoFaucet] = useState(false);
 
   const stepIndex = STEPS.findIndex((s) => s.id === step);
 
   useEffect(() => {
     if (data.referralCode) setSponsorId(data.referralCode);
   }, [data.referralCode]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void loadBlockchainConfig(data.baseUrl)
+      .then((cfg) => {
+        if (!cancelled) setShowDemoFaucet(Boolean(cfg.demoFaucet));
+      })
+      .catch(() => {
+        if (!cancelled) setShowDemoFaucet(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [data.baseUrl]);
 
   useEffect(() => {
     if (!sponsorId.trim()) {
@@ -343,9 +360,9 @@ export function SignupPage({ data }: SignupPageProps) {
                 <PackageCard
                   key={pkg.amount}
                   pkg={pkg}
-                  selected={selectedAmount === pkg.amount && !pkg.locked}
+                  selected={selectedAmount === pkg.amount && isPackageSelectable(pkg)}
                   onSelect={() => {
-                    if (!pkg.locked) setSelectedAmount(pkg.amount);
+                    if (isPackageSelectable(pkg)) setSelectedAmount(pkg.amount);
                   }}
                 />
               ))}
@@ -447,6 +464,10 @@ export function SignupPage({ data }: SignupPageProps) {
 
             {status ? (
               <p className="rounded-xl border border-q-cyan/20 bg-q-cyan/10 px-4 py-3 text-sm text-q-cyan">{status}</p>
+            ) : null}
+
+            {showDemoFaucet ? (
+              <DemoFaucetButton walletAddress={wallet.walletAddress || undefined} />
             ) : null}
 
             <GradientButton

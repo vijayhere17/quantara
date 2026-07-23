@@ -29,6 +29,7 @@ export { InvestNowPage } from './investments/InvestNowPage';
 export { MyInvestmentsPage } from './investments/MyInvestmentsPage';
 export { EarningWalletPage } from './investments/EarningWalletPage';
 export { PackageCard } from './investments/PackageCard';
+export { WithdrawPage } from './withdraw/WithdrawPage';
 export { IncentiveReportPage } from './earnings/IncentiveReportPage';
 export { CreateTicketPage } from './support/CreateTicketPage';
 export { AuroraBackground } from './layout/AuroraBackground';
