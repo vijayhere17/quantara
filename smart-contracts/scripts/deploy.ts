@@ -201,6 +201,28 @@ async function main() {
 
   console.log("Contracts linked successfully");
 
+  // ------------------------------------------------------------------
+  // Genesis / root bootstrap (required by BTCPlanCore.register rules)
+  //
+  // Constructor only sets `owner` — it does NOT write users[owner].
+  // The first on-chain member must call register(address(0)).
+  // After that, new members register under that wallet as sponsor.
+  // ------------------------------------------------------------------
+  const rootUser = await core.users(deployer.address);
+  if (!rootUser.isActive) {
+    console.log("Bootstrapping root user (register address(0))...");
+    const tx = await core.register(ethers.ZeroAddress);
+    await tx.wait();
+    console.log("Root registered:", deployer.address);
+  } else {
+    console.log("Root already registered:", deployer.address);
+  }
+
+  const rootAfter = await core.users(deployer.address);
+  if (!rootAfter.isActive) {
+    throw new Error("Root bootstrap failed — users[deployer].isActive is still false");
+  }
+
   const addresses = {
     MockBTCB: await token.getAddress(),
     MockBTCPriceFeed: await priceFeed.getAddress(),
@@ -212,6 +234,7 @@ async function main() {
     RankReward: await rank.getAddress(),
     CommunityBuilder: await community.getAddress(),
     IncomeManager: await income.getAddress(),
+    RootUser: deployer.address,
   };
 
   fs.writeFileSync(

@@ -44,7 +44,9 @@ No skip, no downgrade. Next package validated on-chain.
 npm install
 npx hardhat build
 npx hardhat test mocha
-npx hardhat run scripts/deploy.ts
+npx hardhat node   # terminal 1
+npm run deploy     # terminal 2 — deploys, wires, AND registers root
+npm run bootstrap:root   # for an already-deployed core missing root
 npx hardhat run scripts/testFlow.ts
 npx hardhat run scripts/testIncomeCap.ts
 ```
@@ -58,5 +60,37 @@ npx hardhat run scripts/testIncomeCap.ts
 5. InterdependentReward / ContributionReward / ContributionBooster / RankReward
 6. CommunityBuilder
 7. Wire setters + IncomeManager authorizations + Treasury working payers
+8. **Bootstrap root user** — deployer calls `BTCPlanCore.register(address(0))`
 
-See `scripts/deploy.ts`.
+See `scripts/deploy.ts` and `scripts/bootstrap-root.ts`.
+
+## Genesis / root user (required)
+
+`BTCPlanCore` constructor only sets `owner`. It does **not** write `users[owner]`.
+
+Sponsor validation:
+
+```solidity
+mapping(address => User) public users;
+
+function register(address sponsor) external {
+    // ...
+    if (sponsor != address(0)) {
+        require(users[sponsor].isActive, "Sponsor not registered");
+    }
+    // ...
+}
+```
+
+Intended flow:
+
+1. Fresh deploy + wire
+2. Deployer/owner calls `register(address(0))` → becomes root (`users[root].isActive = true`)
+3. New members call `register(rootWallet)` → sponsor check passes
+4. Members approve BTCB + `activatePackage(50)`
+
+Without step 2, every non-zero sponsor fails with "Sponsor not registered" (frontend: "Sponsor is not registered on-chain yet").
+
+Do **not** bypass sponsor validation. Always bootstrap the root via `register(address(0))`.
+
+After bootstrap, set your Laravel sponsor/admin `username` / `wallet_addr` to the root wallet printed by deploy / bootstrap.
