@@ -54,16 +54,30 @@ class SignupController extends Controller
                 'sponsor_id' => 'required',
             ]);
 
-            $data = $request->all();
+            $sponsorId = trim((string) $request->input('sponsor_id'));
+            $sponsorKey = strtolower($sponsorId);
 
-            $sponsor = User::where('username','=',$data["sponsor_id"])->first();
-            if($sponsor == null){
-                return response()->json(array('success'=> false, 'error'=> 'Invalid sponsor id'), 200);
+            // Match username (often the wallet) or wallet_addr — needed for BTCPlanCore.register(sponsor)
+            $sponsor = User::where(function ($query) use ($sponsorId, $sponsorKey) {
+                $query->where('username', $sponsorId)
+                    ->orWhereRaw('LOWER(username) = ?', [$sponsorKey])
+                    ->orWhereRaw('LOWER(wallet_addr) = ?', [$sponsorKey]);
+            })->first();
+
+            if ($sponsor === null) {
+                return response()->json(['success' => false, 'error' => 'Invalid sponsor id'], 200);
             }
-            
-            $name = $sponsor->firstname.' '.$sponsor->lastname;
-            
-            return response()->json(array('success'=> true, 'error'=> '', 'name'=>$name), 200);
+
+            $wallet = strtolower((string) ($sponsor->wallet_addr ?: $sponsor->username));
+            $name = trim(($sponsor->firstname ?? '') . ' ' . ($sponsor->lastname ?? ''));
+
+            return response()->json([
+                'success' => true,
+                'error' => '',
+                'name' => $name !== '' ? $name : 'Verified',
+                'wallet' => $wallet,
+                'sponsor_id' => $sponsor->username,
+            ], 200);
         }catch(\Exception $exception){
             Log::error($exception);
             return response()->json(array('success'=>false,'error'=> 'Invalid request data send.'), 200);

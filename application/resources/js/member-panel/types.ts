@@ -105,6 +105,16 @@ export type DashboardBoot = MemberShellData & {
     displayUrl: string;
     copyUrl: string;
   };
+  registration?: {
+    status?: string | null;
+    walletStatus?: string | null;
+    transactionHash?: string | null;
+    packageTxHash?: string | null;
+    blockNumber?: number | string | null;
+    packageId?: number | string | null;
+    chainId?: number | null;
+    registeredAt?: string | null;
+  };
   income: {
     total: string | number;
     today: string | number;

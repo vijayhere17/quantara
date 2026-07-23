@@ -1,0 +1,76 @@
+[
+  {
+    "type": "function",
+    "name": "register",
+    "stateMutability": "nonpayable",
+    "inputs": [{ "name": "sponsor", "type": "address" }],
+    "outputs": []
+  },
+  {
+    "type": "function",
+    "name": "activatePackage",
+    "stateMutability": "nonpayable",
+    "inputs": [{ "name": "amount", "type": "uint256" }],
+    "outputs": []
+  },
+  {
+    "type": "function",
+    "name": "users",
+    "stateMutability": "view",
+    "inputs": [{ "name": "", "type": "address" }],
+    "outputs": [
+      { "name": "wallet", "type": "address" },
+      { "name": "sponsor", "type": "address" },
+      { "name": "packageAmount", "type": "uint256" },
+      { "name": "packageIndex", "type": "uint8" },
+      { "name": "packageCycle", "type": "uint8" },
+      { "name": "joinedAt", "type": "uint256" },
+      { "name": "isActive", "type": "bool" },
+      { "name": "packageCompleted", "type": "bool" }
+    ]
+  },
+  {
+    "type": "function",
+    "name": "isValidPackage",
+    "stateMutability": "view",
+    "inputs": [{ "name": "amount", "type": "uint256" }],
+    "outputs": [{ "name": "", "type": "bool" }]
+  },
+  {
+    "type": "function",
+    "name": "getNextEligiblePackage",
+    "stateMutability": "view",
+    "inputs": [{ "name": "user", "type": "address" }],
+    "outputs": [
+      { "name": "expectedPackage", "type": "uint256" },
+      { "name": "expectedCycle", "type": "uint8" }
+    ]
+  },
+  {
+    "type": "function",
+    "name": "getPackageBTCBAmount",
+    "stateMutability": "view",
+    "inputs": [{ "name": "amount", "type": "uint256" }],
+    "outputs": [{ "name": "", "type": "uint256" }]
+  },
+  {
+    "type": "event",
+    "name": "UserRegistered",
+    "anonymous": false,
+    "inputs": [
+      { "name": "user", "type": "address", "indexed": true },
+      { "name": "sponsor", "type": "address", "indexed": true }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "PackageActivated",
+    "anonymous": false,
+    "inputs": [
+      { "name": "user", "type": "address", "indexed": true },
+      { "name": "packageAmount", "type": "uint256", "indexed": false },
+      { "name": "packageCycle", "type": "uint8", "indexed": false },
+      { "name": "tokenAmount", "type": "uint256", "indexed": false }
+    ]
+  }
+]

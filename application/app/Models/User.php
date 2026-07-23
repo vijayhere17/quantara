@@ -18,10 +18,22 @@ class User extends Authenticatable
         'firstname',
         'lastname',
         'email',
+        'password',
         'username',
         'leg',
         'referral_id',
-        'referral_uplines'
+        'referral_uplines',
+        'wallet_addr',
+        'transaction_hash',
+        'package_tx_hash',
+        'chain_id',
+        'package_id',
+        'registration_block',
+        'registration_timestamp',
+        'wallet_status',
+        'registration_status',
+        'activation_date',
+        'kit_id',
     ];
 
     protected $hidden = [
