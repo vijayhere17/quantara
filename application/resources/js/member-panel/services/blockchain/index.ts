@@ -6,3 +6,6 @@ export * from './registration';
 export * from './upgrade';
 export * from './events';
 export * from './faucet';
+export * from './explorer';
+export * from './balances';
+export * from './gas';

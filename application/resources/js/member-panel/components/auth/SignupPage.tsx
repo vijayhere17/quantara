@@ -16,6 +16,7 @@ import { Logo } from '../ui/Logo';
 import { RegistrationSuccessPage } from './RegistrationSuccessPage';
 import { InstallWalletModal } from './InstallWalletModal';
 import { DemoFaucetButton } from './DemoFaucetButton';
+import { NetworkWalletStatus } from '../wallet/NetworkWalletStatus';
 import { useWallet } from '../../hooks/useWallet';
 import { apiUrl } from '../../lib/apiBase';
 import { notifyError } from '../../lib/walletConnect';
@@ -385,7 +386,7 @@ export function SignupPage({ data }: SignupPageProps) {
               </div>
               <div>
                 <h2 className="text-lg font-bold text-white">Wallet Connect</h2>
-                <p className="text-sm text-q-muted">Connect MetaMask to continue.</p>
+                <p className="text-sm text-q-muted">Connect MetaMask, Trust Wallet, or another BEP-20 wallet.</p>
               </div>
             </div>
             <div className="rounded-2xl border border-q-cyan/20 bg-q-cyan/5 px-4 py-4">
@@ -394,6 +395,7 @@ export function SignupPage({ data }: SignupPageProps) {
                 {wallet.walletAddress || 'No wallet connected yet'}
               </p>
             </div>
+            <NetworkWalletStatus wallet={wallet} />
             {!wallet.isConnected ? (
               <GradientButton
                 type="button"
@@ -432,10 +434,12 @@ export function SignupPage({ data }: SignupPageProps) {
               <div className="min-w-0 flex-1">
                 <h2 className="text-lg font-bold text-white">Payment & Register</h2>
                 <p className="break-words text-sm text-q-muted">
-                  Confirm each MetaMask prompt to finish registration.
+                  Confirm each wallet prompt to finish registration on BNB Smart Chain.
                 </p>
               </div>
             </div>
+
+            <NetworkWalletStatus wallet={wallet} />
 
             <div className="min-w-0 overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0a0d16]/80 px-3 py-2 text-sm sm:px-4 sm:py-3">
               <div className="flex min-w-0 items-start justify-between gap-3 border-b border-white/[0.06] py-2.5">

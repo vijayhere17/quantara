@@ -4,6 +4,7 @@ import { ensureTokenApproval, findPriorApprovalTx } from './approval';
 import { getCoreContract, getTokenContract } from './contract';
 import { loadBlockchainConfig } from './config';
 import { assertSponsorActiveOnChain, findPriorRegistrationTxs } from './events';
+import { sendWithGasEstimate, waitForTx } from './gas';
 import { mapWalletError } from './wallet';
 
 export type RegistrationOnChainResult = {
@@ -130,13 +131,8 @@ export async function registerOnChain(
         };
       }
     } else {
-      onStatus?.('Confirm registration in MetaMask…');
-      const registerTx = await core.register(sponsor);
-      onStatus?.('Waiting for registration confirmation…');
-      const registerReceipt = await registerTx.wait();
-      if (!registerReceipt || registerReceipt.status !== 1) {
-        throw new Error('Registration failed.');
-      }
+      const registerTx = await sendWithGasEstimate(core, 'register', [sponsor], onStatus);
+      const registerReceipt = await waitForTx(registerTx, onStatus, 'registration');
       registerTxHash = String(registerTx.hash);
       if (!isTxHash(registerTxHash)) {
         throw new Error('Invalid registration transaction hash.');
@@ -165,22 +161,23 @@ export async function registerOnChain(
     const balance: bigint = await token.balanceOf(wallet);
     if (balance < tokenAmount) {
       const decimals = Number(await token.decimals().catch(() => 18));
+      const symbol = String(await token.symbol().catch(() => 'TOKEN'));
       throw new Error(
-        `Insufficient package balance. Need ${formatUnits(tokenAmount, decimals)} BTCB.`,
+        `Insufficient package balance. Need ${formatUnits(tokenAmount, decimals)} ${symbol}.`,
       );
     }
 
-    // Step 8 — ALWAYS MetaMask approval → mined → real approve_tx_hash
+    // ALWAYS wallet approval → mined → real approve_tx_hash
     const approved = await ensureTokenApproval(signer, tokenAmount, onStatus);
     approveTxHash = approved.approveTxHash;
 
-    onStatus?.('Confirm package activation in MetaMask…');
-    const packageTx = await core.activatePackage(BigInt(packageAmount));
-    onStatus?.('Waiting for activation confirmation…');
-    const packageReceipt = await packageTx.wait();
-    if (!packageReceipt || packageReceipt.status !== 1) {
-      throw new Error('Activation failed.');
-    }
+    const packageTx = await sendWithGasEstimate(
+      core,
+      'activatePackage',
+      [BigInt(packageAmount)],
+      onStatus,
+    );
+    const packageReceipt = await waitForTx(packageTx, onStatus, 'activation');
     packageTxHash = String(packageTx.hash);
     if (!isTxHash(packageTxHash)) {
       throw new Error('Invalid activation transaction hash.');

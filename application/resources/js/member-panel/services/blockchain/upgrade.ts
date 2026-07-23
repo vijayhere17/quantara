@@ -3,6 +3,7 @@ import { apiUrl } from '../../lib/apiBase';
 import { ensureTokenApproval } from './approval';
 import { getCoreContract, getTokenContract } from './contract';
 import { loadBlockchainConfig } from './config';
+import { sendWithGasEstimate, waitForTx } from './gas';
 import { mapWalletError } from './wallet';
 
 export type PackageActivationOnChainResult = {
@@ -62,21 +63,22 @@ export async function activatePackageOnChain(
     const balance: bigint = await token.balanceOf(wallet);
     if (balance < tokenAmount) {
       const decimals = Number(await token.decimals().catch(() => 18));
+      const symbol = String(await token.symbol().catch(() => 'TOKEN'));
       throw new Error(
-        `Insufficient package balance. Need ${formatUnits(tokenAmount, decimals)} BTCB.`,
+        `Insufficient package balance. Need ${formatUnits(tokenAmount, decimals)} ${symbol}.`,
       );
     }
 
     const approved = await ensureTokenApproval(signer, tokenAmount, onStatus);
     const approveTxHash = approved.approveTxHash;
 
-    onStatus?.('Confirm package activation in MetaMask…');
-    const packageTx = await core.activatePackage(BigInt(packageAmount));
-    onStatus?.('Waiting for activation confirmation…');
-    const packageReceipt = await packageTx.wait();
-    if (!packageReceipt || packageReceipt.status !== 1) {
-      throw new Error('Activation failed.');
-    }
+    const packageTx = await sendWithGasEstimate(
+      core,
+      'activatePackage',
+      [BigInt(packageAmount)],
+      onStatus,
+    );
+    const packageReceipt = await waitForTx(packageTx, onStatus, 'activation');
     const packageTxHash = String(packageTx.hash);
     const blockNumber = Number(packageReceipt.blockNumber ?? 0);
 

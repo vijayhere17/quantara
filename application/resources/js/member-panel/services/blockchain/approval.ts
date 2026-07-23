@@ -1,8 +1,9 @@
 import { Contract, JsonRpcSigner, formatUnits } from 'ethers';
 import { loadBlockchainConfig } from './config';
 import { getTokenContract } from './contract';
+import { sendWithGasEstimate, waitForTx } from './gas';
 
-/** ERC-20 Approval(address,address,uint256) topic */
+/** ERC-20 / BEP-20 Approval(address,address,uint256) topic */
 export const ERC20_APPROVAL_TOPIC =
   '0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925';
 
@@ -11,10 +12,10 @@ function isTxHash(value: string): boolean {
 }
 
 /**
- * ALWAYS open MetaMask for ERC-20 approve(core, amount), wait until mined,
+ * ALWAYS open the wallet for BEP-20 approve(core, amount), wait until mined,
  * and return the real approval transaction hash.
  *
- * Never skips MetaMask. Never returns null/dummy hashes.
+ * Never skips the wallet. Never returns null/dummy hashes.
  * Required before activatePackage so Laravel can store approve_tx_hash.
  */
 export async function ensureTokenApproval(
@@ -37,18 +38,17 @@ export async function ensureTokenApproval(
   const balance: bigint = await token.balanceOf(wallet);
   if (balance < tokenAmount) {
     const decimals = Number(await token.decimals().catch(() => 18));
+    const symbol = String(await token.symbol().catch(() => 'TOKEN'));
     throw new Error(
-      `Insufficient package balance. Need ${formatUnits(tokenAmount, decimals)} BTCB.`,
+      `Insufficient package balance. Need ${formatUnits(tokenAmount, decimals)} ${symbol}.`,
     );
   }
 
-  onStatus?.('Confirm token approval in MetaMask…');
-  // Always submit approve so MetaMask opens and we obtain a real mined hash.
+  // Always submit approve so the wallet opens and we obtain a real mined hash.
   // Approving the exact package amount (not MaxUint256) keeps the Approval event
   // amount verifiable against the package payment.
-  const approveTx = await token.approve(cfg.core, tokenAmount);
-  onStatus?.('Waiting for approval confirmation…');
-  const approveReceipt = await approveTx.wait();
+  const approveTx = await sendWithGasEstimate(token, 'approve', [cfg.core, tokenAmount], onStatus);
+  const approveReceipt = await waitForTx(approveTx, onStatus, 'approval');
   if (!approveReceipt || approveReceipt.status !== 1) {
     throw new Error('Approval cancelled.');
   }

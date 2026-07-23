@@ -1,12 +1,49 @@
 # Quantara — Blockchain
 
-BNB Smart Chain smart contracts for the Quantara package / reward platform.
+BNB Smart Chain (BEP-20) smart contracts for the Quantara package / reward platform.
 
 ## Stack
 
 - Hardhat 3 + ethers.js v6 + Mocha
-- OpenZeppelin Contracts v5
+- OpenZeppelin Contracts v5 (ERC-20 / BEP-20 compatible)
 - Solidity `0.8.28`
+
+## Networks
+
+| Network | Chain ID | Hardhat name |
+|---------|----------|--------------|
+| Hardhat local | 31337 | `localhost` |
+| BSC Testnet | 97 | `bscTestnet` / `bnbTestnet` |
+| BSC Mainnet | 56 | `bsc` / `bscMainnet` |
+
+Environment (see `.env.example`):
+
+```
+BSC_RPC_URL=
+BSC_TESTNET_RPC_URL=
+PRIVATE_KEY=
+CHAIN_ID=
+TOKEN_ADDRESS=
+TREASURY_WALLET=
+PRICE_FEED_ADDRESS=
+CHAINLINK_BTC_USD=
+```
+
+## Token (BEP-20)
+
+Production deployments **never** use MockBTCB. Set `TOKEN_ADDRESS` to any BEP-20:
+
+- USDT / USDC / custom Quantara token / Wrapped BTC / Wrapped BNB
+
+`BTCPlanCore.getBTCBAmountFromUSD` reads `decimals()` dynamically — do not hardcode 18.
+
+Local Hardhat still auto-deploys MockBTCB when `TOKEN_ADDRESS` is empty.
+
+## Price feed
+
+- Local: MockBTCPriceFeed
+- BSC: set `CHAINLINK_BTC_USD` (aggregator) → deploys `ChainlinkBTCPriceFeed` adapter
+  - or set `PRICE_FEED_ADDRESS` to an existing `IBTCPriceFeed`
 
 ## Architecture
 
@@ -45,23 +82,29 @@ npm install
 npx hardhat build
 npx hardhat test mocha
 npx hardhat node   # terminal 1
-npm run deploy     # terminal 2 — deploys, wires, AND registers root
+npm run deploy     # terminal 2 — local MockBTCB + wire + root
+npm run deploy:bsc-testnet   # requires TOKEN_ADDRESS + price feed env
+npm run deploy:bsc
 npm run bootstrap:root   # root + fund Hardhat accounts #1–#3
 npm run bootstrap:demo   # deploy (if needed) → root → fund → print balances
+npm run qa:full
 npx hardhat run scripts/testFlow.ts
 npx hardhat run scripts/testIncomeCap.ts
 ```
 
+Deploy writes `deployed-addresses.json` (Token, core, treasury, rewards, chainId, explorer).
+
 ## Deploy order
 
-1. MockBTCB + MockBTCPriceFeed (dev)
+1. Token (env `TOKEN_ADDRESS` or MockBTCB locally) + price feed
 2. IncomeManager
 3. TreasuryManager
 4. BTCPlanCore
 5. InterdependentReward / ContributionReward / ContributionBooster / RankReward
 6. CommunityBuilder
 7. Wire setters + IncomeManager authorizations + Treasury working payers
-8. **Bootstrap root user** — deployer calls `BTCPlanCore.register(address(0))`
+8. Verify ownership
+9. **Bootstrap root user** — deployer calls `BTCPlanCore.register(address(0))`
 
 See `scripts/deploy.ts` and `scripts/bootstrap-root.ts`.
 
@@ -69,44 +112,25 @@ See `scripts/deploy.ts` and `scripts/bootstrap-root.ts`.
 
 `BTCPlanCore` constructor only sets `owner`. It does **not** write `users[owner]`.
 
-Sponsor validation:
-
-```solidity
-mapping(address => User) public users;
-
-function register(address sponsor) external {
-    // ...
-    if (sponsor != address(0)) {
-        require(users[sponsor].isActive, "Sponsor not registered");
-    }
-    // ...
-}
-```
-
 Intended flow:
 
 1. Fresh deploy + wire
-2. Deployer/owner calls `register(address(0))` → becomes root (`users[root].isActive = true`)
+2. Deployer/owner calls `register(address(0))` → becomes root
 3. New members call `register(rootWallet)` → sponsor check passes
-4. Members approve BTCB + `activatePackage(50)`
+4. Members approve BEP-20 + `activatePackage(50)`
 
-Without step 2, every non-zero sponsor fails with "Sponsor not registered" (frontend: "Sponsor is not registered on-chain yet").
-
-Do **not** bypass sponsor validation. Always bootstrap the root via `register(address(0))`.
-
-After bootstrap, set your Laravel sponsor/admin `username` / `wallet_addr` to the root wallet printed by deploy / bootstrap.
+After bootstrap, set your Laravel sponsor/admin `username` / `wallet_addr` to the root wallet printed by deploy.
 
 ## Local demo faucet (Hardhat only)
 
-New wallets have **0 MockBTCB** until funded. Constructor mints supply only to the deployer.
-
 ```bash
-npx hardhat node          # terminal 1
-npm run bootstrap:demo    # deploy (if needed) → root → mint 1000 BTCB to accounts #1–#3
-# or, on an existing deploy:
-npm run bootstrap:root    # root + fund #1–#3
+npx hardhat node
+npm run bootstrap:demo
 ```
 
-`MockBTCB.mint(address,uint256)` is used when available; otherwise tokens are transferred from the deployer.
+Signup shows **Get Demo BTCB** only when `BLOCKCHAIN_CHAIN_ID=31337` and `APP_ENV=local`.
 
-The signup UI shows **Get Demo BTCB** only when `BLOCKCHAIN_CHAIN_ID=31337` and `APP_ENV=local`. It is never enabled in production.
+## Explorers
+
+- Mainnet: `https://bscscan.com/tx/`
+- Testnet: `https://testnet.bscscan.com/tx/`

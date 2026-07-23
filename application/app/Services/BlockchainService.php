@@ -42,6 +42,8 @@ class BlockchainService
     {
         $isLocalChain = $this->chainId === 31337;
         $isLocalApp = app()->environment(['local', 'testing']);
+        $explorers = (array) config('blockchain.explorers', []);
+        $names = (array) config('blockchain.network_names', []);
 
         return [
             'rpc' => $this->rpc,
@@ -50,9 +52,58 @@ class BlockchainService
             'token' => $this->token,
             'treasury' => $this->treasury,
             'reward' => $this->reward,
+            'explorer' => (string) ($explorers[$this->chainId] ?? ''),
+            'networkName' => (string) ($names[$this->chainId] ?? ('Chain ' . $this->chainId)),
             // Local Hardhat demo faucet only — never true in production
             'demoFaucet' => $isLocalChain && $isLocalApp,
         ];
+    }
+
+    public function getExplorerBaseUrl(?int $chainId = null): string
+    {
+        $id = $chainId ?? $this->chainId;
+        $explorers = (array) config('blockchain.explorers', []);
+        return (string) ($explorers[$id] ?? '');
+    }
+
+    public function getExplorerTxUrl(string $txHash, ?int $chainId = null): ?string
+    {
+        $base = $this->getExplorerBaseUrl($chainId);
+        if ($base === '') {
+            return null;
+        }
+        $hash = str_starts_with($txHash, '0x') ? $txHash : ('0x' . $txHash);
+        return rtrim($base, '/') . '/tx/' . $hash;
+    }
+
+    public function getChainId(): int
+    {
+        return $this->chainId;
+    }
+
+    /**
+     * Ensure a mined receipt belongs to the configured chain (replay protection).
+     */
+    public function assertReceiptOnConfiguredChain(array $receipt): ?string
+    {
+        if (!isset($receipt['transactionHash'])) {
+            return 'Transaction receipt is incomplete';
+        }
+
+        // eth_getTransactionReceipt does not always include chainId; cross-check via eth_chainId
+        try {
+            $hex = $this->rpc('eth_chainId', []);
+            if (is_string($hex) && $hex !== '') {
+                $remote = hexdec($hex);
+                if ($remote !== $this->chainId) {
+                    return 'RPC chain ID mismatch — refusing to accept transaction from another network';
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::warning('eth_chainId check failed', ['error' => $e->getMessage()]);
+        }
+
+        return null;
     }
 
     public function getCoreAddress(): string
@@ -147,6 +198,10 @@ class BlockchainService
         string $label,
         ?string $expectedTo = null
     ): ?string {
+        if ($err = $this->assertReceiptOnConfiguredChain($receipt)) {
+            return $err;
+        }
+
         $status = $receipt['status'] ?? null;
         if ($status !== '0x1' && $status !== 1 && $status !== '1') {
             return $label . ' failed on-chain';
@@ -166,6 +221,16 @@ class BlockchainService
                 $from = strtolower((string) ($tx['from'] ?? ''));
                 if ($from !== '' && $from !== strtolower($expectedFrom)) {
                     return $label . ' sender does not match connected wallet';
+                }
+
+                // Prefer chainId from the raw tx when present (EIP-155)
+                if (isset($tx['chainId'])) {
+                    $txChain = is_string($tx['chainId'])
+                        ? hexdec($tx['chainId'])
+                        : (int) $tx['chainId'];
+                    if ($txChain > 0 && $txChain !== $this->chainId) {
+                        return $label . ' was mined on a different chain';
+                    }
                 }
             }
         }

@@ -2,6 +2,7 @@
 pragma solidity ^0.8.28;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
@@ -154,10 +155,16 @@ contract BTCPlanCore is ReentrancyGuard {
         return getBTCBAmountFromUSD(packageAmount);
     }
 
+    /**
+     * @notice Convert a USD package amount to payment-token units.
+     * @dev Reads BEP-20 / ERC-20 decimals dynamically (USDT=6, WBNB/BTCB=18, etc.).
+     *      Price feed returns plain USD integers (same units as MockBTCPriceFeed).
+     */
     function getBTCBAmountFromUSD(uint256 usdAmount) public view returns (uint256) {
         int256 btcPrice = btcPriceFeed.getBTCPrice();
         require(btcPrice > 0, "Invalid BTC price");
-        return (usdAmount * 1e18) / uint256(btcPrice);
+        uint8 tokenDecimals = IERC20Metadata(address(btcbToken)).decimals();
+        return (usdAmount * (10 ** uint256(tokenDecimals))) / uint256(btcPrice);
     }
 
     /**
