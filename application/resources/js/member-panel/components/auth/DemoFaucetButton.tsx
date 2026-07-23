@@ -36,7 +36,6 @@ export function DemoFaucetButton({ walletAddress, onFunded }: DemoFaucetButtonPr
       setLastBalance(result.balance);
       onFunded?.(result.balance);
       if (result.method === 'already-funded') {
-        // Soft success — no mint tx needed
         setLastBalance(result.balance);
       }
     } catch (error) {
@@ -46,17 +45,18 @@ export function DemoFaucetButton({ walletAddress, onFunded }: DemoFaucetButtonPr
     }
   };
 
+  const shortWallet = walletAddress
+    ? `${walletAddress.slice(0, 6)}…${walletAddress.slice(-4)}`
+    : 'your wallet';
+
   return (
-    <div className="rounded-xl border border-amber-400/25 bg-amber-400/10 px-4 py-3">
+    <div className="min-w-0 overflow-hidden rounded-xl border border-amber-400/25 bg-amber-400/10 px-3 py-3 sm:px-4">
       <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-amber-300">
         Local demo faucet
       </p>
-      <p className="mt-1 text-xs text-amber-100/80">
+      <p className="mt-1 break-words text-xs leading-relaxed text-amber-100/80">
         Hardhat only — mint 1000 MockBTCB to{' '}
-        <span className="font-mono">
-          {walletAddress ? `${walletAddress.slice(0, 6)}…${walletAddress.slice(-4)}` : 'your wallet'}
-        </span>
-        . Not available in production.
+        <span className="font-mono">{shortWallet}</span>. Not available in production.
       </p>
       <button
         type="button"
@@ -64,19 +64,19 @@ export function DemoFaucetButton({ walletAddress, onFunded }: DemoFaucetButtonPr
         disabled={busy}
         className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-amber-300/30 bg-amber-400/20 px-4 py-2.5 text-sm font-semibold text-amber-100 transition hover:bg-amber-400/30 disabled:opacity-60"
       >
-        <Droplets className="h-4 w-4" />
+        <Droplets className="h-4 w-4 shrink-0" />
         {busy ? 'Minting Demo BTCB…' : 'Get Demo BTCB'}
       </button>
       {lastBalance ? (
-        <p className="mt-2 text-center font-mono text-xs text-emerald-300">
+        <p className="mt-2 break-all text-center font-mono text-xs text-emerald-300">
           Balance: {lastBalance} BTCB
         </p>
       ) : null}
-      <p className="mt-2 text-[10px] leading-relaxed text-amber-100/60">
-        If Hardhat logs <code className="text-amber-200">MockBTCB#&lt;unrecognized-selector&gt;</code>,
+      <p className="mt-2 break-words text-[10px] leading-relaxed text-amber-100/60">
+        If Hardhat logs <code className="break-all text-amber-200">MockBTCB#&lt;unrecognized-selector&gt;</code>,
         your token was deployed before <code className="text-amber-200">mint()</code>. Skip this
         button when already funded, or redeploy with{' '}
-        <code className="text-amber-200">FORCE_DEPLOY=1 npm run bootstrap:demo</code>.
+        <code className="break-all text-amber-200">FORCE_DEPLOY=1 npm run bootstrap:demo</code>.
       </p>
     </div>
   );

@@ -1,4 +1,4 @@
-import { Eye, EyeOff, Lock, Mail, Wallet } from 'lucide-react';
+import { Wallet } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { Card } from '../ui/Card';
 import { GradientButton } from '../ui/GradientButton';
@@ -7,6 +7,7 @@ import { InstallWalletModal } from './InstallWalletModal';
 import { useWallet } from '../../hooks/useWallet';
 import { apiUrl } from '../../lib/apiBase';
 import { notifyError, notifySuccess } from '../../lib/walletConnect';
+import { createBrowserProvider } from '../../services/blockchain/wallet';
 import type { AuthBoot } from '../../types';
 
 type LoginPageProps = {
@@ -18,16 +19,27 @@ function obscure(address: string) {
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
 }
 
+function buildLoginMessage(wallet: string): string {
+  const nonce = Array.from(crypto.getRandomValues(new Uint8Array(16)))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+  return [
+    'Quantara Login',
+    `Wallet: ${wallet}`,
+    `Issued At: ${new Date().toISOString()}`,
+    `Nonce: ${nonce}`,
+  ].join('\n');
+}
+
 /**
- * Email + password + connected wallet must match registered wallet.
+ * Wallet-only login: Connect MetaMask → personal_sign → Laravel session.
+ * No email / password.
  */
 export function LoginPage({ data }: LoginPageProps) {
   const wallet = useWallet();
   const submittingRef = useRef(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [status, setStatus] = useState('');
   const [showInstall, setShowInstall] = useState(false);
 
   const handleConnect = async () => {
@@ -44,21 +56,24 @@ export function LoginPage({ data }: LoginPageProps) {
 
   const handleLogin = async () => {
     if (submitting || submittingRef.current) return;
-    if (!email.trim() || !password) {
-      notifyError('Please enter email and password.');
-      return;
-    }
 
     submittingRef.current = true;
     setSubmitting(true);
+    setStatus('Connecting wallet…');
     try {
       if (!wallet.walletInstalled) {
         setShowInstall(true);
         return;
       }
 
-      const address = wallet.isConnected ? wallet.walletAddress : await wallet.connect();
+      const session = await createBrowserProvider();
+      const address = await session.signer.getAddress();
 
+      setStatus('Confirm login signature in MetaMask…');
+      const message = buildLoginMessage(address);
+      const signature = await session.signer.signMessage(message);
+
+      setStatus('Verifying wallet…');
       const res = await fetch(apiUrl('/api/auth/login', data.baseUrl), {
         method: 'POST',
         headers: {
@@ -68,9 +83,9 @@ export function LoginPage({ data }: LoginPageProps) {
         },
         credentials: 'same-origin',
         body: JSON.stringify({
-          email: email.trim(),
-          password,
           wallet: address,
+          signature,
+          message,
         }),
       });
 
@@ -85,10 +100,11 @@ export function LoginPage({ data }: LoginPageProps) {
         redirect?: string;
         token?: string;
         dashboard?: unknown;
+        code?: string;
       };
 
       if (!json.success) {
-        notifyError(json.error || 'Invalid login credentials.');
+        notifyError(json.error || 'Login failed.');
         return;
       }
 
@@ -114,12 +130,18 @@ export function LoginPage({ data }: LoginPageProps) {
       const message = error instanceof Error ? error.message : 'Login failed.';
       if (message.toLowerCase().includes('metamask is not installed')) {
         setShowInstall(true);
+      } else if (
+        message.toLowerCase().includes('user rejected') ||
+        message.toLowerCase().includes('user denied')
+      ) {
+        notifyError('Signature cancelled in MetaMask.');
       } else {
         notifyError(message);
       }
     } finally {
       submittingRef.current = false;
       setSubmitting(false);
+      setStatus('');
     }
   };
 
@@ -129,64 +151,30 @@ export function LoginPage({ data }: LoginPageProps) {
 
       <Card
         hover={false}
-        className="mx-auto w-full max-w-[460px] border-q-cyan/25 p-6 shadow-[0_0_0_1px_rgba(0,217,255,0.10),0_0_48px_rgba(124,58,237,0.12)] sm:p-8"
+        className="mx-auto w-full max-w-[460px] min-w-0 overflow-hidden border-q-cyan/25 p-5 shadow-[0_0_0_1px_rgba(0,217,255,0.10),0_0_48px_rgba(124,58,237,0.12)] sm:p-8"
       >
         <div className="mb-7 flex flex-col items-center text-center">
           <Logo href={data.links.home} size="lg" imgClassName="max-w-[200px]" />
           <div className="mt-5 h-px w-16 bg-gradient-to-r from-transparent via-q-cyan/50 to-transparent" />
           <h1 className="mt-5 text-2xl font-bold text-white">Login</h1>
+          <p className="mt-2 max-w-[280px] text-sm text-q-muted">
+            Connect your registered wallet and confirm the MetaMask signature.
+          </p>
         </div>
 
         <div className="space-y-4">
-          <label className="block">
-            <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.16em] text-q-cyan">
-              Email
-            </span>
-            <div className="relative">
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@email.com"
-                autoComplete="username"
-                disabled={submitting}
-                className="w-full rounded-xl border border-white/[0.09] bg-[#0a0d16] px-4 py-3.5 pr-10 text-sm text-white outline-none transition focus:border-q-cyan/50"
-              />
-              <Mail className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-q-muted" />
-            </div>
-          </label>
-
-          <label className="block">
-            <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.16em] text-q-cyan">
-              Password
-            </span>
-            <div className="relative">
-              <input
-                type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Password"
-                autoComplete="current-password"
-                disabled={submitting}
-                className="w-full rounded-xl border border-white/[0.09] bg-[#0a0d16] px-4 py-3.5 pr-20 text-sm text-white outline-none transition focus:border-q-cyan/50"
-              />
-              <button
-                type="button"
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-q-muted hover:text-white"
-                onClick={() => setShowPassword((v) => !v)}
-                aria-label="Toggle password"
-              >
-                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </div>
-          </label>
-
           <div className="rounded-xl border border-white/[0.09] bg-[#0a0d16] px-4 py-3.5">
             <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-q-cyan">Wallet</p>
             <p className="mt-1 break-all font-mono text-sm text-white">
               {wallet.isConnected ? obscure(wallet.walletAddress) : 'Not connected'}
             </p>
           </div>
+
+          {status ? (
+            <p className="rounded-xl border border-q-cyan/20 bg-q-cyan/10 px-4 py-3 text-sm text-q-cyan">
+              {status}
+            </p>
+          ) : null}
 
           {!wallet.isConnected ? (
             <GradientButton
@@ -199,18 +187,18 @@ export function LoginPage({ data }: LoginPageProps) {
               <Wallet className="h-4 w-4" />
               {wallet.isConnecting ? 'Connecting…' : 'Connect Wallet'}
             </GradientButton>
-          ) : null}
-
-          <GradientButton
-            type="button"
-            fullWidth
-            className="!rounded-full !py-3.5 !font-bold !text-[#041018]"
-            disabled={submitting || !wallet.isConnected}
-            onClick={() => void handleLogin()}
-          >
-            <Lock className="h-4 w-4" />
-            {submitting ? 'Signing in…' : 'Login'}
-          </GradientButton>
+          ) : (
+            <GradientButton
+              type="button"
+              fullWidth
+              className="!rounded-full !py-3.5 !font-bold !text-[#041018]"
+              disabled={submitting}
+              onClick={() => void handleLogin()}
+            >
+              <Wallet className="h-4 w-4" />
+              {submitting ? 'Signing in…' : 'Sign in with Wallet'}
+            </GradientButton>
+          )}
         </div>
 
         <p className="mt-6 text-center text-sm text-q-muted">

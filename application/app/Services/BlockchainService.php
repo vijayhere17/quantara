@@ -235,9 +235,7 @@ class BlockchainService
                 $amountHex = '0x' . substr($data, 0, 64);
 
                 if ($minAmountWei !== null && $minAmountWei !== '') {
-                    $approved = gmp_init(ltrim(substr($data, 0, 64), '0') ?: '0', 16);
-                    $needed = gmp_init(preg_replace('/^0x/i', '', $minAmountWei) ?: '0', 16);
-                    if (gmp_cmp($approved, $needed) < 0) {
+                    if (!BigInteger::gte('0x' . substr($data, 0, 64), $minAmountWei)) {
                         return ['ok' => false, 'error' => 'Approved amount is below package payment'];
                     }
                 }

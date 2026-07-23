@@ -59,7 +59,16 @@ php artisan quantara:seed-demo-qa
 php artisan blockchain:sync-income
 ```
 
-## Remaining (ops / contract nuance — not blocking approve fix)
+## GMP / BigInteger
+
+Fatal `Call to undefined function App\Services\gmp_init()` was caused by bare `gmp_*` calls inside the `App\Services` namespace (PHP looks for a namespaced function).  
+
+All wei math now goes through `App\Services\BigInteger` (GMP → BCMath → pure PHP). See `docs/SERVER_REQUIREMENTS.md`.
+
+## Wallet login
+
+Login is **Connect Wallet + MetaMask personal_sign** only — no email/password on the login page.
+
 
 1. Binary tree placement still skipped on Web3 register (referral uplines only).  
 2. Contract HIGH notes: community partial-claim burn; same-rank $0 achievement burn; total-3X via working may delay package unlock until working 4X.  
