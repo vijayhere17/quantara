@@ -6,7 +6,7 @@
     "isEntry": true
   },
   "resources/css/member-panel.css": {
-    "file": "assets/member-panel-Gtmgf5L2.css",
+    "file": "assets/member-panel-fNXnEvYT.css",
     "src": "resources/css/member-panel.css",
     "isEntry": true
   },
@@ -17,12 +17,12 @@
     "isEntry": true
   },
   "resources/js/member-panel/main.tsx": {
-    "file": "assets/main-CBFVVIRP.js",
+    "file": "assets/main-BY7V5uMX.js",
     "name": "main",
     "src": "resources/js/member-panel/main.tsx",
     "isEntry": true,
     "css": [
-      "assets/member-panel-Gtmgf5L2.css"
+      "assets/member-panel-fNXnEvYT.css"
     ]
   }
 }
