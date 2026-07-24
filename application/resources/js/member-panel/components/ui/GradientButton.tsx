@@ -25,7 +25,7 @@ export function GradientButton({
 
   const classes = [
     'q-btn-ripple relative inline-flex items-center justify-center gap-2 overflow-hidden rounded-2xl px-5 py-3.5 text-sm font-semibold text-white',
-    'bg-gradient-to-br from-[#00B5FF] to-[#6D5EF9] shadow-[0_12px_28px_rgba(0,181,255,0.32)] transition-all duration-300 ease-out',
+    'bg-gradient-to-r from-[#00D2FF] via-[#00B5FF] to-[#9B6CFF] shadow-[0_12px_28px_rgba(0,181,255,0.32)] transition-all duration-300 ease-out',
     'hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_16px_36px_rgba(0,181,255,0.4)]',
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00B5FF]/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#071326]',
     'active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0',
