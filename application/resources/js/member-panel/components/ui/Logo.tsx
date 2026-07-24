@@ -13,9 +13,23 @@ const sizeClass: Record<NonNullable<LogoProps['size']>, string> = {
   xl: 'h-16 w-auto sm:h-20',
 };
 
-/** Canonical Quantara brand mark — place file at /assets/logo/quantara-logo.png */
-export const QUANTARA_LOGO_SRC = 'http://localhost/btc/assets/logo/quantara-logo.png';
+function resolveLogoSrc(): string {
+  try {
+    const boot = window.__QUANTARA_BOOT__;
+    if (boot?.assetsUrl) {
+      return `${String(boot.assetsUrl).replace(/\/$/, '')}/logo/quantara-logo.png`;
+    }
+    const base = document.getElementById('basePath') as HTMLInputElement | null;
+    if (base?.value) {
+      return `${base.value.replace(/\/$/, '')}/assets/logo/quantara-logo.png`;
+    }
+  } catch {
+    // ignore
+  }
+  return '/assets/logo/quantara-logo.png';
+}
 
+/** Canonical Quantara brand mark — /assets/logo/quantara-logo.png */
 export function Logo({
   href,
   className = '',
@@ -25,7 +39,7 @@ export function Logo({
 }: LogoProps) {
   const image = (
     <img
-      src={QUANTARA_LOGO_SRC}
+      src={resolveLogoSrc()}
       alt={alt}
       className={`object-contain ${sizeClass[size]} ${imgClassName}`}
       loading="eager"
@@ -47,3 +61,6 @@ export function Logo({
 
   return <span className={`inline-flex items-center ${className}`}>{image}</span>;
 }
+
+/** @deprecated Use resolve via Logo; kept for any legacy imports */
+export const QUANTARA_LOGO_SRC = '/assets/logo/quantara-logo.png';

@@ -279,21 +279,13 @@ export const mockCreateTicketData: SupportTicketBoot = {
 };
 
 const signupPackages: InvestPackageBoot[] = [
-  { amount: 50, label: '$50', multiplier: '4X Max', buys: 0, maxBuys: 2, locked: false },
-  { amount: 100, label: '$100', multiplier: '4X Max', buys: 0, maxBuys: 2, locked: true },
-  { amount: 300, label: '$300', multiplier: '4X Max', buys: 0, maxBuys: 2, locked: true },
-  { amount: 500, label: '$500', multiplier: '4X Max', buys: 0, maxBuys: 2, locked: true },
-  { amount: 1000, label: '$1000', multiplier: '4X Max', buys: 0, maxBuys: 2, locked: true },
-  { amount: 3000, label: '$3000', multiplier: '4X Max', buys: 0, maxBuys: 2, locked: true },
-  { amount: 5000, label: '$5000', multiplier: '4X Max', buys: 0, maxBuys: 2, locked: true },
   {
-    amount: 10000,
-    label: '$10000',
+    amount: 50,
+    label: 'Starter Package · $50',
     multiplier: '4X Max',
     buys: 0,
     maxBuys: 2,
-    locked: true,
-    unlimited: true,
+    locked: false,
   },
 ];
 

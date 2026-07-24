@@ -21,6 +21,8 @@ export { ProfileUpdateCard } from './profile/ProfileUpdateCard';
 export { LoginPage } from './auth/LoginPage';
 export { SignupPage } from './auth/SignupPage';
 export { RegistrationSuccessPage } from './auth/RegistrationSuccessPage';
+export { SignupStepper } from './auth/SignupStepper';
+export { StarterPackageCard } from './auth/StarterPackageCard';
 
 export { MyReferralsPage } from './network/MyReferralsPage';
 export { DownlineReportPage } from './network/DownlineReportPage';

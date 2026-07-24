@@ -1,5 +1,4 @@
 import {
-  Check,
   ChevronLeft,
   ChevronRight,
   Package,
@@ -7,8 +6,8 @@ import {
   Users,
   Wallet,
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
-import { PackageCard, isPackageSelectable } from '../investments/PackageCard';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Card } from '../ui/Card';
 import { GradientButton } from '../ui/GradientButton';
 import { Input } from '../ui/Input';
@@ -16,6 +15,8 @@ import { Logo } from '../ui/Logo';
 import { RegistrationSuccessPage } from './RegistrationSuccessPage';
 import { InstallWalletModal } from './InstallWalletModal';
 import { DemoFaucetButton } from './DemoFaucetButton';
+import { SignupStepper } from './SignupStepper';
+import { StarterPackageCard } from './StarterPackageCard';
 import { NetworkWalletStatus } from '../wallet/NetworkWalletStatus';
 import { useWallet } from '../../hooks/useWallet';
 import { apiUrl } from '../../lib/apiBase';
@@ -42,15 +43,17 @@ const STEPS = [
 
 type StepId = (typeof STEPS)[number]['id'];
 
+/** Registration always starts with the $50 starter package. */
+const STARTER_AMOUNT = 50;
+
 /**
  * Real Web3 registration:
  * form → connect wallet → BTCPlanCore.register(sponsor)
- * → approve + activatePackage(amount) → Laravel verifies txs → create user → login
+ * → approve + activatePackage(50) → Laravel verifies txs → create user → login
  */
 export function SignupPage({ data }: SignupPageProps) {
-  const packages = data.packages ?? [];
-  const unlockedAmount = packages.find((p) => !p.locked)?.amount ?? 50;
   const wallet = useWallet();
+  const reduceMotion = useReducedMotion();
 
   const [step, setStep] = useState<StepId>('referral');
   const [sponsorId, setSponsorId] = useState(data.referralCode ?? '');
@@ -61,7 +64,6 @@ export function SignupPage({ data }: SignupPageProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [terms, setTerms] = useState(false);
-  const [selectedAmount, setSelectedAmount] = useState(unlockedAmount);
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
   const [showInstall, setShowInstall] = useState(false);
@@ -70,6 +72,7 @@ export function SignupPage({ data }: SignupPageProps) {
   const [showDemoFaucet, setShowDemoFaucet] = useState(false);
 
   const stepIndex = STEPS.findIndex((s) => s.id === step);
+  const selectedAmount = STARTER_AMOUNT;
 
   useEffect(() => {
     if (data.referralCode) setSponsorId(data.referralCode);
@@ -116,7 +119,6 @@ export function SignupPage({ data }: SignupPageProps) {
             success?: boolean;
             name?: string;
             wallet?: string;
-            error?: string;
           };
           if (json.success && json.wallet) {
             setSponsorName(json.name || 'Verified');
@@ -134,11 +136,6 @@ export function SignupPage({ data }: SignupPageProps) {
 
     return () => window.clearTimeout(timer);
   }, [sponsorId, data.baseUrl, data.csrfToken]);
-
-  const selectedPackage = useMemo(
-    () => packages.find((p) => p.amount === selectedAmount) ?? packages[0],
-    [packages, selectedAmount],
-  );
 
   const goNext = () => setStep(STEPS[Math.min(stepIndex + 1, STEPS.length - 1)].id);
   const goBack = () => setStep(STEPS[Math.max(stepIndex - 1, 0)].id);
@@ -171,7 +168,6 @@ export function SignupPage({ data }: SignupPageProps) {
     try {
       const session = await createBrowserProvider();
 
-      // Contract requires register(sponsor address) — never pass the referral username raw
       setStatus('Submitting on-chain registration…');
       const onChain = await registerOnChain(
         session.signer,
@@ -201,14 +197,13 @@ export function SignupPage({ data }: SignupPageProps) {
         memberId: String(laravel.user?.username || onChain.wallet),
         walletAddress: onChain.wallet,
         sponsorId: sponsorId.trim(),
-        packageLabel: selectedPackage?.label || `$${selectedAmount}`,
+        packageLabel: 'Starter Package · $50',
         transactionHash: onChain.registerTxHash,
         registrationDate: new Date().toLocaleString(),
         network: 'BNB Smart Chain',
       });
       setSuccess(true);
 
-      // Auto-open dashboard with synchronized session
       window.setTimeout(() => {
         window.location.href = laravel.redirect || apiUrl('/dashboard', data.baseUrl);
       }, 1200);
@@ -233,288 +228,341 @@ export function SignupPage({ data }: SignupPageProps) {
     return <RegistrationSuccessPage data={data} details={successPayload} />;
   }
 
+  const stepMotion = reduceMotion
+    ? {}
+    : {
+        initial: { opacity: 0, x: 16 },
+        animate: { opacity: 1, x: 0 },
+        exit: { opacity: 0, x: -12 },
+        transition: { duration: 0.28 },
+      };
+
   return (
     <>
       <InstallWalletModal open={showInstall} onClose={() => setShowInstall(false)} />
 
       <Card
         hover={false}
-        className="mx-auto w-full max-w-[760px] min-w-0 overflow-hidden border-q-cyan/25 p-4 shadow-[0_0_0_1px_rgba(0,217,255,0.10),0_0_48px_rgba(124,58,237,0.12)] sm:p-8"
+        className="mx-auto w-full min-w-0 overflow-hidden border-[#00B5FF]/25 bg-[#0a1528]/80 p-5 shadow-[0_0_0_1px_rgba(0,181,255,0.12),0_24px_64px_rgba(7,19,38,0.65)] backdrop-blur-xl sm:p-8"
       >
-        <div className="mb-6 flex flex-col items-center text-center">
-          <Logo href={data.links.home} size="lg" imgClassName="max-w-[200px]" />
-          <h1 className="mt-5 text-2xl font-bold text-white">Create your account</h1>
+        <div className="mb-6 flex flex-col items-center text-center xl:items-start xl:text-left">
+          <Logo href={data.links.home} size="lg" imgClassName="max-w-[180px]" className="xl:hidden" />
+          <p className="mt-4 text-[11px] font-bold uppercase tracking-[0.28em] text-[#38D9FF] xl:mt-0">
+            Create account
+          </p>
+          <h1 className="font-display mt-2 text-2xl font-bold tracking-tight text-white sm:text-3xl">
+            Join Quantara
+          </h1>
+          <p className="mt-2 max-w-[36ch] text-sm text-[#A8B8D0]">
+            Complete a few steps to register on BNB Smart Chain with MetaMask.
+          </p>
         </div>
 
-        <ol className="mb-7 flex max-w-full flex-wrap items-center justify-center gap-1.5 overflow-x-auto sm:gap-3">
-          {STEPS.map((s, index) => {
-            const active = index === stepIndex;
-            const done = index < stepIndex;
-            return (
-              <li key={s.id} className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-                <span
-                  className={[
-                    'inline-flex h-8 min-w-8 items-center justify-center rounded-full border px-2 text-xs font-bold transition',
-                    active
-                      ? 'border-q-cyan/50 bg-q-cyan/15 text-q-cyan'
-                      : done
-                        ? 'border-emerald-400/40 bg-emerald-400/15 text-emerald-300'
-                        : 'border-white/10 bg-white/[0.03] text-q-muted',
-                  ].join(' ')}
-                >
-                  {done ? <Check className="h-3.5 w-3.5" /> : index + 1}
-                </span>
-                <span className={`hidden text-xs font-semibold sm:inline ${active ? 'text-white' : 'text-q-muted'}`}>
-                  {s.label}
-                </span>
-                {index < STEPS.length - 1 ? (
-                  <ChevronRight className="hidden h-3.5 w-3.5 text-q-muted/50 sm:inline" />
-                ) : null}
-              </li>
-            );
-          })}
-        </ol>
+        <SignupStepper steps={STEPS} currentIndex={stepIndex} />
 
-        {step === 'referral' ? (
-          <section className="space-y-5 animate-fade-in">
-            <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-q-cyan/15 text-q-cyan">
-                <Users className="h-5 w-5" />
-              </div>
-              <div>
-                <h2 className="text-lg font-bold text-white">Referral ID</h2>
-                <p className="text-sm text-q-muted">Enter your sponsor ID.</p>
-              </div>
-            </div>
-            <Input
-              label="Sponsor / Referral ID"
-              name="sponsor_display"
-              value={sponsorId}
-              onChange={(e) => setSponsorId(e.target.value)}
-              placeholder="Sponsor wallet address"
-            />
-            {sponsorName && sponsorWallet ? (
-              <p className="rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-300">
-                Sponsor verified: <span className="font-semibold">{sponsorName}</span>
-                <span className="mt-1 block font-mono text-[11px] text-emerald-200/70">{sponsorWallet}</span>
-              </p>
-            ) : null}
-            <GradientButton
-              type="button"
-              fullWidth
-              className="!rounded-full !py-3.5 !font-bold !text-[#041018]"
-              disabled={!sponsorId.trim() || !sponsorName || !sponsorWallet}
-              onClick={goNext}
-            >
-              Continue
-              <ChevronRight className="h-4 w-4" />
-            </GradientButton>
-          </section>
-        ) : null}
-
-        {step === 'info' ? (
-          <section className="space-y-5 animate-fade-in">
-            <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-q-cyan/15 text-q-cyan">
-                <UserRound className="h-5 w-5" />
-              </div>
-              <div>
-                <h2 className="text-lg font-bold text-white">User Information</h2>
-                <p className="text-sm text-q-muted">Used for login after registration.</p>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Input label="First Name" name="firstname" value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="First name" />
-              <Input label="Last Name" name="lastname" value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Last name" />
-            </div>
-            <Input label="Email" name="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@wallet.io" />
-            <Input label="Password" name="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Min 6 characters" />
-            <GradientButton
-              type="button"
-              fullWidth
-              className="!rounded-full !py-3.5 !font-bold !text-[#041018]"
-              disabled={!email.trim() || password.length < 6}
-              onClick={goNext}
-            >
-              Continue
-              <ChevronRight className="h-4 w-4" />
-            </GradientButton>
-            <button type="button" onClick={goBack} className="inline-flex w-full items-center justify-center gap-1 text-sm text-q-muted hover:text-white">
-              <ChevronLeft className="h-4 w-4" /> Back
-            </button>
-          </section>
-        ) : null}
-
-        {step === 'package' ? (
-          <section className="space-y-5 animate-fade-in">
-            <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-q-cyan/15 text-q-cyan">
-                <Package className="h-5 w-5" />
-              </div>
-              <div>
-                <h2 className="text-lg font-bold text-white">Choose Package</h2>
-                <p className="text-sm text-q-muted">Starter package for new members.</p>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {packages.map((pkg) => (
-                <PackageCard
-                  key={pkg.amount}
-                  pkg={pkg}
-                  selected={selectedAmount === pkg.amount && isPackageSelectable(pkg)}
-                  onSelect={() => {
-                    if (isPackageSelectable(pkg)) setSelectedAmount(pkg.amount);
-                  }}
-                />
-              ))}
-            </div>
-            <GradientButton type="button" fullWidth className="!rounded-full !py-3.5 !font-bold !text-[#041018]" onClick={goNext}>
-              Continue with {selectedPackage?.label || '$50'}
-              <ChevronRight className="h-4 w-4" />
-            </GradientButton>
-            <button type="button" onClick={goBack} className="inline-flex w-full items-center justify-center gap-1 text-sm text-q-muted hover:text-white">
-              <ChevronLeft className="h-4 w-4" /> Back
-            </button>
-          </section>
-        ) : null}
-
-        {step === 'wallet' ? (
-          <section className="space-y-5 animate-fade-in">
-            <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-q-cyan/15 text-q-cyan">
-                <Wallet className="h-5 w-5" />
-              </div>
-              <div>
-                <h2 className="text-lg font-bold text-white">Wallet Connect</h2>
-                <p className="text-sm text-q-muted">Connect MetaMask, Trust Wallet, or another BEP-20 wallet.</p>
-              </div>
-            </div>
-            <div className="rounded-2xl border border-q-cyan/20 bg-q-cyan/5 px-4 py-4">
-              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-q-cyan">Connected Wallet</p>
-              <p className="mt-1 break-all text-sm text-white">
-                {wallet.walletAddress || 'No wallet connected yet'}
-              </p>
-            </div>
-            <NetworkWalletStatus wallet={wallet} />
-            {!wallet.isConnected ? (
+        <AnimatePresence mode="wait">
+          {step === 'referral' ? (
+            <motion.section key="referral" className="space-y-5" {...stepMotion}>
+              <StepHeader
+                icon={<Users className="h-5 w-5" />}
+                title="Referral ID"
+                subtitle="Enter your sponsor wallet or username."
+              />
+              <Input
+                label="Sponsor / Referral ID"
+                name="sponsor_display"
+                value={sponsorId}
+                onChange={(e) => setSponsorId(e.target.value)}
+                placeholder="Sponsor wallet address"
+              />
+              {sponsorName && sponsorWallet ? (
+                <p className="rounded-2xl border border-emerald-400/25 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-300">
+                  Sponsor verified: <span className="font-semibold">{sponsorName}</span>
+                  <span className="mt-1 block font-mono text-[11px] text-emerald-200/70">
+                    {sponsorWallet}
+                  </span>
+                </p>
+              ) : null}
               <GradientButton
                 type="button"
                 fullWidth
-                className="!rounded-full !py-3.5 !font-bold !text-[#041018]"
-                disabled={wallet.isConnecting}
-                onClick={() => {
-                  if (!wallet.walletInstalled) {
-                    setShowInstall(true);
-                    return;
-                  }
-                  void wallet.connect().catch((err) => notifyError(err.message));
-                }}
+                className="!rounded-2xl !py-4 !text-base !font-bold !text-[#041018]"
+                disabled={!sponsorId.trim() || !sponsorName || !sponsorWallet}
+                onClick={goNext}
               >
-                <Wallet className="h-4 w-4" />
-                {wallet.isConnecting ? 'Connecting…' : 'Connect Wallet'}
-              </GradientButton>
-            ) : (
-              <GradientButton type="button" fullWidth className="!rounded-full !py-3.5 !font-bold !text-[#041018]" onClick={goNext}>
                 Continue
                 <ChevronRight className="h-4 w-4" />
               </GradientButton>
-            )}
-            <button type="button" onClick={goBack} className="inline-flex w-full items-center justify-center gap-1 text-sm text-q-muted hover:text-white">
-              <ChevronLeft className="h-4 w-4" /> Back
-            </button>
-          </section>
-        ) : null}
+            </motion.section>
+          ) : null}
 
-        {step === 'payment' ? (
-          <section className="min-w-0 space-y-5 animate-fade-in">
-            <div className="flex min-w-0 items-start gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-q-cyan/15 text-q-cyan">
-                <Wallet className="h-5 w-5" />
+          {step === 'info' ? (
+            <motion.section key="info" className="space-y-5" {...stepMotion}>
+              <StepHeader
+                icon={<UserRound className="h-5 w-5" />}
+                title="User Information"
+                subtitle="Used for login after registration."
+              />
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Input
+                  label="First Name"
+                  name="firstname"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  placeholder="First name"
+                />
+                <Input
+                  label="Last Name"
+                  name="lastname"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  placeholder="Last name"
+                />
               </div>
-              <div className="min-w-0 flex-1">
-                <h2 className="text-lg font-bold text-white">Payment & Register</h2>
-                <p className="break-words text-sm text-q-muted">
-                  Confirm each wallet prompt to finish registration on BNB Smart Chain.
+              <Input
+                label="Email"
+                name="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@wallet.io"
+              />
+              <Input
+                label="Password"
+                name="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Min 6 characters"
+              />
+              <GradientButton
+                type="button"
+                fullWidth
+                className="!rounded-2xl !py-4 !text-base !font-bold !text-[#041018]"
+                disabled={!email.trim() || password.length < 6}
+                onClick={goNext}
+              >
+                Continue
+                <ChevronRight className="h-4 w-4" />
+              </GradientButton>
+              <BackButton onClick={goBack} />
+            </motion.section>
+          ) : null}
+
+          {step === 'package' ? (
+            <motion.section key="package" className="space-y-5" {...stepMotion}>
+              <StepHeader
+                icon={<Package className="h-5 w-5" />}
+                title="Starter Package"
+                subtitle="New members begin with the $50 registration package."
+              />
+              <StarterPackageCard />
+              <GradientButton
+                type="button"
+                fullWidth
+                className="!rounded-2xl !py-4 !text-base !font-bold !text-[#041018]"
+                onClick={goNext}
+              >
+                Continue with $50
+                <ChevronRight className="h-4 w-4" />
+              </GradientButton>
+              <BackButton onClick={goBack} />
+            </motion.section>
+          ) : null}
+
+          {step === 'wallet' ? (
+            <motion.section key="wallet" className="space-y-5" {...stepMotion}>
+              <StepHeader
+                icon={<Wallet className="h-5 w-5" />}
+                title="Wallet Connect"
+                subtitle="Connect MetaMask, Trust Wallet, or another BEP-20 wallet."
+              />
+              <div className="rounded-2xl border border-[#00B5FF]/25 bg-[#00B5FF]/5 px-4 py-4">
+                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#38D9FF]">
+                  Connected Wallet
+                </p>
+                <p className="mt-1 break-all text-sm text-white">
+                  {wallet.walletAddress || 'No wallet connected yet'}
                 </p>
               </div>
-            </div>
-
-            <NetworkWalletStatus wallet={wallet} />
-
-            <div className="min-w-0 overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0a0d16]/80 px-3 py-2 text-sm sm:px-4 sm:py-3">
-              <div className="flex min-w-0 items-start justify-between gap-3 border-b border-white/[0.06] py-2.5">
-                <span className="shrink-0 text-q-muted">Package</span>
-                <span className="min-w-0 text-right font-semibold text-white">
-                  {selectedPackage?.label || '$50'}
-                </span>
-              </div>
-              <div className="flex min-w-0 items-start justify-between gap-3 border-b border-white/[0.06] py-2.5">
-                <span className="shrink-0 text-q-muted">Sponsor</span>
-                <span
-                  className="min-w-0 break-all text-right font-mono text-xs font-semibold text-white sm:text-sm"
-                  title={sponsorId || undefined}
+              <NetworkWalletStatus wallet={wallet} />
+              {!wallet.isConnected ? (
+                <GradientButton
+                  type="button"
+                  fullWidth
+                  className="!rounded-2xl !py-4 !text-base !font-bold !text-[#041018]"
+                  disabled={wallet.isConnecting}
+                  onClick={() => {
+                    if (!wallet.walletInstalled) {
+                      setShowInstall(true);
+                      return;
+                    }
+                    void wallet.connect().catch((err) => notifyError(err.message));
+                  }}
                 >
-                  {sponsorId
-                    ? `${sponsorId.slice(0, 6)}…${sponsorId.slice(-4)}`
-                    : '—'}
-                </span>
-              </div>
-              <div className="flex min-w-0 items-start justify-between gap-3 py-2.5">
-                <span className="shrink-0 text-q-muted">Wallet</span>
-                <span
-                  className="min-w-0 break-all text-right font-mono text-xs font-semibold text-white sm:text-sm"
-                  title={wallet.walletAddress || undefined}
+                  <Wallet className="h-4 w-4" />
+                  {wallet.isConnecting ? 'Connecting…' : 'Connect Wallet'}
+                </GradientButton>
+              ) : (
+                <GradientButton
+                  type="button"
+                  fullWidth
+                  className="!rounded-2xl !py-4 !text-base !font-bold !text-[#041018]"
+                  onClick={goNext}
                 >
-                  {wallet.walletAddress
-                    ? `${wallet.walletAddress.slice(0, 6)}…${wallet.walletAddress.slice(-4)}`
-                    : '—'}
-                </span>
-              </div>
-            </div>
+                  Continue
+                  <ChevronRight className="h-4 w-4" />
+                </GradientButton>
+              )}
+              <BackButton onClick={goBack} />
+            </motion.section>
+          ) : null}
 
-            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 py-3 text-sm text-q-soft">
-              <input
-                type="checkbox"
-                className="mt-0.5 h-4 w-4 shrink-0 rounded border-white/20 bg-[#0a0d16] text-q-cyan"
-                checked={terms}
-                onChange={(e) => setTerms(e.target.checked)}
+          {step === 'payment' ? (
+            <motion.section key="payment" className="min-w-0 space-y-5" {...stepMotion}>
+              <StepHeader
+                icon={<Wallet className="h-5 w-5" />}
+                title="Payment & Register"
+                subtitle="Confirm each wallet prompt to finish on BNB Smart Chain."
               />
-              <span className="min-w-0 break-words">I agree to the Terms &amp; Conditions.</span>
-            </label>
 
-            {status ? (
-              <p className="break-words rounded-xl border border-q-cyan/20 bg-q-cyan/10 px-4 py-3 text-sm text-q-cyan">
-                {status}
-              </p>
-            ) : null}
+              <NetworkWalletStatus wallet={wallet} />
 
-            {showDemoFaucet ? (
-              <DemoFaucetButton walletAddress={wallet.walletAddress || undefined} />
-            ) : null}
+              <div className="min-w-0 overflow-hidden rounded-2xl border border-white/[0.08] bg-[#071326]/80 px-3 py-2 text-sm sm:px-4 sm:py-3">
+                <SummaryRow label="Package" value="Starter · $50" />
+                <SummaryRow
+                  label="Sponsor"
+                  value={
+                    sponsorId
+                      ? `${sponsorId.slice(0, 6)}…${sponsorId.slice(-4)}`
+                      : '—'
+                  }
+                  mono
+                  title={sponsorId || undefined}
+                />
+                <SummaryRow
+                  label="Wallet"
+                  value={
+                    wallet.walletAddress
+                      ? `${wallet.walletAddress.slice(0, 6)}…${wallet.walletAddress.slice(-4)}`
+                      : '—'
+                  }
+                  mono
+                  title={wallet.walletAddress || undefined}
+                  last
+                />
+              </div>
 
-            <GradientButton
-              type="button"
-              fullWidth
-              className="!rounded-full !py-3.5 !font-bold !text-[#041018]"
-              disabled={busy || !terms || !wallet.isConnected}
-              onClick={() => void handleRegister()}
-            >
-              {busy ? 'Processing…' : 'Register'}
-            </GradientButton>
+              <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-white/[0.08] bg-white/[0.03] px-4 py-3.5 text-sm text-q-soft">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 h-4 w-4 shrink-0 rounded border-white/20 bg-[#0a0d16] text-[#00B5FF]"
+                  checked={terms}
+                  onChange={(e) => setTerms(e.target.checked)}
+                />
+                <span className="min-w-0 break-words">I agree to the Terms &amp; Conditions.</span>
+              </label>
 
-            <button type="button" onClick={goBack} className="inline-flex w-full items-center justify-center gap-1 text-sm text-q-muted hover:text-white">
-              <ChevronLeft className="h-4 w-4" /> Back
-            </button>
-          </section>
-        ) : null}
+              {status ? (
+                <p className="break-words rounded-2xl border border-[#00B5FF]/25 bg-[#00B5FF]/10 px-4 py-3 text-sm text-[#38D9FF]">
+                  {status}
+                </p>
+              ) : null}
 
-        <p className="mt-6 text-center text-sm text-q-muted">
+              {showDemoFaucet ? (
+                <DemoFaucetButton walletAddress={wallet.walletAddress || undefined} />
+              ) : null}
+
+              <GradientButton
+                type="button"
+                fullWidth
+                className="!rounded-2xl !py-4 !text-base !font-bold !text-[#041018]"
+                disabled={busy || !terms || !wallet.isConnected}
+                onClick={() => void handleRegister()}
+              >
+                {busy ? 'Processing…' : 'Register'}
+              </GradientButton>
+
+              <BackButton onClick={goBack} />
+            </motion.section>
+          ) : null}
+        </AnimatePresence>
+
+        <p className="mt-7 text-center text-sm text-q-muted">
           Already have an account?{' '}
-          <a href={data.links.signIn} className="font-semibold text-q-cyan hover:text-white">
+          <a href={data.links.signIn} className="font-semibold text-[#38D9FF] hover:text-white">
             Sign In
           </a>
         </p>
       </Card>
     </>
+  );
+}
+
+function StepHeader({
+  icon,
+  title,
+  subtitle,
+}: {
+  icon: ReactNode;
+  title: string;
+  subtitle: string;
+}) {
+  return (
+    <div className="flex items-start gap-3">
+      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#00B5FF]/15 text-[#38D9FF]">
+        {icon}
+      </div>
+      <div>
+        <h2 className="text-lg font-bold text-white">{title}</h2>
+        <p className="text-sm text-[#A8B8D0]">{subtitle}</p>
+      </div>
+    </div>
+  );
+}
+
+function BackButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex w-full items-center justify-center gap-1 text-sm text-q-muted transition hover:text-white"
+    >
+      <ChevronLeft className="h-4 w-4" /> Back
+    </button>
+  );
+}
+
+function SummaryRow({
+  label,
+  value,
+  mono,
+  title,
+  last,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+  title?: string;
+  last?: boolean;
+}) {
+  return (
+    <div
+      className={[
+        'flex min-w-0 items-start justify-between gap-3 py-2.5',
+        last ? '' : 'border-b border-white/[0.06]',
+      ].join(' ')}
+    >
+      <span className="shrink-0 text-q-muted">{label}</span>
+      <span
+        className={[
+          'min-w-0 break-all text-right font-semibold text-white',
+          mono ? 'font-mono text-xs sm:text-sm' : '',
+        ].join(' ')}
+        title={title}
+      >
+        {value}
+      </span>
+    </div>
   );
 }
