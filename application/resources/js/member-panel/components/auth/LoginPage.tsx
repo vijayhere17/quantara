@@ -33,7 +33,7 @@ function buildLoginMessage(wallet: string): string {
 
 /**
  * Wallet-only login: Connect MetaMask → personal_sign → Laravel session.
- * No email / password.
+ * Visual language matches the Quantara Web3 signup mockup.
  */
 export function LoginPage({ data }: LoginPageProps) {
   const wallet = useWallet();
@@ -151,27 +151,28 @@ export function LoginPage({ data }: LoginPageProps) {
 
       <Card
         hover={false}
-        className="mx-auto w-full max-w-[460px] min-w-0 overflow-hidden border-q-cyan/25 p-5 shadow-[0_0_0_1px_rgba(0,217,255,0.10),0_0_48px_rgba(124,58,237,0.12)] sm:p-8"
+        className="auth-glass-card mx-auto !h-auto w-full min-w-0 overflow-hidden rounded-[24px] border border-white/[0.1] bg-[#0a1528]/75 p-5 shadow-[0_0_0_1px_rgba(0,181,255,0.1),0_24px_64px_rgba(0,0,0,0.45)] backdrop-blur-2xl sm:p-7"
       >
-        <div className="mb-7 flex flex-col items-center text-center">
-          <Logo href={data.links.home} size="lg" imgClassName="max-w-[200px]" />
-          <div className="mt-5 h-px w-16 bg-gradient-to-r from-transparent via-q-cyan/50 to-transparent" />
-          <h1 className="mt-5 text-2xl font-bold text-white">Login</h1>
-          <p className="mt-2 max-w-[280px] text-sm text-q-muted">
+        <div className="mb-6 flex flex-col items-center text-center">
+          <Logo href={data.links.home} size="md" imgClassName="h-9 max-w-[150px]" className="mb-3 xl:hidden" />
+          <h1 className="font-display text-xl font-bold tracking-tight text-white sm:text-2xl">
+            Welcome back
+          </h1>
+          <p className="mt-1.5 max-w-[32ch] text-xs text-[#A8B8D0] sm:text-sm">
             Connect your registered wallet and confirm the MetaMask signature.
           </p>
         </div>
 
-        <div className="space-y-4">
-          <div className="rounded-xl border border-white/[0.09] bg-[#0a0d16] px-4 py-3.5">
-            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-q-cyan">Wallet</p>
+        <div className="space-y-3.5">
+          <div className="rounded-xl border border-white/[0.1] bg-[#071326]/80 px-4 py-3.5">
+            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#38D9FF]">Wallet</p>
             <p className="mt-1 break-all font-mono text-sm text-white">
               {wallet.isConnected ? obscure(wallet.walletAddress) : 'Not connected'}
             </p>
           </div>
 
           {status ? (
-            <p className="rounded-xl border border-q-cyan/20 bg-q-cyan/10 px-4 py-3 text-sm text-q-cyan">
+            <p className="rounded-xl border border-[#00B5FF]/25 bg-[#00B5FF]/10 px-4 py-3 text-sm text-[#38D9FF]">
               {status}
             </p>
           ) : null}
@@ -180,7 +181,7 @@ export function LoginPage({ data }: LoginPageProps) {
             <GradientButton
               type="button"
               fullWidth
-              className="!rounded-full !py-3.5 !font-bold !text-[#041018]"
+              className="!rounded-xl !py-3.5 !font-bold !text-white"
               disabled={submitting || wallet.isConnecting}
               onClick={() => void handleConnect()}
             >
@@ -191,7 +192,7 @@ export function LoginPage({ data }: LoginPageProps) {
             <GradientButton
               type="button"
               fullWidth
-              className="!rounded-full !py-3.5 !font-bold !text-[#041018]"
+              className="!rounded-xl !py-3.5 !font-bold !text-white"
               disabled={submitting}
               onClick={() => void handleLogin()}
             >
@@ -201,9 +202,9 @@ export function LoginPage({ data }: LoginPageProps) {
           )}
         </div>
 
-        <p className="mt-6 text-center text-sm text-q-muted">
+        <p className="mt-5 text-center text-xs text-[#8FA3C0]">
           New here?{' '}
-          <a href={data.links.signUp} className="font-semibold text-q-cyan hover:text-white">
+          <a href={data.links.signUp} className="font-semibold text-white hover:text-[#38D9FF]">
             Create account
           </a>
         </p>

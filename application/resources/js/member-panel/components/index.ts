@@ -35,6 +35,7 @@ export { WithdrawPage } from './withdraw/WithdrawPage';
 export { IncentiveReportPage } from './earnings/IncentiveReportPage';
 export { CreateTicketPage } from './support/CreateTicketPage';
 export { AuroraBackground } from './layout/AuroraBackground';
+export { AuthCosmicBackground } from './layout/AuthCosmicBackground';
 export { AuthLayout } from './layout/AuthLayout';
 export { AuthSideSlider } from './layout/AuthSideSlider';
 

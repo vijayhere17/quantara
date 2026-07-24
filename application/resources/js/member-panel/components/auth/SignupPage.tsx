@@ -243,40 +243,34 @@ export function SignupPage({ data }: SignupPageProps) {
 
       <Card
         hover={false}
-        className="mx-auto !h-auto w-full min-w-0 overflow-hidden border-[#00B5FF]/25 bg-[#0a1528]/80 p-4 shadow-[0_0_0_1px_rgba(0,181,255,0.12),0_16px_48px_rgba(7,19,38,0.65)] backdrop-blur-xl sm:p-5 xl:p-4 2xl:p-6"
+        className="auth-glass-card mx-auto !h-auto w-full min-w-0 overflow-hidden rounded-[24px] border border-white/[0.1] bg-[#0a1528]/75 p-5 shadow-[0_0_0_1px_rgba(0,181,255,0.1),0_24px_64px_rgba(0,0,0,0.45)] backdrop-blur-2xl sm:p-6 xl:p-5 2xl:p-7"
       >
-        <div className="mb-3 flex flex-col items-center text-center xl:mb-2.5 xl:items-start xl:text-left">
-          <Logo href={data.links.home} size="md" imgClassName="h-9 max-w-[150px]" className="xl:hidden" />
-          <p className="mt-2.5 text-[10px] font-bold uppercase tracking-[0.28em] text-[#38D9FF] xl:mt-0">
-            Create account
-          </p>
-          <h1 className="font-display mt-1 text-xl font-bold tracking-tight text-white sm:text-2xl">
-            Join Quantara
+        <div className="mb-4 flex flex-col items-center text-center">
+          <Logo href={data.links.home} size="md" imgClassName="h-9 max-w-[150px]" className="mb-3 xl:hidden" />
+          <h1 className="font-display text-xl font-bold tracking-tight text-white sm:text-2xl">
+            Create your account
           </h1>
-          <p className="mt-1 max-w-[36ch] text-xs text-[#A8B8D0] xl:hidden 2xl:mt-1.5 2xl:block 2xl:text-sm">
-            Complete a few steps to register on BNB Smart Chain with MetaMask.
-          </p>
         </div>
 
         <SignupStepper steps={STEPS} currentIndex={stepIndex} />
 
         <AnimatePresence mode="wait">
           {step === 'referral' ? (
-            <motion.section key="referral" className="space-y-3" {...stepMotion}>
+            <motion.section key="referral" className="space-y-3.5" {...stepMotion}>
               <StepHeader
                 icon={<Users className="h-4 w-4" />}
                 title="Referral ID"
-                subtitle="Enter your sponsor wallet or username."
+                subtitle="Enter your sponsor ID (optional)."
               />
               <Input
                 label="Sponsor / Referral ID"
                 name="sponsor_display"
                 value={sponsorId}
                 onChange={(e) => setSponsorId(e.target.value)}
-                placeholder="Sponsor wallet address"
+                placeholder="Enter sponsor / referral ID"
               />
               {sponsorName && sponsorWallet ? (
-                <p className="rounded-xl border border-emerald-400/25 bg-emerald-400/10 px-3 py-2 text-xs text-emerald-300">
+                <p className="rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-3.5 py-2.5 text-xs text-emerald-300">
                   Sponsor verified: <span className="font-semibold">{sponsorName}</span>
                   <span className="mt-0.5 block font-mono text-[10px] text-emerald-200/70">
                     {sponsorWallet}
@@ -286,7 +280,7 @@ export function SignupPage({ data }: SignupPageProps) {
               <GradientButton
                 type="button"
                 fullWidth
-                className="!rounded-2xl !py-3 !text-sm !font-bold !text-[#041018]"
+                className="!rounded-xl !py-3.5 !text-sm !font-bold !text-white"
                 disabled={!sponsorId.trim() || !sponsorName || !sponsorWallet}
                 onClick={goNext}
               >
@@ -338,7 +332,7 @@ export function SignupPage({ data }: SignupPageProps) {
               <GradientButton
                 type="button"
                 fullWidth
-                className="!rounded-2xl !py-3 !text-sm !font-bold !text-[#041018]"
+                className="!rounded-xl !py-3.5 !text-sm !font-bold !text-white"
                 disabled={!email.trim() || password.length < 6}
                 onClick={goNext}
               >
@@ -353,14 +347,14 @@ export function SignupPage({ data }: SignupPageProps) {
             <motion.section key="package" className="space-y-3" {...stepMotion}>
               <StepHeader
                 icon={<Package className="h-4 w-4" />}
-                title="Starter Package"
+                title="Choose Your Package"
                 subtitle="New members begin with the $50 registration package."
               />
               <StarterPackageCard />
               <GradientButton
                 type="button"
                 fullWidth
-                className="!rounded-2xl !py-3 !text-sm !font-bold !text-[#041018]"
+                className="!rounded-xl !py-3.5 !text-sm !font-bold !text-white"
                 onClick={goNext}
               >
                 Continue with $50
@@ -390,7 +384,7 @@ export function SignupPage({ data }: SignupPageProps) {
                 <GradientButton
                   type="button"
                   fullWidth
-                  className="!rounded-2xl !py-3 !text-sm !font-bold !text-[#041018]"
+                  className="!rounded-xl !py-3.5 !text-sm !font-bold !text-white"
                   disabled={wallet.isConnecting}
                   onClick={() => {
                     if (!wallet.walletInstalled) {
@@ -407,7 +401,7 @@ export function SignupPage({ data }: SignupPageProps) {
                 <GradientButton
                   type="button"
                   fullWidth
-                  className="!rounded-2xl !py-3 !text-sm !font-bold !text-[#041018]"
+                  className="!rounded-xl !py-3.5 !text-sm !font-bold !text-white"
                   onClick={goNext}
                 >
                   Continue
@@ -476,7 +470,7 @@ export function SignupPage({ data }: SignupPageProps) {
               <GradientButton
                 type="button"
                 fullWidth
-                className="!rounded-2xl !py-3 !text-sm !font-bold !text-[#041018]"
+                className="!rounded-xl !py-3.5 !text-sm !font-bold !text-white"
                 disabled={busy || !terms || !wallet.isConnected}
                 onClick={() => void handleRegister()}
               >
@@ -488,9 +482,9 @@ export function SignupPage({ data }: SignupPageProps) {
           ) : null}
         </AnimatePresence>
 
-        <p className="mt-3.5 text-center text-xs text-q-muted xl:mt-3">
+        <p className="mt-4 text-center text-xs text-[#8FA3C0]">
           Already have an account?{' '}
-          <a href={data.links.signIn} className="font-semibold text-[#38D9FF] hover:text-white">
+          <a href={data.links.signIn} className="font-semibold text-white hover:text-[#38D9FF]">
             Sign In
           </a>
         </p>
