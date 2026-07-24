@@ -86,13 +86,57 @@ npm run deploy     # terminal 2 — local MockBTCB + wire + root
 npm run deploy:bsc-testnet   # requires TOKEN_ADDRESS + price feed env
 npm run deploy:bsc
 npm run bootstrap:root   # root + fund Hardhat accounts #1–#3
-npm run bootstrap:demo   # deploy (if needed) → root → fund → print balances
+npm run bootstrap:demo   # deploy (if needed) → root → fund → sync Laravel .env
+npm run verify:deployment
+npm run sync:laravel
 npm run qa:full
 npx hardhat run scripts/testFlow.ts
 npx hardhat run scripts/testIncomeCap.ts
 ```
 
-Deploy writes `deployed-addresses.json` (Token, core, treasury, rewards, chainId, explorer).
+Deploy writes `deployed-addresses.json` (Token, core, treasury, rewards, chainId, explorer)
+and syncs `application/.env` contract keys when that file is present.
+
+## Troubleshooting local `BAD_DATA` / `users(address)`
+
+Browser error:
+
+```text
+BAD_DATA could not decode result data (users(address))
+missing revert data
+```
+
+Hardhat warning:
+
+```text
+WARNING: Calling an account which is not a contract
+```
+
+**Root cause (seen in this repo):** Laravel `CORE_CONTRACT` was set to the
+**IncomeManager** address (`0x9fE4…`) while `REWARD_CONTRACT` pointed at
+**BTCPlanCore** (`0xDc64…`). The frontend/ABI then called `users(address)` on
+IncomeManager → empty/revert data → ethers `BAD_DATA`.
+
+Correct local mapping (deterministic Hardhat first deploy):
+
+| Env key | Contract |
+|---------|----------|
+| `CORE_CONTRACT` | `BTCPlanCore` |
+| `INCOME_CONTRACT` | `IncomeManager` |
+| `REWARD_CONTRACT` | `InterdependentReward` |
+| `TOKEN_CONTRACT` | `MockBTCB` / Token |
+
+Fix:
+
+```bash
+# After every fresh hardhat node:
+cd smart-contracts
+npm run bootstrap:demo   # redeploys if bytecode missing / users() unhealthy
+npm run verify:deployment
+```
+
+`bootstrap:demo` now refuses stale addresses (no bytecode) and wrong contracts
+(users() fails), then syncs Laravel `.env` automatically.
 
 ## Deploy order
 

@@ -1,6 +1,11 @@
 import "dotenv/config";
 import hre from "hardhat";
 import fs from "fs";
+import path from "path";
+import {
+  syncLaravelEnvFromAddresses,
+  syncLaravelLocalConfigFallbacks,
+} from "./lib/deploymentHealth";
 
 /**
  * Quantara deployment (Hardhat local | BSC Testnet | BSC Mainnet)
@@ -377,6 +382,27 @@ async function main() {
   }
 
   fs.writeFileSync("deployed-addresses.json", JSON.stringify(addresses, null, 2));
+
+  // Keep Laravel local stack synchronized (best-effort)
+  try {
+    const laravelEnv = path.resolve(process.cwd(), "../application/.env");
+    const phpConfig = path.resolve(
+      process.cwd(),
+      "../application/config/blockchain.php",
+    );
+    if (fs.existsSync(laravelEnv)) {
+      syncLaravelEnvFromAddresses(addresses, laravelEnv);
+      console.log("Synced Laravel .env from deployment");
+    }
+    if (fs.existsSync(phpConfig)) {
+      syncLaravelLocalConfigFallbacks(addresses, phpConfig);
+    }
+  } catch (err) {
+    console.warn(
+      "Laravel env sync skipped:",
+      err instanceof Error ? err.message : err,
+    );
+  }
 
   console.log("=======================================");
   console.log("Deployment Completed");
