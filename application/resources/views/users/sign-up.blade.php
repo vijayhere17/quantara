@@ -1,15 +1,16 @@
 @php
     $refer = isset($_REQUEST['ref']) ? $_REQUEST['ref'] : '';
 
+    // Registration opens with the single $50 starter package only.
     $packages = [
-        ['amount' => 50, 'label' => '$50', 'multiplier' => '4X Max', 'buys' => 0, 'maxBuys' => 2, 'locked' => false],
-        ['amount' => 100, 'label' => '$100', 'multiplier' => '4X Max', 'buys' => 0, 'maxBuys' => 2, 'locked' => true],
-        ['amount' => 300, 'label' => '$300', 'multiplier' => '4X Max', 'buys' => 0, 'maxBuys' => 2, 'locked' => true],
-        ['amount' => 500, 'label' => '$500', 'multiplier' => '4X Max', 'buys' => 0, 'maxBuys' => 2, 'locked' => true],
-        ['amount' => 1000, 'label' => '$1000', 'multiplier' => '4X Max', 'buys' => 0, 'maxBuys' => 2, 'locked' => true],
-        ['amount' => 3000, 'label' => '$3000', 'multiplier' => '4X Max', 'buys' => 0, 'maxBuys' => 2, 'locked' => true],
-        ['amount' => 5000, 'label' => '$5000', 'multiplier' => '4X Max', 'buys' => 0, 'maxBuys' => 2, 'locked' => true],
-        ['amount' => 10000, 'label' => '$10000', 'multiplier' => '4X Max', 'buys' => 0, 'maxBuys' => 2, 'locked' => true, 'unlimited' => true],
+        [
+            'amount' => 50,
+            'label' => 'Starter Package · $50',
+            'multiplier' => '4X Max',
+            'buys' => 0,
+            'maxBuys' => 2,
+            'locked' => false,
+        ],
     ];
 
     $authBridge = <<<'HTML'

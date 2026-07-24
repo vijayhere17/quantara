@@ -129,3 +129,55 @@
   animation-timing-function: linear;
   animation-iteration-count: infinite;
 }
+
+/* Auth hero particles */
+@keyframes auth-particle-drift {
+  0% {
+    transform: translate3d(0, 8px, 0);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.7;
+  }
+  80% {
+    opacity: 0.55;
+  }
+  100% {
+    transform: translate3d(12px, -40px, 0);
+    opacity: 0;
+  }
+}
+
+.auth-particle {
+  animation-name: auth-particle-drift;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+/* Gradient button ripple */
+.q-btn-ripple {
+  isolation: isolate;
+}
+
+.q-ripple-ink {
+  position: absolute;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.35);
+  transform: scale(0);
+  animation: q-ripple 0.65s ease-out forwards;
+  pointer-events: none;
+}
+
+@keyframes q-ripple {
+  to {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-particle,
+  .q-ripple-ink {
+    animation: none !important;
+  }
+}
