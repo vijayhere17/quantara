@@ -56,10 +56,18 @@ async function main() {
   const before = await core.users(deployer.address);
   if (before.isActive) {
     console.log("Root already active on-chain.");
-    console.log("  wallet :", before.wallet);
     console.log("  sponsor:", before.sponsor);
-    console.log("  package:", before.packageAmount.toString());
   } else {
+    // If CORE_CONTRACT env points at the wrong contract, fail loudly here
+    try {
+      await core.users(deployer.address);
+    } catch (err) {
+      throw new Error(
+        `BTCPlanCore.users() failed at ${coreAddress}. ` +
+          `Check CORE_CONTRACT is not swapped with IncomeManager. ` +
+          `${err instanceof Error ? err.message : err}`,
+      );
+    }
     console.log("Calling register(address(0)) as genesis/root...");
     const tx = await core.register(ethers.ZeroAddress);
     const receipt = await tx.wait();
