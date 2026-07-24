@@ -243,17 +243,17 @@ export function SignupPage({ data }: SignupPageProps) {
 
       <Card
         hover={false}
-        className="mx-auto w-full min-w-0 overflow-hidden border-[#00B5FF]/25 bg-[#0a1528]/80 p-5 shadow-[0_0_0_1px_rgba(0,181,255,0.12),0_24px_64px_rgba(7,19,38,0.65)] backdrop-blur-xl sm:p-8"
+        className="mx-auto !h-auto w-full min-w-0 overflow-hidden border-[#00B5FF]/25 bg-[#0a1528]/80 p-4 shadow-[0_0_0_1px_rgba(0,181,255,0.12),0_16px_48px_rgba(7,19,38,0.65)] backdrop-blur-xl sm:p-5 xl:p-4 2xl:p-6"
       >
-        <div className="mb-6 flex flex-col items-center text-center xl:items-start xl:text-left">
-          <Logo href={data.links.home} size="lg" imgClassName="max-w-[180px]" className="xl:hidden" />
-          <p className="mt-4 text-[11px] font-bold uppercase tracking-[0.28em] text-[#38D9FF] xl:mt-0">
+        <div className="mb-3 flex flex-col items-center text-center xl:mb-2.5 xl:items-start xl:text-left">
+          <Logo href={data.links.home} size="md" imgClassName="h-9 max-w-[150px]" className="xl:hidden" />
+          <p className="mt-2.5 text-[10px] font-bold uppercase tracking-[0.28em] text-[#38D9FF] xl:mt-0">
             Create account
           </p>
-          <h1 className="font-display mt-2 text-2xl font-bold tracking-tight text-white sm:text-3xl">
+          <h1 className="font-display mt-1 text-xl font-bold tracking-tight text-white sm:text-2xl">
             Join Quantara
           </h1>
-          <p className="mt-2 max-w-[36ch] text-sm text-[#A8B8D0]">
+          <p className="mt-1 max-w-[36ch] text-xs text-[#A8B8D0] xl:hidden 2xl:mt-1.5 2xl:block 2xl:text-sm">
             Complete a few steps to register on BNB Smart Chain with MetaMask.
           </p>
         </div>
@@ -262,9 +262,9 @@ export function SignupPage({ data }: SignupPageProps) {
 
         <AnimatePresence mode="wait">
           {step === 'referral' ? (
-            <motion.section key="referral" className="space-y-5" {...stepMotion}>
+            <motion.section key="referral" className="space-y-3" {...stepMotion}>
               <StepHeader
-                icon={<Users className="h-5 w-5" />}
+                icon={<Users className="h-4 w-4" />}
                 title="Referral ID"
                 subtitle="Enter your sponsor wallet or username."
               />
@@ -276,9 +276,9 @@ export function SignupPage({ data }: SignupPageProps) {
                 placeholder="Sponsor wallet address"
               />
               {sponsorName && sponsorWallet ? (
-                <p className="rounded-2xl border border-emerald-400/25 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-300">
+                <p className="rounded-xl border border-emerald-400/25 bg-emerald-400/10 px-3 py-2 text-xs text-emerald-300">
                   Sponsor verified: <span className="font-semibold">{sponsorName}</span>
-                  <span className="mt-1 block font-mono text-[11px] text-emerald-200/70">
+                  <span className="mt-0.5 block font-mono text-[10px] text-emerald-200/70">
                     {sponsorWallet}
                   </span>
                 </p>
@@ -286,7 +286,7 @@ export function SignupPage({ data }: SignupPageProps) {
               <GradientButton
                 type="button"
                 fullWidth
-                className="!rounded-2xl !py-4 !text-base !font-bold !text-[#041018]"
+                className="!rounded-2xl !py-3 !text-sm !font-bold !text-[#041018]"
                 disabled={!sponsorId.trim() || !sponsorName || !sponsorWallet}
                 onClick={goNext}
               >
@@ -297,13 +297,13 @@ export function SignupPage({ data }: SignupPageProps) {
           ) : null}
 
           {step === 'info' ? (
-            <motion.section key="info" className="space-y-5" {...stepMotion}>
+            <motion.section key="info" className="space-y-2.5" {...stepMotion}>
               <StepHeader
-                icon={<UserRound className="h-5 w-5" />}
+                icon={<UserRound className="h-4 w-4" />}
                 title="User Information"
                 subtitle="Used for login after registration."
               />
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                 <Input
                   label="First Name"
                   name="firstname"
@@ -338,7 +338,7 @@ export function SignupPage({ data }: SignupPageProps) {
               <GradientButton
                 type="button"
                 fullWidth
-                className="!rounded-2xl !py-4 !text-base !font-bold !text-[#041018]"
+                className="!rounded-2xl !py-3 !text-sm !font-bold !text-[#041018]"
                 disabled={!email.trim() || password.length < 6}
                 onClick={goNext}
               >
@@ -350,9 +350,9 @@ export function SignupPage({ data }: SignupPageProps) {
           ) : null}
 
           {step === 'package' ? (
-            <motion.section key="package" className="space-y-5" {...stepMotion}>
+            <motion.section key="package" className="space-y-3" {...stepMotion}>
               <StepHeader
-                icon={<Package className="h-5 w-5" />}
+                icon={<Package className="h-4 w-4" />}
                 title="Starter Package"
                 subtitle="New members begin with the $50 registration package."
               />
@@ -360,7 +360,7 @@ export function SignupPage({ data }: SignupPageProps) {
               <GradientButton
                 type="button"
                 fullWidth
-                className="!rounded-2xl !py-4 !text-base !font-bold !text-[#041018]"
+                className="!rounded-2xl !py-3 !text-sm !font-bold !text-[#041018]"
                 onClick={goNext}
               >
                 Continue with $50
@@ -371,17 +371,17 @@ export function SignupPage({ data }: SignupPageProps) {
           ) : null}
 
           {step === 'wallet' ? (
-            <motion.section key="wallet" className="space-y-5" {...stepMotion}>
+            <motion.section key="wallet" className="space-y-3" {...stepMotion}>
               <StepHeader
-                icon={<Wallet className="h-5 w-5" />}
+                icon={<Wallet className="h-4 w-4" />}
                 title="Wallet Connect"
                 subtitle="Connect MetaMask, Trust Wallet, or another BEP-20 wallet."
               />
-              <div className="rounded-2xl border border-[#00B5FF]/25 bg-[#00B5FF]/5 px-4 py-4">
-                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#38D9FF]">
+              <div className="rounded-xl border border-[#00B5FF]/25 bg-[#00B5FF]/5 px-3 py-2.5">
+                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#38D9FF]">
                   Connected Wallet
                 </p>
-                <p className="mt-1 break-all text-sm text-white">
+                <p className="mt-0.5 break-all text-xs text-white sm:text-sm">
                   {wallet.walletAddress || 'No wallet connected yet'}
                 </p>
               </div>
@@ -390,7 +390,7 @@ export function SignupPage({ data }: SignupPageProps) {
                 <GradientButton
                   type="button"
                   fullWidth
-                  className="!rounded-2xl !py-4 !text-base !font-bold !text-[#041018]"
+                  className="!rounded-2xl !py-3 !text-sm !font-bold !text-[#041018]"
                   disabled={wallet.isConnecting}
                   onClick={() => {
                     if (!wallet.walletInstalled) {
@@ -407,7 +407,7 @@ export function SignupPage({ data }: SignupPageProps) {
                 <GradientButton
                   type="button"
                   fullWidth
-                  className="!rounded-2xl !py-4 !text-base !font-bold !text-[#041018]"
+                  className="!rounded-2xl !py-3 !text-sm !font-bold !text-[#041018]"
                   onClick={goNext}
                 >
                   Continue
@@ -419,16 +419,16 @@ export function SignupPage({ data }: SignupPageProps) {
           ) : null}
 
           {step === 'payment' ? (
-            <motion.section key="payment" className="min-w-0 space-y-5" {...stepMotion}>
+            <motion.section key="payment" className="min-w-0 space-y-2.5" {...stepMotion}>
               <StepHeader
-                icon={<Wallet className="h-5 w-5" />}
+                icon={<Wallet className="h-4 w-4" />}
                 title="Payment & Register"
                 subtitle="Confirm each wallet prompt to finish on BNB Smart Chain."
               />
 
               <NetworkWalletStatus wallet={wallet} />
 
-              <div className="min-w-0 overflow-hidden rounded-2xl border border-white/[0.08] bg-[#071326]/80 px-3 py-2 text-sm sm:px-4 sm:py-3">
+              <div className="min-w-0 overflow-hidden rounded-xl border border-white/[0.08] bg-[#071326]/80 px-3 py-1.5 text-xs sm:text-sm">
                 <SummaryRow label="Package" value="Starter · $50" />
                 <SummaryRow
                   label="Sponsor"
@@ -453,7 +453,7 @@ export function SignupPage({ data }: SignupPageProps) {
                 />
               </div>
 
-              <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-white/[0.08] bg-white/[0.03] px-4 py-3.5 text-sm text-q-soft">
+              <label className="flex cursor-pointer items-start gap-2.5 rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-2.5 text-xs text-q-soft sm:text-sm">
                 <input
                   type="checkbox"
                   className="mt-0.5 h-4 w-4 shrink-0 rounded border-white/20 bg-[#0a0d16] text-[#00B5FF]"
@@ -464,7 +464,7 @@ export function SignupPage({ data }: SignupPageProps) {
               </label>
 
               {status ? (
-                <p className="break-words rounded-2xl border border-[#00B5FF]/25 bg-[#00B5FF]/10 px-4 py-3 text-sm text-[#38D9FF]">
+                <p className="break-words rounded-xl border border-[#00B5FF]/25 bg-[#00B5FF]/10 px-3 py-2 text-xs text-[#38D9FF]">
                   {status}
                 </p>
               ) : null}
@@ -476,7 +476,7 @@ export function SignupPage({ data }: SignupPageProps) {
               <GradientButton
                 type="button"
                 fullWidth
-                className="!rounded-2xl !py-4 !text-base !font-bold !text-[#041018]"
+                className="!rounded-2xl !py-3 !text-sm !font-bold !text-[#041018]"
                 disabled={busy || !terms || !wallet.isConnected}
                 onClick={() => void handleRegister()}
               >
@@ -488,7 +488,7 @@ export function SignupPage({ data }: SignupPageProps) {
           ) : null}
         </AnimatePresence>
 
-        <p className="mt-7 text-center text-sm text-q-muted">
+        <p className="mt-3.5 text-center text-xs text-q-muted xl:mt-3">
           Already have an account?{' '}
           <a href={data.links.signIn} className="font-semibold text-[#38D9FF] hover:text-white">
             Sign In
@@ -509,13 +509,13 @@ function StepHeader({
   subtitle: string;
 }) {
   return (
-    <div className="flex items-start gap-3">
-      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#00B5FF]/15 text-[#38D9FF]">
+    <div className="flex items-start gap-2.5">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#00B5FF]/15 text-[#38D9FF]">
         {icon}
       </div>
-      <div>
-        <h2 className="text-lg font-bold text-white">{title}</h2>
-        <p className="text-sm text-[#A8B8D0]">{subtitle}</p>
+      <div className="min-w-0">
+        <h2 className="text-base font-bold text-white">{title}</h2>
+        <p className="text-xs text-[#A8B8D0]">{subtitle}</p>
       </div>
     </div>
   );
@@ -526,9 +526,9 @@ function BackButton({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex w-full items-center justify-center gap-1 text-sm text-q-muted transition hover:text-white"
+      className="inline-flex w-full items-center justify-center gap-1 text-xs text-q-muted transition hover:text-white"
     >
-      <ChevronLeft className="h-4 w-4" /> Back
+      <ChevronLeft className="h-3.5 w-3.5" /> Back
     </button>
   );
 }
@@ -549,7 +549,7 @@ function SummaryRow({
   return (
     <div
       className={[
-        'flex min-w-0 items-start justify-between gap-3 py-2.5',
+        'flex min-w-0 items-start justify-between gap-3 py-1.5',
         last ? '' : 'border-b border-white/[0.06]',
       ].join(' ')}
     >
@@ -557,7 +557,7 @@ function SummaryRow({
       <span
         className={[
           'min-w-0 break-all text-right font-semibold text-white',
-          mono ? 'font-mono text-xs sm:text-sm' : '',
+          mono ? 'font-mono text-[11px] sm:text-xs' : '',
         ].join(' ')}
         title={title}
       >
