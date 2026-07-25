@@ -150,6 +150,31 @@ async function main() {
   addresses.RootUser = deployer.address;
   saveDeployedAddresses(addresses);
 
+  // Root MUST hold an active $50 package to earn contribution (L1/L2/L3).
+  // Without this, IncomeManager accepts 0 when downlines activate.
+  const PACKAGE_USD = 50n;
+  if (rootAfter.packageAmount === 0n) {
+    console.log("\n→ Activating Root $50 package (required to earn contribution)...");
+    const amt = await core.getPackageBTCBAmount(PACKAGE_USD);
+    const bal = await token.balanceOf(deployer.address);
+    if (bal < amt) {
+      try {
+        await (await token.mint(deployer.address, amt * 5n)).wait();
+      } catch {
+        // deployer is MockBTCB owner on local; mint should work
+      }
+    }
+    await (await token.connect(deployer).approve(addresses.BTCPlanCore, amt)).wait();
+    await (await core.connect(deployer).activatePackage(PACKAGE_USD)).wait();
+    const rootPkg = await core.users(deployer.address);
+    if (rootPkg.packageAmount !== PACKAGE_USD) {
+      throw new Error("Root $50 package activation failed");
+    }
+    console.log("  Root packageAmount = 50, cycle =", rootPkg.packageCycle.toString());
+  } else {
+    console.log("  Root already has packageAmount =", rootAfter.packageAmount.toString());
+  }
+
   console.log(
     `\n→ Funding Hardhat accounts #1–#3 with ${DEMO_BTCB_AMOUNT} MockBTCB...`,
   );

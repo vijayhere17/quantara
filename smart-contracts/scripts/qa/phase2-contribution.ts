@@ -435,58 +435,58 @@ async function main() {
     nextNote,
   );
 
-  // Optional Laravel
+  // Always write handoff for qa:verify (wallets + activate txs)
   const laravelBase = (process.env.QA_API_BASE || "").replace(/\/$/, "");
-  let laravelResult: Record<string, unknown> | null = null;
+  const handoff = {
+    root: root.address,
+    user1: user1.address,
+    user2: user2.address,
+    user3: user3.address,
+    tokenAmount: tokenAmount.toString(),
+    expectUsd: {
+      root: 5.0,
+      user1: 4.0,
+      user2: 2.5,
+      user3: 0.0,
+    },
+    users: {
+      root: {
+        wallet: root.address,
+        sponsor: null as string | null,
+      },
+      user1: {
+        wallet: user1.address,
+        sponsor: root.address,
+        register: step1.registerTxHash,
+        approve: step1.approveTxHash,
+        activate: step1.packageTxHash,
+      },
+      user2: {
+        wallet: user2.address,
+        sponsor: user1.address,
+        register: step2.registerTxHash,
+        approve: step2.approveTxHash,
+        activate: step2.packageTxHash,
+      },
+      user3: {
+        wallet: user3.address,
+        sponsor: user2.address,
+        register: step3.registerTxHash,
+        approve: step3.approveTxHash,
+        activate: step3.packageTxHash,
+      },
+    },
+    api: laravelBase || null,
+  };
+  const handoffPath = path.resolve("scripts/qa/reports/phase2-handoff.json");
+  fs.mkdirSync(path.dirname(handoffPath), { recursive: true });
+  fs.writeFileSync(handoffPath, JSON.stringify(handoff, null, 2));
+  check("Handoff written for qa:verify", true, handoffPath);
+
+  let laravelResult: Record<string, unknown> | null = handoff;
   if (process.env.QA_LARAVEL === "1" && laravelBase) {
     console.log("\n── Laravel ledger sync ──");
-    // Hand off to PHP script via env file
-    const handoff = {
-      root: root.address,
-      user1: user1.address,
-      user2: user2.address,
-      user3: user3.address,
-      tokenAmount: tokenAmount.toString(),
-      expectUsd: {
-        root: 5.0,
-        user1: 4.0,
-        user2: 2.5,
-        user3: 0.0,
-      },
-      users: {
-        root: {
-          wallet: root.address,
-          sponsor: null as string | null,
-        },
-        user1: {
-          wallet: user1.address,
-          sponsor: root.address,
-          register: step1.registerTxHash,
-          approve: step1.approveTxHash,
-          activate: step1.packageTxHash,
-        },
-        user2: {
-          wallet: user2.address,
-          sponsor: user1.address,
-          register: step2.registerTxHash,
-          approve: step2.approveTxHash,
-          activate: step2.packageTxHash,
-        },
-        user3: {
-          wallet: user3.address,
-          sponsor: user2.address,
-          register: step3.registerTxHash,
-          approve: step3.approveTxHash,
-          activate: step3.packageTxHash,
-        },
-      },
-      api: laravelBase,
-    };
-    const handoffPath = path.resolve("scripts/qa/reports/phase2-handoff.json");
-    fs.mkdirSync(path.dirname(handoffPath), { recursive: true });
-    fs.writeFileSync(handoffPath, JSON.stringify(handoff, null, 2));
-    check("Laravel / handoff written", true, handoffPath);
-    laravelResult = handoff;
+    console.log("  Run: php application/scripts/phase2-laravel-contribution.php --api=" + laravelBase);
   } else {
     console.log("\n⏭ Laravel skipped (set QA_LARAVEL=1 QA_API_BASE=...)");
   }
