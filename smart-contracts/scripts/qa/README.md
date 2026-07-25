@@ -19,6 +19,11 @@ npx hardhat run scripts/qa/full-production-qa.ts --network localhost
 # or
 npm run qa:full
 
+# Read-only Phase 1+2 terminal checklist (no state changes)
+npm run qa:verify
+# Helpers: qa:inspect:user | qa:inspect:tx | qa:inspect:treasury | qa:inspect:tree | qa:inspect:events
+# See TERMINAL_VERIFY_CHECKLIST.md
+
 # BSC Testnet / Mainnet (read-only audit against deployed-addresses.json)
 npm run qa:bsc-testnet
 npm run qa:bsc
