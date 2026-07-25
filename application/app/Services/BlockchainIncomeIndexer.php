@@ -185,7 +185,14 @@ class BlockchainIncomeIndexer
             self::ROI_CLAIMED => ['earningType' => 2, 'label' => 'On-chain ROI claim', 'userTopic' => 1, 'amountWord' => 0],
             self::SELF_ROI_PAID => ['earningType' => 2, 'label' => 'On-chain self ROI', 'userTopic' => 1, 'amountWord' => 0],
             self::WORKING_INCOME_PAID => ['earningType' => 1, 'label' => 'On-chain working income', 'userTopic' => 1, 'amountWord' => 0],
-            self::CONTRIBUTION_REWARD_PAID => ['earningType' => 1, 'label' => 'On-chain contribution reward', 'userTopic' => 1, 'amountWord' => 1],
+            self::CONTRIBUTION_REWARD_PAID => [
+                'earningType' => 1,
+                'label' => 'On-chain contribution reward',
+                'userTopic' => 1,
+                'amountWord' => 1,
+                'levelWord' => 0,
+                'fromTopic' => 2,
+            ],
             self::BOOSTER_REWARD_PAID => ['earningType' => 8, 'label' => 'On-chain booster reward', 'userTopic' => 1, 'amountWord' => 0],
             self::RANK_INCOME_PAID => ['earningType' => 5, 'label' => 'On-chain rank income', 'userTopic' => 1, 'amountWord' => 0],
             self::SAME_RANK_INCOME_PAID => ['earningType' => 5, 'label' => 'On-chain same-rank income', 'userTopic' => 1, 'amountWord' => 0],
@@ -212,11 +219,36 @@ class BlockchainIncomeIndexer
 
         $amountWei = '0x' . substr($data, $amountOffset, 64);
 
+        $label = $cfg['label'];
+        if (isset($cfg['levelWord'], $cfg['fromTopic'])) {
+            $levelOffset = ((int) $cfg['levelWord']) * 64;
+            $level = 0;
+            if (strlen($data) >= $levelOffset + 64) {
+                $level = hexdec(ltrim(substr($data, $levelOffset, 64), '0') ?: '0');
+            }
+            $fromTopic = $topics[$cfg['fromTopic']] ?? null;
+            $from = is_string($fromTopic) && strlen($fromTopic) >= 40
+                ? ('0x' . substr($fromTopic, -40))
+                : 'unknown';
+            $bps = match ($level) {
+                1 => 5,
+                2 => 3,
+                3 => 2,
+                default => 0,
+            };
+            $label = sprintf(
+                'Contribution L%d %d%% from %s',
+                $level,
+                $bps,
+                strtolower($from)
+            );
+        }
+
         return [
             'wallet' => strtolower($wallet),
             'amountWei' => $amountWei,
             'earningType' => $cfg['earningType'],
-            'description' => $cfg['label'],
+            'description' => $label,
         ];
     }
 
