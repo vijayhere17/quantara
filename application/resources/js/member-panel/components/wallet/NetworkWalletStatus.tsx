@@ -69,13 +69,17 @@ export function NetworkWalletStatus({ wallet }: NetworkWalletStatusProps) {
         <div className="text-xs text-q-muted">
           {nativeSymbol} Balance
           <div className="font-mono text-sm text-white">
-            {wallet.balances ? fmt(wallet.balances.nativeFormatted) : '—'}
+            {wallet.balances?.nativeLoaded
+              ? fmt(wallet.balances.nativeFormatted)
+              : '—'}
           </div>
         </div>
         <div className="text-xs text-q-muted">
-          {wallet.balances?.tokenSymbol || 'BEP20'} Balance
+          {wallet.balances?.tokenSymbol || 'BTCB'} Balance
           <div className="font-mono text-sm text-white">
-            {wallet.balances ? fmt(wallet.balances.tokenFormatted) : '—'}
+            {wallet.balances?.tokenLoaded
+              ? fmt(wallet.balances.tokenFormatted)
+              : '—'}
           </div>
         </div>
       </div>
