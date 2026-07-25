@@ -57,11 +57,14 @@ class BlockchainLedgerService
     }
 
     /**
-     * Mirror an on-chain income event into ewallet_logs (once per tx_hash + income_type).
+     * Mirror an on-chain income event into ewallet_logs.
      *
-     * Dedup:
-     *  - blockchain_income_events unique(tx_hash, log_index) and tx_hash + income_type
-     *  - ewallet_logs.description containing the same tx hash
+     * Dedup (per activation log):
+     *  - blockchain_income_events unique(tx_hash, log_index)
+     *  - ewallet_logs.description containing the same tx hash + log:{index}
+     *
+     * One package activation can emit multiple ContributionRewardPaid logs
+     * (L1/L2/L3) that share a tx_hash — those must all be mirrored.
      *
      * @param  int|string  $earningType  Maps to ewallet_logs.earning_type (int) and income_type string
      */
@@ -83,13 +86,11 @@ class BlockchainLedgerService
             return null;
         }
 
-        // Prevent duplicates via unique tx_hash + income_type (and tx_hash + log_index)
+        // One activation can emit multiple ContributionRewardPaid logs (L1/L2/L3)
+        // with the same tx_hash. Deduplicate ONLY on (tx_hash, log_index).
         if (Schema::hasTable('blockchain_income_events')) {
             $dup = BlockchainIncomeEvent::where('tx_hash', $txHash)
-                ->where(function ($q) use ($incomeType, $logIndex) {
-                    $q->where('income_type', $incomeType)
-                        ->orWhere('log_index', $logIndex);
-                })
+                ->where('log_index', $logIndex)
                 ->first();
 
             if ($dup !== null) {
@@ -97,10 +98,11 @@ class BlockchainLedgerService
             }
         }
 
-        // Also skip if ewallet_logs already has this tx hash in description
+        // Skip if this exact log was already mirrored into ewallet_logs
         if (Schema::hasTable('ewallet_logs')) {
             $dupLog = EarningWallet::where('member_id', $userId)
                 ->where('description', 'like', '%' . $txHash . '%')
+                ->where('description', 'like', '%log:' . $logIndex . '%')
                 ->first();
             if ($dupLog !== null) {
                 $this->markIncomeEvent(
@@ -119,7 +121,9 @@ class BlockchainLedgerService
 
         $desc = $description;
         if (!str_contains(strtolower($desc), $txHash)) {
-            $desc = trim($description . ' [' . $txHash . ']');
+            $desc = trim($description . ' [' . $txHash . ' log:' . $logIndex . ']');
+        } elseif (!str_contains($desc, 'log:' . $logIndex)) {
+            $desc = trim($desc . ' log:' . $logIndex);
         }
 
         $walletCon = app(EarningWalletController::class);
