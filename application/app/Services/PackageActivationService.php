@@ -137,13 +137,30 @@ class PackageActivationService
 
             // --- StakeRequest (link package_tx_hash) ---
             $sRId = 0;
-            if (Schema::hasTable('staked_requests')) {
-                $sRId = (int) $this->createStakeRequest($member, $kit, $packageAmount, $packageTx)->id;
+            if (
+                Schema::hasTable('staked_requests') &&
+                Schema::hasColumn('staked_requests', 'member_id') &&
+                Schema::hasColumn('staked_requests', 'amount')
+            ) {
+                try {
+                    $sRId = (int) $this->createStakeRequest($member, $kit, $packageAmount, $packageTx)->id;
+                } catch (\Throwable $e) {
+                    Log::warning('StakeRequest mirror skipped', ['error' => $e->getMessage()]);
+                }
             }
 
             // --- UserStaked (mirror addpurchasedkitlog), topup describing blockchain ---
-            if (Schema::hasTable('staked_users')) {
-                $this->createUserStaked($member->id, $kit, $packageAmount, $sRId, $packageTx);
+            // Some local DBs only have a partial staked_users schema — never block registration.
+            if (
+                Schema::hasTable('staked_users') &&
+                Schema::hasColumn('staked_users', 'paid_amount') &&
+                Schema::hasColumn('staked_users', 'member_id')
+            ) {
+                try {
+                    $this->createUserStaked($member->id, $kit, $packageAmount, $sRId, $packageTx);
+                } catch (\Throwable $e) {
+                    Log::warning('UserStaked mirror skipped', ['error' => $e->getMessage()]);
+                }
             }
 
             // --- Ledger row ---
