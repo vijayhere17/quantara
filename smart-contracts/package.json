@@ -18,6 +18,7 @@
     "qa:referral": "hardhat run scripts/qa/referral-income-audit.ts",
     "qa:phase1": "hardhat run scripts/qa/phase1-registration.ts --network localhost",
     "qa:phase2": "hardhat run scripts/qa/phase2-contribution.ts --network localhost",
+    "qa:phase3": "hardhat run scripts/qa/phase3-roi.ts --network localhost",
     "qa:verify": "hardhat run scripts/qa/verify-checklist.ts --network localhost",
     "qa:inspect:user": "hardhat run scripts/qa/inspect-user.ts --network localhost",
     "qa:inspect:tx": "hardhat run scripts/qa/inspect-tx.ts --network localhost",
