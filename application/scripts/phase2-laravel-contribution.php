@@ -6,7 +6,7 @@
  *
  * Reads scripts/qa/reports/phase2-handoff.json (or --handoff=),
  * registers User1/2/3 via API (or ensures rows exist), syncs income indexer,
- * and asserts ewallet_logs / blockchain_income_events USD totals.
+ * and asserts ewallet_logs / blockchain_income_events USD totals for Steps 1–3.
  *
  *   php scripts/phase2-laravel-contribution.php --api=http://127.0.0.1:8000
  */
@@ -77,6 +77,17 @@ pass("Root wallet synced {$rootWallet}");
 
 $tokenAmount = (string) ($handoff['tokenAmount'] ?? '');
 
+$activateTxs = [];
+foreach (['user1', 'user2', 'user3'] as $key) {
+    $tx = strtolower((string) ($handoff['users'][$key]['activate'] ?? ''));
+    if ($tx !== '') {
+        $activateTxs[] = $tx;
+    }
+}
+if (count($activateTxs) !== 3) {
+    fail('Handoff must include activate tx hashes for user1/2/3');
+}
+
 function apiRegister(string $api, array $payload): array
 {
     $ch = curl_init($api . '/api/auth/register');
@@ -133,13 +144,6 @@ foreach (['user1', 'user2', 'user3'] as $key) {
     pass("{$key} registered via API");
 }
 
-// Sync income indexer from genesis
-/** @var BlockchainIncomeIndexer $indexer */
-$indexer = app(BlockchainIncomeIndexer::class);
-$result = $indexer->sync(0, null, 5000);
-pass("Income indexer scanned={$result['scanned']} mirrored={$result['mirrored']} errors={$result['errors']}");
-
-$expect = $handoff['expectUsd'] ?? [];
 $wallets = [
     'root' => $rootWallet,
     'user1' => strtolower((string) $handoff['user1']),
@@ -147,20 +151,100 @@ $wallets = [
     'user3' => strtolower((string) $handoff['user3']),
 ];
 
+$userIds = [];
 foreach ($wallets as $label => $wallet) {
     $user = User::query()->whereRaw('LOWER(wallet_addr) = ?', [$wallet])->first();
     if ($user === null) {
         fail("DB user missing for {$label}");
     }
+    $userIds[$label] = (int) $user->id;
+}
 
+// Wipe prior mirrors for Step 1–3 activation txs so re-index is deterministic.
+// (API register already mirrors; edge-case txs stay on-chain but are excluded from asserts.)
+if (Schema::hasTable('ewallet_logs')) {
+    $q = DB::table('ewallet_logs')->whereIn('member_id', array_values($userIds));
+    foreach ($activateTxs as $tx) {
+        $q->orWhere('description', 'like', '%' . $tx . '%');
+    }
+    // Rebuild query properly
+    DB::table('ewallet_logs')
+        ->where(function ($query) use ($userIds, $activateTxs) {
+            $query->whereIn('member_id', array_values($userIds))
+                ->where(function ($inner) use ($activateTxs) {
+                    foreach ($activateTxs as $i => $tx) {
+                        if ($i === 0) {
+                            $inner->where('description', 'like', '%' . $tx . '%');
+                        } else {
+                            $inner->orWhere('description', 'like', '%' . $tx . '%');
+                        }
+                    }
+                    $inner->orWhere('description', 'like', '%On-chain working income%');
+                    $inner->orWhere('description', 'like', '%Contribution%');
+                });
+        })
+        ->delete();
+    pass('Cleared prior contribution/working ewallet_logs for test wallets');
+}
+
+if (Schema::hasTable('blockchain_income_events')) {
+    DB::table('blockchain_income_events')
+        ->where(function ($query) use ($userIds, $activateTxs) {
+            $query->whereIn('user_id', array_values($userIds))
+                ->orWhereIn('tx_hash', $activateTxs);
+        })
+        ->delete();
+    pass('Cleared prior blockchain_income_events for test wallets/txs');
+}
+
+if (Schema::hasTable('blockchain_sync_cursors')) {
+    DB::table('blockchain_sync_cursors')->where('name', 'like', '%income%')->delete();
+}
+
+// Recompute total_earning from remaining credit logs
+foreach ($userIds as $label => $id) {
+    $sum = 0.0;
+    if (Schema::hasTable('ewallet_logs')) {
+        $sum = (float) DB::table('ewallet_logs')
+            ->where('member_id', $id)
+            ->where('txn_type', 1)
+            ->where('earning_type', '>', 0)
+            ->sum('amount');
+    }
+    User::query()->where('id', $id)->update(['total_earning' => $sum]);
+}
+
+// Sync income indexer from genesis
+/** @var BlockchainIncomeIndexer $indexer */
+$indexer = app(BlockchainIncomeIndexer::class);
+$result = $indexer->sync(0, null, 5000);
+pass("Income indexer scanned={$result['scanned']} mirrored={$result['mirrored']} errors={$result['errors']}");
+
+$expect = $handoff['expectUsd'] ?? [];
+
+foreach ($wallets as $label => $wallet) {
+    $user = User::query()->find($userIds[$label]);
+    if ($user === null) {
+        fail("DB user missing for {$label}");
+    }
+
+    // Steps 1–3 only: sum Contribution rows tied to the three activation txs
     $contribSum = 0.0;
     if (Schema::hasTable('ewallet_logs')) {
-        // earning_type 1 = working / contribution (indexer map)
         $contribSum = (float) DB::table('ewallet_logs')
             ->where('member_id', $user->id)
             ->where('txn_type', 1)
             ->where('earning_type', 1)
             ->where('description', 'like', '%Contribution%')
+            ->where(function ($query) use ($activateTxs) {
+                foreach ($activateTxs as $i => $tx) {
+                    if ($i === 0) {
+                        $query->where('description', 'like', '%' . $tx . '%');
+                    } else {
+                        $query->orWhere('description', 'like', '%' . $tx . '%');
+                    }
+                }
+            })
             ->sum('amount');
     }
 
@@ -169,6 +253,7 @@ foreach ($wallets as $label => $wallet) {
         $events = (int) DB::table('blockchain_income_events')
             ->where('user_id', $user->id)
             ->where('income_type', '1')
+            ->whereIn('tx_hash', $activateTxs)
             ->count();
     }
 
@@ -178,23 +263,46 @@ foreach ($wallets as $label => $wallet) {
         fail("{$label} contribution USD sum={$contribSum} expected={$expected} (events={$events})");
     }
     pass("{$label} contribution income \${$contribSum} (events={$events}) ≈ \${$expected}");
-
-    // Dashboard-style total for contribution stream
-    $memberTotal = (float) ($user->fresh()->total_earning ?? 0);
-    pass("{$label} users.total_earning={$memberTotal}");
 }
 
-// Count contribution events for user3 activation (should be 3 mirrored across beneficiaries)
-$u3Activate = strtolower((string) ($handoff['users']['user3']['activate'] ?? ''));
-if ($u3Activate !== '') {
-    $count = (int) DB::table('blockchain_income_events')
-        ->where('tx_hash', $u3Activate)
-        ->count();
-    if ($count !== 3) {
-        fail("User3 activation should mirror 3 income events, got {$count}");
-    }
-    pass("User3 activation mirrored 3 ContributionRewardPaid logs");
+// No WorkingIncomePaid doubles for Step 1–3 activations
+$workingDupes = (int) DB::table('ewallet_logs')
+    ->where('description', 'like', '%On-chain working income%')
+    ->where(function ($query) use ($activateTxs) {
+        foreach ($activateTxs as $i => $tx) {
+            if ($i === 0) {
+                $query->where('description', 'like', '%' . $tx . '%');
+            } else {
+                $query->orWhere('description', 'like', '%' . $tx . '%');
+            }
+        }
+    })
+    ->count();
+if ($workingDupes !== 0) {
+    fail("WorkingIncomePaid must not be mirrored for contribution txs, found {$workingDupes}");
 }
+pass('No WorkingIncomePaid double-credits on Step 1–3 activations');
+
+// User3 activation → exactly 3 ContributionRewardPaid mirrors
+$u3Activate = $activateTxs[2];
+$count = (int) DB::table('blockchain_income_events')
+    ->where('tx_hash', $u3Activate)
+    ->where('income_type', '1')
+    ->count();
+if ($count !== 3) {
+    fail("User3 activation should mirror 3 income events, got {$count}");
+}
+pass('User3 activation mirrored 3 ContributionRewardPaid logs');
+
+// Total contribution events across Steps 1–3 = 1 + 2 + 3 = 6
+$totalEvents = (int) DB::table('blockchain_income_events')
+    ->whereIn('tx_hash', $activateTxs)
+    ->where('income_type', '1')
+    ->count();
+if ($totalEvents !== 6) {
+    fail("Steps 1–3 should mirror 6 contribution events, got {$totalEvents}");
+}
+pass('Steps 1–3 mirrored exactly 6 ContributionRewardPaid logs');
 
 echo "\nPHASE 2 LARAVEL: PASS\n";
 exit(0);

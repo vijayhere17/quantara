@@ -44,10 +44,13 @@ class BlockchainIncomeIndexer
             return ['scanned' => 0, 'mirrored' => 0, 'from' => $fromBlock, 'to' => $toBlock, 'errors' => 0];
         }
 
+        // NOTE: Do NOT index WorkingIncomePaid.
+        // TreasuryManager.payWorkingIncome emits it as the token-transfer side effect of
+        // ContributionReward / ContributionBooster / RankReward, each of which already
+        // emits a typed reward event. Indexing both double-credits ewallet_logs.
         $topics = [
             self::ROI_CLAIMED,
             self::SELF_ROI_PAID,
-            self::WORKING_INCOME_PAID,
             self::CONTRIBUTION_REWARD_PAID,
             self::BOOSTER_REWARD_PAID,
             self::RANK_INCOME_PAID,
@@ -184,7 +187,7 @@ class BlockchainIncomeIndexer
         $map = [
             self::ROI_CLAIMED => ['earningType' => 2, 'label' => 'On-chain ROI claim', 'userTopic' => 1, 'amountWord' => 0],
             self::SELF_ROI_PAID => ['earningType' => 2, 'label' => 'On-chain self ROI', 'userTopic' => 1, 'amountWord' => 0],
-            self::WORKING_INCOME_PAID => ['earningType' => 1, 'label' => 'On-chain working income', 'userTopic' => 1, 'amountWord' => 0],
+            // WorkingIncomePaid intentionally omitted — see sync() note above.
             self::CONTRIBUTION_REWARD_PAID => [
                 'earningType' => 1,
                 'label' => 'On-chain contribution reward',
