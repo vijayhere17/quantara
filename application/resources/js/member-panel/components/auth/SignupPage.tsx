@@ -464,7 +464,12 @@ export function SignupPage({ data }: SignupPageProps) {
               ) : null}
 
               {showDemoFaucet ? (
-                <DemoFaucetButton walletAddress={wallet.walletAddress || undefined} />
+                <DemoFaucetButton
+                  walletAddress={wallet.walletAddress || undefined}
+                  onFunded={() => {
+                    void wallet.refreshBalances();
+                  }}
+                />
               ) : null}
 
               <GradientButton

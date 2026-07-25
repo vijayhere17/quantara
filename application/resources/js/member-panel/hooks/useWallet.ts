@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { BrowserProvider, JsonRpcSigner } from 'ethers';
 import {
   createBrowserProvider,
@@ -9,7 +9,7 @@ import {
 } from '../services/blockchain/wallet';
 import { getWalletBalances, type WalletBalances } from '../services/blockchain/balances';
 import { describeNetwork } from '../services/blockchain/explorer';
-import { loadBlockchainConfig } from '../services/blockchain/config';
+import { clearBlockchainConfigCache, loadBlockchainConfig } from '../services/blockchain/config';
 
 export type UseWalletState = {
   connect: () => Promise<string>;
@@ -44,6 +44,9 @@ export function useWallet(): UseWalletState {
   const [error, setError] = useState<string | null>(null);
   const [walletInstalled, setWalletInstalled] = useState(false);
 
+  /** Ignore stale balance responses after account/chain switches. */
+  const balanceRequestId = useRef(0);
+
   useEffect(() => {
     setWalletInstalled(hasInjectedWallet());
     void loadBlockchainConfig()
@@ -51,20 +54,32 @@ export function useWallet(): UseWalletState {
       .catch(() => setExpectedChainId(null));
   }, []);
 
+  const loadBalancesFor = useCallback(
+    async (nextProvider: BrowserProvider, address: string) => {
+      const requestId = ++balanceRequestId.current;
+      try {
+        const next = await getWalletBalances(nextProvider, address);
+        if (requestId !== balanceRequestId.current) return;
+        setBalances(next);
+      } catch {
+        if (requestId !== balanceRequestId.current) return;
+        // Keep prior balances if a refresh fails — never wipe a good ETH read
+        // because a later token call threw.
+      }
+    },
+    [],
+  );
+
   const refreshBalances = useCallback(async () => {
     if (!provider || !walletAddress) {
-      setBalances(null);
+      // Do not clear balances here — avoids racing disconnect/reconnect frames.
       return;
     }
-    try {
-      const next = await getWalletBalances(provider, walletAddress);
-      setBalances(next);
-    } catch {
-      setBalances(null);
-    }
-  }, [provider, walletAddress]);
+    await loadBalancesFor(provider, walletAddress);
+  }, [loadBalancesFor, provider, walletAddress]);
 
   const disconnect = useCallback(() => {
+    balanceRequestId.current += 1;
     setWalletAddress('');
     setProvider(null);
     setSigner(null);
@@ -96,11 +111,7 @@ export function useWallet(): UseWalletState {
     try {
       const result = await createBrowserProvider();
       applySession(result);
-      try {
-        setBalances(await getWalletBalances(result.provider, result.address));
-      } catch {
-        setBalances(null);
-      }
+      await loadBalancesFor(result.provider, result.address);
       return result.address;
     } catch (err) {
       const message = mapWalletError(err);
@@ -109,7 +120,7 @@ export function useWallet(): UseWalletState {
     } finally {
       setIsConnecting(false);
     }
-  }, [applySession]);
+  }, [applySession, loadBalancesFor]);
 
   // Silent reconnect on mount
   useEffect(() => {
@@ -119,11 +130,7 @@ export function useWallet(): UseWalletState {
         const session = await tryReconnectBrowserProvider();
         if (cancelled || !session) return;
         applySession(session);
-        try {
-          setBalances(await getWalletBalances(session.provider, session.address));
-        } catch {
-          /* ignore */
-        }
+        await loadBalancesFor(session.provider, session.address);
       } catch {
         /* ignore */
       }
@@ -131,11 +138,13 @@ export function useWallet(): UseWalletState {
     return () => {
       cancelled = true;
     };
-  }, [applySession]);
+  }, [applySession, loadBalancesFor]);
 
+  // Keep balances in sync when provider/address settle after applySession.
   useEffect(() => {
-    void refreshBalances();
-  }, [refreshBalances]);
+    if (!provider || !walletAddress) return;
+    void loadBalancesFor(provider, walletAddress);
+  }, [loadBalancesFor, provider, walletAddress]);
 
   useEffect(() => {
     const injected = resolveInjectedProvider();
@@ -147,20 +156,19 @@ export function useWallet(): UseWalletState {
         disconnect();
         return;
       }
-      // Rebuild provider/signer for the newly selected account — do not keep a stale signer.
+
+      // Show the new address immediately, then rebuild session + balances.
+      setWalletAddress(accounts[0]);
+      setBalances(null);
+
       void (async () => {
         try {
           const session = await createBrowserProvider();
           applySession(session);
-          try {
-            setBalances(await getWalletBalances(session.provider, session.address));
-          } catch {
-            setBalances(null);
-          }
+          await loadBalancesFor(session.provider, session.address);
         } catch {
-          setWalletAddress(accounts[0]);
+          // Address is already updated; clear signer so txs cannot use a stale account.
           setSigner(null);
-          setBalances(null);
         }
       })();
     };
@@ -168,18 +176,15 @@ export function useWallet(): UseWalletState {
     const onChain = (...args: unknown[]) => {
       const hex = String(args[0] ?? '');
       setChainId(hex ? Number.parseInt(hex, 16) : null);
-      // Chain switches also invalidate the BrowserProvider network binding.
+      clearBlockchainConfigCache();
+      setBalances(null);
+
       void (async () => {
         try {
           const session = await tryReconnectBrowserProvider();
-          if (session) {
-            applySession(session);
-            try {
-              setBalances(await getWalletBalances(session.provider, session.address));
-            } catch {
-              setBalances(null);
-            }
-          }
+          if (!session) return;
+          applySession(session);
+          await loadBalancesFor(session.provider, session.address);
         } catch {
           /* ignore */
         }
@@ -197,7 +202,7 @@ export function useWallet(): UseWalletState {
       injected.removeListener?.('chainChanged', onChain);
       injected.removeListener?.('disconnect', onDisconnect);
     };
-  }, [applySession, disconnect]);
+  }, [applySession, disconnect, loadBalancesFor]);
 
   return {
     connect,
