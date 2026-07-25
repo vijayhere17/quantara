@@ -147,12 +147,43 @@ export function useWallet(): UseWalletState {
         disconnect();
         return;
       }
-      setWalletAddress(accounts[0]);
+      // Rebuild provider/signer for the newly selected account — do not keep a stale signer.
+      void (async () => {
+        try {
+          const session = await createBrowserProvider();
+          applySession(session);
+          try {
+            setBalances(await getWalletBalances(session.provider, session.address));
+          } catch {
+            setBalances(null);
+          }
+        } catch {
+          setWalletAddress(accounts[0]);
+          setSigner(null);
+          setBalances(null);
+        }
+      })();
     };
 
     const onChain = (...args: unknown[]) => {
       const hex = String(args[0] ?? '');
       setChainId(hex ? Number.parseInt(hex, 16) : null);
+      // Chain switches also invalidate the BrowserProvider network binding.
+      void (async () => {
+        try {
+          const session = await tryReconnectBrowserProvider();
+          if (session) {
+            applySession(session);
+            try {
+              setBalances(await getWalletBalances(session.provider, session.address));
+            } catch {
+              setBalances(null);
+            }
+          }
+        } catch {
+          /* ignore */
+        }
+      })();
     };
 
     const onDisconnect = () => disconnect();
@@ -166,7 +197,7 @@ export function useWallet(): UseWalletState {
       injected.removeListener?.('chainChanged', onChain);
       injected.removeListener?.('disconnect', onDisconnect);
     };
-  }, [disconnect]);
+  }, [applySession, disconnect]);
 
   return {
     connect,

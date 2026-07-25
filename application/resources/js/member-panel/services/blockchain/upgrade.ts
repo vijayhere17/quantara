@@ -38,8 +38,8 @@ export async function activatePackageOnChain(
     const core = await getCoreContract(signer);
     const token = await getTokenContract(signer);
 
-    const onChainUser = await core.users(wallet);
-    if (!onChainUser.isActive) {
+    const registered = Boolean(await core.isRegistered(wallet));
+    if (!registered) {
       throw new Error('Wallet is not registered on-chain. Please complete registration first.');
     }
 

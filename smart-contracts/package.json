@@ -17,6 +17,7 @@
     "qa:full": "hardhat run scripts/qa/full-production-qa.ts --network localhost",
     "qa:referral": "hardhat run scripts/qa/referral-income-audit.ts",
     "qa:phase1": "hardhat run scripts/qa/phase1-registration.ts --network localhost",
+    "qa:multi-wallet": "hardhat run scripts/qa/multi-wallet-registration.ts --network localhost",
     "qa:phase2": "hardhat run scripts/qa/phase2-contribution.ts --network localhost",
     "qa:phase3": "hardhat run scripts/qa/phase3-roi.ts --network localhost",
     "qa:verify": "hardhat run scripts/qa/verify-checklist.ts --network localhost",
