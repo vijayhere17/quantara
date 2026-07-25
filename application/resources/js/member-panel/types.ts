@@ -34,6 +34,8 @@ export type MemberLinks = {
   contributionReward: string;
   boosterReward: string;
   rankReward: string;
+  sameRankReward?: string;
+  communityReward?: string;
   support: string;
   signOut: string;
   secureAccount?: string;

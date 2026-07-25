@@ -56,12 +56,32 @@ class DashboardController extends Controller
         $object->total_pwc_balance = formatdecimal(($balanceCon->getcraditdebitsumpw($user_id, 1)),4);
         $object->total_pwd_balance = formatdecimal(($balanceCon->getcraditdebitsumpw($user_id, 2)),4);
         
-        $object->total_referral_bonus = formatdecimal($balanceCon->getearningsum($user_id, 1), 4);
-        $object->total_daily_roi_bonus = formatdecimal($balanceCon->getearningsum($user_id, 2), 4);
-        $object->total_daily_level_bonus = formatdecimal($balanceCon->getearningsum($user_id, 3), 4);
-        $object->total_team_level_bonus = formatdecimal($balanceCon->getearningsum($user_id, 4), 4);
-        $object->total_salary_bonus = formatdecimal($balanceCon->getearningsum($user_id, 5), 4);
-        $object->total_turnover_bonus = formatdecimal($balanceCon->getearningsum($user_id, 6), 4);
+        // earning_type map (BlockchainIncomeIndexer):
+        // 1=Contribution, 2=ROI, 4=Community, 5=Rank, 7=Same Rank, 8=Booster
+        $object->total_referral_bonus = formatdecimal(
+            $balanceCon->getearningsum($user_id, \App\Services\BlockchainIncomeIndexer::TYPE_CONTRIBUTION),
+            4
+        );
+        $object->total_daily_roi_bonus = formatdecimal(
+            $balanceCon->getearningsum($user_id, \App\Services\BlockchainIncomeIndexer::TYPE_ROI),
+            4
+        );
+        $object->total_daily_level_bonus = formatdecimal(
+            $balanceCon->getearningsum($user_id, \App\Services\BlockchainIncomeIndexer::TYPE_BOOSTER),
+            4
+        );
+        $object->total_team_level_bonus = formatdecimal(
+            $balanceCon->getearningsum($user_id, \App\Services\BlockchainIncomeIndexer::TYPE_SAME_RANK),
+            4
+        );
+        $object->total_salary_bonus = formatdecimal(
+            $balanceCon->getearningsum($user_id, \App\Services\BlockchainIncomeIndexer::TYPE_RANK),
+            4
+        );
+        $object->total_turnover_bonus = formatdecimal(
+            $balanceCon->getearningsum($user_id, \App\Services\BlockchainIncomeIndexer::TYPE_COMMUNITY),
+            4
+        );
 
         $object->total_income_today = formatdecimal(EarningWallet::where('member_id', $user_id)->where('txn_type', 1)->whereDate('created_at', today())->sum('amount'), 4);
         $object->recent_earning = EarningWallet::where('member_id', $user_id)->where('txn_type', 1)->orderBy('created_at', 'desc')->take(5)->get();

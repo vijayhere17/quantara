@@ -22,11 +22,14 @@ const sharedLinks = {
   myInvestments: '/bot-request',
   wallet: '/earning-wallet',
   withdraw: '/new-withdrawal',
-  // Matches BlockchainIncomeIndexer: 1=Contribution, 2=ROI, 5=Rank, 8=Booster
+  // Matches BlockchainIncomeIndexer:
+  // 1=Contribution, 2=ROI, 4=Community, 5=Rank, 7=Same Rank, 8=Booster
   roiHistory: '/earning/2/ROI History',
   contributionReward: '/earning/1/Contribution Reward',
   boosterReward: '/earning/8/Booster Reward',
   rankReward: '/earning/5/Rank Reward',
+  sameRankReward: '/earning/7/Same Rank Reward',
+  communityReward: '/earning/4/Community Builder',
   support: '/create-ticket',
   signOut: '/sign-out',
   secureAccount: '/secure-account',
@@ -264,7 +267,7 @@ export const mockIncentiveReportData: IncentiveReportBoot = {
   wallet: sharedWallet,
   links: sharedLinks,
   reportTitle: 'ROI History',
-  logType: 1,
+  logType: 2,
   records: [],
 };
 
