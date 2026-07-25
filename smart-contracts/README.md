@@ -90,9 +90,26 @@ npm run bootstrap:demo   # deploy (if needed) → root → fund → sync Laravel
 npm run verify:deployment
 npm run sync:laravel
 npm run qa:full
+npm run qa:phase1          # Phase 1 — $50 registration (chain + treasury)
 npx hardhat run scripts/testFlow.ts
 npx hardhat run scripts/testIncomeCap.ts
 ```
+
+Phase 1 Laravel follow-up (after `qa:phase1` prints tx hashes):
+
+```bash
+# From repo root (document root for this project)
+php -S 127.0.0.1:8000 router.php
+
+cd application
+php scripts/phase1-laravel-register.php \
+  --wallet=0x... --sponsor=0xf39F... \
+  --register=0x... --approve=0x... --activate=0x... \
+  --api=http://127.0.0.1:8000
+```
+
+See `scripts/qa/PHASE1_REGISTRATION_REPORT.md`.
+
 
 Deploy writes `deployed-addresses.json` (Token, core, treasury, rewards, chainId, explorer)
 and syncs `application/.env` contract keys when that file is present.

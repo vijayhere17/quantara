@@ -323,6 +323,9 @@ class AuthController extends Controller
             'wallet_status',
             'registration_status',
             'activation_date',
+            'referral_id',
+            'leg',
+            'referral_uplines',
         ];
 
         $missing = [];
