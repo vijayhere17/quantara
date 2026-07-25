@@ -442,26 +442,27 @@ border-color:rgba(0,194,255,.4);
     </a>
 
     <ul class="pc-submenu">
+        {{-- earning_type: 1=Contribution, 2=ROI, 5=Rank, 8=Booster (BlockchainIncomeIndexer) --}}
         <li class="pc-item">
-            <a class="pc-link" href="{{ URL::to('/') }}/earning/1/ROI History">
+            <a class="pc-link" href="{{ URL::to('/') }}/earning/2/ROI History">
                 ROI History
             </a>
         </li>
 
         <li class="pc-item">
-            <a class="pc-link" href="{{ URL::to('/') }}/earning/2/Contribution Reward">
+            <a class="pc-link" href="{{ URL::to('/') }}/earning/1/Contribution Reward">
                 Contribution Reward
             </a>
         </li>
 
         <li class="pc-item">
-            <a class="pc-link" href="{{ URL::to('/') }}/earning/3/Booster Reward">
+            <a class="pc-link" href="{{ URL::to('/') }}/earning/8/Booster Reward">
                 Booster Reward
             </a>
         </li>
 
         <li class="pc-item">
-            <a class="pc-link" href="{{ URL::to('/') }}/earning/4/Rank Reward">
+            <a class="pc-link" href="{{ URL::to('/') }}/earning/5/Rank Reward">
                 Rank Reward
             </a>
         </li>

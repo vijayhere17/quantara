@@ -40,10 +40,12 @@
             'investNow' => $base . '/buy-robo',
             'myInvestments' => $base . '/bot-request',
             'wallet' => $base . '/earning-wallet',
-            'roiHistory' => $base . '/earning/1/ROI History',
-            'contributionReward' => $base . '/earning/2/Contribution Reward',
-            'boosterReward' => $base . '/earning/3/Booster Reward',
-            'rankReward' => $base . '/earning/4/Rank Reward',
+            // Must match BlockchainIncomeIndexer earning_type map:
+            // 1=Contribution, 2=ROI, 5=Rank, 8=Booster
+            'roiHistory' => $base . '/earning/2/ROI History',
+            'contributionReward' => $base . '/earning/1/Contribution Reward',
+            'boosterReward' => $base . '/earning/8/Booster Reward',
+            'rankReward' => $base . '/earning/5/Rank Reward',
             'support' => $base . '/create-ticket',
             'signOut' => $base . '/sign-out',
             'secureAccount' => $base . '/secure-account',
