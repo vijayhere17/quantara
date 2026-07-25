@@ -141,6 +141,12 @@ contract BTCPlanCore is ReentrancyGuard {
         return false;
     }
 
+    /// @notice Safe existence check — use BEFORE reading the full User struct via users().
+    /// @dev Unregistered wallets must never force a User-struct decode on the client.
+    function isRegistered(address user) external view returns (bool) {
+        return users[user].isActive;
+    }
+
     function getPackageIndex(uint256 amount) public view returns (uint256) {
         for (uint256 i = 0; i < packages.length; i++) {
             if (packages[i] == amount) {

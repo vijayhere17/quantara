@@ -73,12 +73,14 @@ export async function registerOnChain(
     let tokenAmountStr = '';
     let resumed = false;
 
-    const onChainUser = await core.users(wallet);
-    const alreadyRegistered = Boolean(onChainUser.isActive);
-    const alreadyPackaged = Number(onChainUser.packageAmount) > 0;
+    // Existence check ONLY — never decode User struct for brand-new wallets.
+    const alreadyRegistered = Boolean(await core.isRegistered(wallet));
 
     if (alreadyRegistered) {
       resumed = true;
+      // Safe: wallet is known-registered before reading the full User struct.
+      const onChainUser = await core.users(wallet);
+      const alreadyPackaged = Number(onChainUser.packageAmount) > 0;
       const onChainSponsor = String(onChainUser.sponsor || '').toLowerCase();
       if (onChainSponsor && onChainSponsor !== sponsor.toLowerCase()) {
         throw new Error('This wallet is already registered under a different sponsor.');
@@ -131,6 +133,7 @@ export async function registerOnChain(
         };
       }
     } else {
+      // Brand-new wallet: skip users() entirely and go straight to register().
       const registerTx = await sendWithGasEstimate(core, 'register', [sponsor], onStatus);
       const registerReceipt = await waitForTx(registerTx, onStatus, 'registration');
       registerTxHash = String(registerTx.hash);
@@ -139,8 +142,8 @@ export async function registerOnChain(
       }
       blockNumber = Number(registerReceipt.blockNumber ?? 0);
 
-      const confirmed = await core.users(wallet);
-      if (!confirmed.isActive) {
+      const confirmed = Boolean(await core.isRegistered(wallet));
+      if (!confirmed) {
         throw new Error('Registration failed.');
       }
     }
@@ -184,6 +187,7 @@ export async function registerOnChain(
     }
     blockNumber = Number(packageReceipt.blockNumber ?? blockNumber);
 
+    // Post-activation only — wallet is registered and packaged.
     const activated = await core.users(wallet);
     if (Number(activated.packageAmount) !== packageAmount) {
       throw new Error('Activation failed.');

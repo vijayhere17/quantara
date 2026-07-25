@@ -90,8 +90,16 @@ export async function findPriorRegistrationTxs(
   };
 }
 
+/**
+ * Read the full on-chain User struct.
+ * Callers MUST only invoke this after isRegistered(wallet) is true.
+ */
 export async function readOnChainUser(signer: JsonRpcSigner, wallet: string) {
   const core = await getCoreContract(signer);
+  const registered = Boolean(await core.isRegistered(wallet));
+  if (!registered) {
+    throw new Error('Wallet is not registered on-chain.');
+  }
   return core.users(wallet);
 }
 
@@ -99,8 +107,8 @@ export async function assertSponsorActiveOnChain(core: Contract, sponsor: string
   if (sponsor === '0x0000000000000000000000000000000000000000') {
     return;
   }
-  const row = await core.users(sponsor);
-  if (!row.isActive) {
+  const registered = Boolean(await core.isRegistered(sponsor));
+  if (!registered) {
     throw new Error('Sponsor not found.');
   }
 }

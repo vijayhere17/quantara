@@ -291,6 +291,20 @@ describe("BTCPlanCore", function () {
     ).to.be.revertedWith("Sponsor not registered");
   });
 
+  it("isRegistered is false for new wallets and true after register", async function () {
+    const { owner, user, core } = await deploySystem();
+
+    expect(await core.isRegistered(user.address)).to.equal(false);
+    expect(await core.isRegistered(owner.address)).to.equal(false);
+
+    await core.register(ethers.ZeroAddress);
+    expect(await core.isRegistered(owner.address)).to.equal(true);
+    expect(await core.isRegistered(user.address)).to.equal(false);
+
+    await core.connect(user).register(owner.address);
+    expect(await core.isRegistered(user.address)).to.equal(true);
+  });
+
   it("Should claim ROI through IncomeManager and pay from treasury", async function () {
     const {
       owner,

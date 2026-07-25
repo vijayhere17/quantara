@@ -25,6 +25,9 @@ interface IBTCPlanCore {
             bool packageCompleted
         );
 
+    /// @notice True only after register() — call this before users(address).
+    function isRegistered(address user) external view returns (bool);
+
     function getNextEligiblePackage(address userAddr)
         external
         view
