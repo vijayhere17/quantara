@@ -222,10 +222,11 @@ class EarningWalletController extends Controller
         {
             $total = EarningWallet::where('member_id', '=', $log->id)->where('txn_type', '=', 1)->where('earning_type', '>', 0)->sum('amount');
             
-            $total_roi = formatdecimal(($this->getearningsum($log->id, 1)), 4);
-	        $total_booster = formatdecimal(($this->getearningsum($log->id, 2)), 4);
-	        
-	        $total_return = $total_roi+$total_booster;
+            // ROI = type 2, Booster = type 8 (see BlockchainIncomeIndexer)
+            $total_roi = formatdecimal(($this->getearningsum($log->id, \App\Services\BlockchainIncomeIndexer::TYPE_ROI)), 4);
+            $total_booster = formatdecimal(($this->getearningsum($log->id, \App\Services\BlockchainIncomeIndexer::TYPE_BOOSTER)), 4);
+
+            $total_return = $total_roi + $total_booster;
             
             $log->total_earning = $total;
             $log->total_return = $total_return;

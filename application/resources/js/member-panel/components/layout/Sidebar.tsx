@@ -78,6 +78,12 @@ function buildNav(links: MemberShellData['links']): NavItem[] {
         { label: 'Contribution Reward', href: links.contributionReward },
         { label: 'Booster Reward', href: links.boosterReward },
         { label: 'Rank Reward', href: links.rankReward },
+        ...(links.sameRankReward
+          ? [{ label: 'Same Rank Reward', href: links.sameRankReward }]
+          : []),
+        ...(links.communityReward
+          ? [{ label: 'Community Builder', href: links.communityReward }]
+          : []),
       ],
     },
   ];

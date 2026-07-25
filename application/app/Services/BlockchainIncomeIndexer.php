@@ -13,6 +13,17 @@ use Illuminate\Support\Facades\Schema;
  */
 class BlockchainIncomeIndexer
 {
+    /**
+     * Member-panel / ewallet_logs earning_type map (source of truth for history pages).
+     * Must stay aligned with DashboardController rewards + sidebar earning/* links.
+     */
+    public const TYPE_CONTRIBUTION = 1;
+    public const TYPE_ROI = 2;
+    public const TYPE_COMMUNITY = 4;
+    public const TYPE_RANK = 5;
+    public const TYPE_SAME_RANK = 7;
+    public const TYPE_BOOSTER = 8;
+
     public const ROI_CLAIMED = '0x10985303ad4f76ed2e3c2ab546caf0873a9e50f3beba0ddbd74c9e470a2eac46';
     public const SELF_ROI_PAID = '0xf18ba4284b4540d5f6d84af8d18b0e62570cfddd2430469888832376244aad3a';
     public const WORKING_INCOME_PAID = '0x68d470beb73914748134148c799202c0b949e4d76e013119d0dc1624db31f78b';
@@ -183,22 +194,57 @@ class BlockchainIncomeIndexer
         $data = substr((string) ($log['data'] ?? '0x'), 2);
 
         $map = [
-            self::ROI_CLAIMED => ['earningType' => 2, 'label' => 'On-chain ROI claim', 'userTopic' => 1, 'amountWord' => 0],
+            self::ROI_CLAIMED => [
+                'earningType' => self::TYPE_ROI,
+                'label' => 'On-chain ROI claim',
+                'userTopic' => 1,
+                'amountWord' => 0,
+            ],
             // SelfRoiPaid / WorkingIncomePaid intentionally omitted — see sync() note above.
             self::CONTRIBUTION_REWARD_PAID => [
-                'earningType' => 1,
+                'earningType' => self::TYPE_CONTRIBUTION,
                 'label' => 'On-chain contribution reward',
                 'userTopic' => 1,
                 'amountWord' => 1,
                 'levelWord' => 0,
                 'fromTopic' => 2,
             ],
-            self::BOOSTER_REWARD_PAID => ['earningType' => 8, 'label' => 'On-chain booster reward', 'userTopic' => 1, 'amountWord' => 0],
-            self::RANK_INCOME_PAID => ['earningType' => 5, 'label' => 'On-chain rank income', 'userTopic' => 1, 'amountWord' => 0],
-            self::SAME_RANK_INCOME_PAID => ['earningType' => 5, 'label' => 'On-chain same-rank income', 'userTopic' => 1, 'amountWord' => 0],
-            self::SAME_RANK_ACHIEVEMENT_PAID => ['earningType' => 5, 'label' => 'On-chain same-rank achievement', 'userTopic' => 1, 'amountWord' => 1],
-            self::COMMUNITY_REWARD_CLAIMED => ['earningType' => 4, 'label' => 'On-chain community reward', 'userTopic' => 1, 'amountWord' => 0],
-            self::COMMUNITY_BUILDER_PAID => ['earningType' => 4, 'label' => 'On-chain community builder', 'userTopic' => 1, 'amountWord' => 0],
+            self::BOOSTER_REWARD_PAID => [
+                'earningType' => self::TYPE_BOOSTER,
+                'label' => 'On-chain booster reward',
+                'userTopic' => 1,
+                'amountWord' => 0,
+            ],
+            self::RANK_INCOME_PAID => [
+                'earningType' => self::TYPE_RANK,
+                'label' => 'On-chain rank income',
+                'userTopic' => 1,
+                'amountWord' => 0,
+            ],
+            self::SAME_RANK_INCOME_PAID => [
+                'earningType' => self::TYPE_SAME_RANK,
+                'label' => 'On-chain same-rank income',
+                'userTopic' => 1,
+                'amountWord' => 0,
+            ],
+            self::SAME_RANK_ACHIEVEMENT_PAID => [
+                'earningType' => self::TYPE_SAME_RANK,
+                'label' => 'On-chain same-rank achievement',
+                'userTopic' => 1,
+                'amountWord' => 1,
+            ],
+            self::COMMUNITY_REWARD_CLAIMED => [
+                'earningType' => self::TYPE_COMMUNITY,
+                'label' => 'On-chain community reward',
+                'userTopic' => 1,
+                'amountWord' => 0,
+            ],
+            self::COMMUNITY_BUILDER_PAID => [
+                'earningType' => self::TYPE_COMMUNITY,
+                'label' => 'On-chain community builder',
+                'userTopic' => 1,
+                'amountWord' => 0,
+            ],
         ];
 
         if (!isset($map[$topic0])) {

@@ -68,6 +68,12 @@ return [
     'legacy_salary_enabled' => false,
 
     // earning_type allocations used across the app (documentation only, not read programmatically)
-    // 1 = Direct Sponsor Income, 2 = Daily ROI, 3 = Cashback, 4 = Level Income,
-    // 5 = Legacy Salary (dormant), 6 = DMC Leadership, 7 = Turnover Reward, 8 = Booster Income, 9 = Life Time Reward
+    // Aligned with BlockchainIncomeIndexer / member-panel history pages:
+    // 1 = Contribution Reward
+    // 2 = Self ROI
+    // 4 = Community Builder
+    // 5 = Rank Income
+    // 7 = Same Rank Income
+    // 8 = Booster Income
+    // WorkingIncomePaid / SelfRoiPaid are NOT mirrored (treasury side-effects of typed reward events).
 ];

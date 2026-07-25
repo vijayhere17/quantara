@@ -40,10 +40,13 @@
             'myInvestments' => $base . '/bot-request',
             'wallet' => $base . '/earning-wallet',
             'withdraw' => $base . '/new-withdrawal',
+            // 1=Contribution, 2=ROI, 4=Community, 5=Rank, 7=Same Rank, 8=Booster
             'roiHistory' => $base . '/earning/2/ROI History',
             'contributionReward' => $base . '/earning/1/Contribution Reward',
             'boosterReward' => $base . '/earning/8/Booster Reward',
             'rankReward' => $base . '/earning/5/Rank Reward',
+            'sameRankReward' => $base . '/earning/7/Same Rank Reward',
+            'communityReward' => $base . '/earning/4/Community Builder',
             'support' => $base . '/create-ticket',
             'signOut' => $base . '/sign-out',
             'secureAccount' => $base . '/secure-account',

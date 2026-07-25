@@ -17,6 +17,7 @@ class Kernel extends ConsoleKernel
         Commands\ProcessAPI::class,
         Commands\ProcessDaily::class,
         Commands\SyncBlockchainIncomeCommand::class,
+        Commands\ReclassifySameRankIncomeCommand::class,
         Commands\SeedDemoQaCommand::class,
         Commands\RepairMigrationsCommand::class,
     ];
