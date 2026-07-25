@@ -12,9 +12,12 @@ import {ITreasuryManager} from "./interfaces/ITreasuryManager.sol";
  * @dev All income recording and cap validation goes through IncomeManager.
  *
  * Rules:
- * - ROI funded only from ROI (interdependent) fund
- * - Max daily distribution budget: 5% of ROI pool
- * - Max user daily ROI rate: 1%
+ * - ROI funded only from ROI (interdependent) wallet — never minted
+ * - Daily distribution pool = 5% of current ROI wallet balance
+ * - Dynamic daily rate from pool / totalActivePrincipal, clamped to:
+ *     MIN 0.10% (10 bps) … MAX 1.00% (100 bps)
+ * - Total paid to all users in a day never exceeds that 5% pool
+ *   (enforced in claimRoi via dailyBudget / dailyBudgetUsed)
  * - Max ROI income: 3X package (enforced by IncomeManager)
  * - Once total income hits 3X, ROI stops (IncomeManager)
  */
@@ -26,7 +29,8 @@ contract InterdependentReward is ReentrancyGuard {
     ITreasuryManager public treasury;
     IIncomeManager public incomeManager;
 
-    uint256 public constant MAX_DAILY_ROI_BPS = 100; // 1%
+    uint256 public constant MIN_DAILY_ROI_BPS = 10; // 0.10%
+    uint256 public constant MAX_DAILY_ROI_BPS = 100; // 1.00%
 
     uint256 public dailyBudget;
     uint256 public dailyBudgetUsed;
@@ -129,6 +133,12 @@ contract InterdependentReward is ReentrancyGuard {
         emit RoiDeactivated(user, accountPrincipal);
     }
 
+    /**
+     * @notice Dynamic daily ROI rate in basis points from the ROI wallet.
+     * @dev rawBps = (5% of ROI wallet) * 10000 / totalActivePrincipal
+     *      then clamped to [MIN_DAILY_ROI_BPS, MAX_DAILY_ROI_BPS].
+     *      Returns 0 when there is no active principal or no daily budget.
+     */
     function calculateDailyRoiBps() public view returns (uint256) {
         if (totalActivePrincipal == 0 || address(treasury) == address(0)) {
             return 0;
@@ -142,7 +152,10 @@ contract InterdependentReward is ReentrancyGuard {
         uint256 roiBps = (availableDailyBudget * 10000) / totalActivePrincipal;
 
         if (roiBps > MAX_DAILY_ROI_BPS) {
-            roiBps = MAX_DAILY_ROI_BPS;
+            return MAX_DAILY_ROI_BPS;
+        }
+        if (roiBps < MIN_DAILY_ROI_BPS) {
+            return MIN_DAILY_ROI_BPS;
         }
 
         return roiBps;

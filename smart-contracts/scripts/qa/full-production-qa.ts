@@ -354,6 +354,7 @@ const ROI_ABI = [
   "function treasury() view returns (address)",
   "function incomeManager() view returns (address)",
   "function rankReward() view returns (address)",
+  "function MIN_DAILY_ROI_BPS() view returns (uint256)",
   "function MAX_DAILY_ROI_BPS() view returns (uint256)",
   "function dailyBudget() view returns (uint256)",
   "function dailyBudgetUsed() view returns (uint256)",
@@ -1396,8 +1397,18 @@ async function main() {
     record("ROI", "SKIP", ["InterdependentReward / IncomeManager missing"]);
   } else {
     try {
-      row("MAX_DAILY_ROI_BPS", (await roi.MAX_DAILY_ROI_BPS()).toString() + " (1%)");
-      row("Current daily ROI BPS", (await roi.calculateDailyRoiBps()).toString());
+      row("MIN_DAILY_ROI_BPS", (await roi.MIN_DAILY_ROI_BPS()).toString() + " (0.10%)");
+      row("MAX_DAILY_ROI_BPS", (await roi.MAX_DAILY_ROI_BPS()).toString() + " (1.00%)");
+      {
+        const bps = await roi.calculateDailyRoiBps();
+        const minB = await roi.MIN_DAILY_ROI_BPS();
+        const maxB = await roi.MAX_DAILY_ROI_BPS();
+        row("Current daily ROI BPS (dynamic)", bps.toString());
+        row(
+          "BPS within [MIN, MAX]",
+          bps === 0n || (bps >= minB && bps <= maxB) ? "YES" : "NO",
+        );
+      }
       row("Daily budget", fmtUnits(await roi.dailyBudget()));
       row("Daily budget used", fmtUnits(await roi.dailyBudgetUsed()));
       row("Remaining daily budget", fmtUnits(await roi.getRemainingDailyBudget()));
