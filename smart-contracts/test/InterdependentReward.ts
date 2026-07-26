@@ -206,4 +206,54 @@ describe("InterdependentReward — dynamic ROI", function () {
     expect(pending).to.equal((account.principal * bps * 1n) / 10000n);
     expect(pending).to.be.gt(0n);
   });
+
+  it("tracks activeRoiUsers and distributes via distributeDailyRoi", async function () {
+    const { owner, user, user2, mockBTCB, core, interdependentReward } =
+      await deploySystem();
+
+    await core.register(ethers.ZeroAddress);
+    await mockBTCB.approve(await core.getAddress(), ethers.MaxUint256);
+    await core.activatePackage(50);
+
+    await core.connect(user).register(owner.address);
+    await mockBTCB.connect(user).approve(await core.getAddress(), ethers.MaxUint256);
+    await core.connect(user).activatePackage(50);
+
+    await core.connect(user2).register(user.address);
+    await mockBTCB.connect(user2).approve(await core.getAddress(), ethers.MaxUint256);
+    await core.connect(user2).activatePackage(50);
+
+    expect(await interdependentReward.getActiveRoiUserCount()).to.equal(3n);
+    expect(await interdependentReward.activeIndex(owner.address)).to.be.gt(0n);
+    expect(await interdependentReward.activeIndex(user.address)).to.be.gt(0n);
+    expect(await interdependentReward.activeIndex(user2.address)).to.be.gt(0n);
+
+    await ethers.provider.send("evm_increaseTime", [86400]);
+    await ethers.provider.send("evm_mine", []);
+
+    const userBalBefore = await mockBTCB.balanceOf(user.address);
+    const ownerBalBefore = await mockBTCB.balanceOf(owner.address);
+    const user2BalBefore = await mockBTCB.balanceOf(user2.address);
+
+    const tx = await interdependentReward.distributeDailyRoi(0, 100);
+    const receipt = await tx.wait();
+    expect(receipt?.status).to.equal(1);
+
+    // All three should have been paid (daily budget sufficient for one day at max bps)
+    expect(await mockBTCB.balanceOf(owner.address)).to.be.gt(ownerBalBefore);
+    expect(await mockBTCB.balanceOf(user.address)).to.be.gt(userBalBefore);
+    expect(await mockBTCB.balanceOf(user2.address)).to.be.gt(user2BalBefore);
+
+    // claimRoi still works as fallback the next day
+    await ethers.provider.send("evm_increaseTime", [86400]);
+    await ethers.provider.send("evm_mine", []);
+    const afterDist = await mockBTCB.balanceOf(user.address);
+    await interdependentReward.connect(user).claimRoi();
+    expect(await mockBTCB.balanceOf(user.address)).to.be.gt(afterDist);
+
+    // Non-owner cannot distribute
+    await expect(
+      interdependentReward.connect(user).distributeDailyRoi(0, 10),
+    ).to.be.revertedWith("Only owner");
+  });
 });
