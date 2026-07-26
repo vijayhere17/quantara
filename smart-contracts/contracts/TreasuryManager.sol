@@ -9,12 +9,16 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
  * @title TreasuryManager
  * @notice Handles all treasury fund accounting and payouts.
  *
- * Activation distribution (business plan):
- * - 30% Contract Regeneration
- * - 25% Interdependent Reward Pool (ROI)
- * -  3% Reserve Contract
- * -  2% Community Builder Pool
- * - 40% Working Pool (direct / booster / rank / same-rank)
+ * Activation distribution (final business plan):
+ * - 70% Working Wallet
+ *     - 5% of Working Wallet → Charity Wallet
+ *     - remainder → working incomes (Contribution / Rank / Leadership / Booster)
+ * - 30% ROI Side
+ *     - 25% Interdependent Reward (Self ROI Fund)
+ *     -  3% Reserve Contract
+ *     -  2% Community Builder
+ *
+ * Regeneration Wallet is no longer funded on activation.
  */
 contract TreasuryManager is ReentrancyGuard {
     using SafeERC20 for IERC20;
@@ -26,6 +30,7 @@ contract TreasuryManager is ReentrancyGuard {
     address public rewardContract;
     address public communityBuilderContract;
     address public charityWallet;
+    /// @dev Legacy wallet — no longer credited on activation; may still withdraw prior balance.
     address public regenerationWallet;
 
     mapping(address => bool) public workingPayers;
@@ -35,6 +40,7 @@ contract TreasuryManager is ReentrancyGuard {
     uint256 public communityBuilderFundBalance;
     uint256 public charityFundBalance;
     uint256 public workingFundBalance;
+    /// @dev Legacy balance — no new activation credits; withdrawable via transferRegenerationFunds.
     uint256 public regenerationFundBalance;
 
     uint256 public totalSelfRoiPaid;
@@ -44,12 +50,15 @@ contract TreasuryManager is ReentrancyGuard {
     uint256 public totalRegenerationPaid;
     uint256 public totalReserveWithdrawn;
 
-    uint256 public constant REGENERATION_BPS = 3000; // 30%
-    uint256 public constant INTERDEPENDENT_BPS = 2500; // 25% ROI Fund
+    /// @notice Gross Working Wallet share of each activation (before charity cut).
+    uint256 public constant WORKING_SIDE_BPS = 7000; // 70%
+    /// @notice Share of the Working Wallet allocated to Charity (5% of Working).
+    uint256 public constant CHARITY_BPS = 500; // 5% of working side
+    uint256 public constant INTERDEPENDENT_BPS = 2500; // 25% Self ROI Fund
     uint256 public constant RESERVE_BPS = 300; // 3%
     uint256 public constant COMMUNITY_BPS = 200; // 2%
-    uint256 public constant WORKING_BPS = 4000; // 40%
-    // 3000 + 2500 + 300 + 200 + 4000 = 10000
+    // ROI side: 2500 + 300 + 200 = 3000 (30%)
+    // Working side: 7000 (70%), of which 5% → charity, 95% → workingFundBalance
 
     event CoreContractUpdated(address indexed coreContract);
     event RewardContractUpdated(address indexed rewardContract);
@@ -60,11 +69,11 @@ contract TreasuryManager is ReentrancyGuard {
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
     event ContributionProcessed(
         uint256 amount,
-        uint256 regenerationAmount,
         uint256 interdependentAmount,
         uint256 reserveAmount,
         uint256 communityAmount,
-        uint256 workingAmount
+        uint256 workingAmount,
+        uint256 charityAmount
     );
     event SelfRoiPaid(address indexed user, uint256 amount);
     event WorkingIncomePaid(address indexed user, uint256 amount);
@@ -132,35 +141,33 @@ contract TreasuryManager is ReentrancyGuard {
         require(msg.sender == coreContract, "Only core contract");
         require(amount > 0, "Invalid amount");
 
-        uint256 regenerationAmount = (amount * REGENERATION_BPS) / 10000;
+        // ROI Side (30% of package): 25% + 3% + 2%
         uint256 interdependentAmount = (amount * INTERDEPENDENT_BPS) / 10000;
         uint256 reserveAmount = (amount * RESERVE_BPS) / 10000;
         uint256 communityAmount = (amount * COMMUNITY_BPS) / 10000;
-        uint256 workingAmount = (amount * WORKING_BPS) / 10000;
 
-        // Any wei lost to flooring is assigned to Working so buckets sum to `amount`.
-        uint256 distributed = regenerationAmount
-            + interdependentAmount
-            + reserveAmount
-            + communityAmount
-            + workingAmount;
-        if (distributed < amount) {
-            workingAmount += amount - distributed;
-        }
+        // Working Wallet (70%): remainder so flooring dust stays on the working side.
+        uint256 roiDistributed = interdependentAmount + reserveAmount + communityAmount;
+        uint256 workingSide = amount - roiDistributed;
 
-        regenerationFundBalance += regenerationAmount;
+        // From Working Wallet, allocate 5% to Charity; rest pays working incomes.
+        uint256 charityAmount = (workingSide * CHARITY_BPS) / 10000;
+        uint256 workingAmount = workingSide - charityAmount;
+
         interdependentFundBalance += interdependentAmount;
         reserveFundBalance += reserveAmount;
         communityBuilderFundBalance += communityAmount;
+        charityFundBalance += charityAmount;
         workingFundBalance += workingAmount;
+        // regenerationFundBalance intentionally not credited (removed from plan)
 
         emit ContributionProcessed(
             amount,
-            regenerationAmount,
             interdependentAmount,
             reserveAmount,
             communityAmount,
-            workingAmount
+            workingAmount,
+            charityAmount
         );
     }
 
@@ -189,7 +196,8 @@ contract TreasuryManager is ReentrancyGuard {
     }
 
     /**
-     * @notice Pays working-pool income (contribution / booster / rank / same-rank).
+     * @notice Pays working-pool income (contribution / booster / rank / same-rank leadership).
+     * @dev Only source for working incomes — Community Builder uses payCommunityBuilder.
      */
     function payWorkingIncome(
         address user,
@@ -240,6 +248,9 @@ contract TreasuryManager is ReentrancyGuard {
         emit CharityFundsTransferred(charityWallet, amount);
     }
 
+    /**
+     * @notice Withdraw legacy regeneration balance (no longer funded on activation).
+     */
     function transferRegenerationFunds(uint256 amount) external onlyOwner nonReentrant {
         require(regenerationWallet != address(0), "Regeneration wallet not set");
         require(regenerationFundBalance >= amount, "Insufficient regeneration fund");
