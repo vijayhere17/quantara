@@ -8,7 +8,7 @@ import {ITreasuryManager} from "./interfaces/ITreasuryManager.sol";
 
 /**
  * @title InterdependentReward
- * @notice Calculates and claims ROI only. Never stores income caps.
+ * @notice Calculates and pays ROI. Never stores income caps.
  * @dev All income recording and cap validation goes through IncomeManager.
  *
  * Rules:
@@ -17,9 +17,14 @@ import {ITreasuryManager} from "./interfaces/ITreasuryManager.sol";
  * - Dynamic daily rate from pool / totalActivePrincipal, clamped to:
  *     MIN 0.10% (10 bps) … MAX 1.00% (100 bps)
  * - Total paid to all users in a day never exceeds that 5% pool
- *   (enforced in claimRoi via dailyBudget / dailyBudgetUsed)
+ *   (enforced via dailyBudget / dailyBudgetUsed)
  * - Max ROI income: 3X package (enforced by IncomeManager)
  * - Once total income hits 3X, ROI stops (IncomeManager)
+ *
+ * Distribution:
+ * - Users may still call claimRoi() (pull)
+ * - Owner/keeper may call distributeDailyRoi(start, limit) (push, paginated)
+ * - Both paths share _processRoiPayment() — identical business rules
  */
 contract InterdependentReward is ReentrancyGuard {
     address public owner;
@@ -44,6 +49,11 @@ contract InterdependentReward is ReentrancyGuard {
     }
 
     mapping(address => RoiAccount) public roiAccounts;
+
+    /// @notice Enumerable active ROI users for keeper pagination.
+    address[] public activeRoiUsers;
+    /// @dev 1-based index into activeRoiUsers; 0 means not in the list.
+    mapping(address => uint256) public activeIndex;
 
     event CoreContractUpdated(address indexed coreContract);
     event RankRewardUpdated(address indexed rankReward);
@@ -86,6 +96,10 @@ contract InterdependentReward is ReentrancyGuard {
         emit IncomeManagerUpdated(_incomeManager);
     }
 
+    function getActiveRoiUserCount() external view returns (uint256) {
+        return activeRoiUsers.length;
+    }
+
     /**
      * @notice Activates or restarts ROI for a user's current package principal.
      */
@@ -95,8 +109,9 @@ contract InterdependentReward is ReentrancyGuard {
         require(principal > 0, "Invalid principal");
 
         RoiAccount storage account = roiAccounts[user];
+        bool wasActive = account.isActive;
 
-        if (account.isActive && account.principal > 0) {
+        if (wasActive && account.principal > 0) {
             totalActivePrincipal -= account.principal;
         }
 
@@ -105,6 +120,10 @@ contract InterdependentReward is ReentrancyGuard {
         account.isActive = true;
 
         totalActivePrincipal += principal;
+
+        if (!wasActive) {
+            _addActiveRoiUser(user);
+        }
 
         emit RoiActivated(user, principal);
     }
@@ -122,13 +141,7 @@ contract InterdependentReward is ReentrancyGuard {
         }
 
         uint256 accountPrincipal = account.principal;
-        account.isActive = false;
-
-        if (accountPrincipal > 0 && totalActivePrincipal >= accountPrincipal) {
-            totalActivePrincipal -= accountPrincipal;
-        } else {
-            totalActivePrincipal = 0;
-        }
+        _deactivateLocal(user);
 
         emit RoiDeactivated(user, accountPrincipal);
     }
@@ -176,6 +189,9 @@ contract InterdependentReward is ReentrancyGuard {
         return (account.principal * currentDailyRoi * daysPassed) / 10000;
     }
 
+    /**
+     * @notice User pull-claim. Same ROI rules as distributeDailyRoi via _processRoiPayment.
+     */
     function claimRoi() external nonReentrant {
         require(address(incomeManager) != address(0), "Income manager not set");
         require(address(treasury) != address(0), "Treasury not set");
@@ -185,7 +201,7 @@ contract InterdependentReward is ReentrancyGuard {
 
         // Soft-stop if ROI cap already reached (working may still be open)
         if (incomeManager.isRoiCapReached(msg.sender)) {
-            _deactivateLocal(account);
+            _deactivateLocal(msg.sender);
             revert("ROI cap reached");
         }
 
@@ -197,19 +213,128 @@ contract InterdependentReward is ReentrancyGuard {
         uint256 remainingDailyBudget = dailyBudget - dailyBudgetUsed;
         require(remainingDailyBudget > 0, "Daily ROI budget exhausted");
 
-        uint256 payableRoi = pendingRoi;
+        uint256 payableRoi = _processRoiPayment(msg.sender);
+        require(payableRoi > 0, "ROI cap reached");
+    }
+
+    /**
+     * @notice Owner/keeper push-distribution over a page of active ROI users.
+     * @dev Call repeatedly with start += limit until start >= getActiveRoiUserCount().
+     *      Refreshes the daily budget once per call. Stops early if daily budget is exhausted.
+     * @return processed Number of list slots visited
+     * @return paidCount Number of users who received a payout
+     * @return totalPaid Sum of ROI paid in this batch
+     */
+    function distributeDailyRoi(
+        uint256 start,
+        uint256 limit
+    )
+        external
+        onlyOwner
+        nonReentrant
+        returns (uint256 processed, uint256 paidCount, uint256 totalPaid)
+    {
+        require(address(incomeManager) != address(0), "Income manager not set");
+        require(address(treasury) != address(0), "Treasury not set");
+        require(limit > 0, "Invalid limit");
+
+        _refreshDailyBudget();
+
+        uint256 len = activeRoiUsers.length;
+        if (start >= len) {
+            return (0, 0, 0);
+        }
+
+        uint256 end = start + limit;
+        if (end > len) {
+            end = len;
+        }
+
+        uint256 i = start;
+        while (i < end && i < activeRoiUsers.length) {
+            if (dailyBudgetUsed >= dailyBudget) {
+                break;
+            }
+
+            address user = activeRoiUsers[i];
+            uint256 lenBefore = activeRoiUsers.length;
+            processed++;
+
+            uint256 paid = _processRoiPayment(user);
+            if (paid > 0) {
+                paidCount++;
+                totalPaid += paid;
+            }
+
+            // If this user was deactivated, swap-and-pop placed a new address at `i`.
+            // Process that slot again; shrink `end` if the array shortened.
+            if (activeRoiUsers.length < lenBefore) {
+                if (end > activeRoiUsers.length) {
+                    end = activeRoiUsers.length;
+                }
+            } else {
+                unchecked {
+                    i++;
+                }
+            }
+        }
+    }
+
+    function getRemainingDailyBudget() external view returns (uint256) {
+        uint256 currentDay = block.timestamp / 1 days;
+
+        if (currentDay > budgetDay) {
+            if (address(treasury) == address(0)) {
+                return 0;
+            }
+            return treasury.getAvailableDailyRoiBudget();
+        }
+
+        return dailyBudget - dailyBudgetUsed;
+    }
+
+    /**
+     * @dev Shared ROI payout path used by claimRoi and distributeDailyRoi.
+     *      Caller must refresh the daily budget first.
+     *      Returns 0 when the user should be skipped (inactive / no pending / budget / cap).
+     *      Preserves the exact calculation, budget, treasury, rank, and event rules from claimRoi.
+     */
+    function _processRoiPayment(address user) internal returns (uint256 payableRoi) {
+        RoiAccount storage account = roiAccounts[user];
+        if (!account.isActive) {
+            return 0;
+        }
+
+        if (incomeManager.isRoiCapReached(user)) {
+            _deactivateLocal(user);
+            return 0;
+        }
+
+        uint256 pendingRoi = getPendingRoi(user);
+        if (pendingRoi == 0) {
+            return 0;
+        }
+
+        uint256 remainingDailyBudget = dailyBudget - dailyBudgetUsed;
+        if (remainingDailyBudget == 0) {
+            return 0;
+        }
+
+        payableRoi = pendingRoi;
         if (payableRoi > remainingDailyBudget) {
             payableRoi = remainingDailyBudget;
         }
 
         // Cap validation — IncomeManager is source of truth
         payableRoi = incomeManager.recordIncome(
-            msg.sender,
+            user,
             payableRoi,
             IIncomeManager.IncomeType.ROI
         );
 
-        require(payableRoi > 0, "ROI cap reached");
+        if (payableRoi == 0) {
+            return 0;
+        }
 
         dailyBudgetUsed += payableRoi;
 
@@ -228,32 +353,19 @@ contract InterdependentReward is ReentrancyGuard {
             }
         }
 
-        treasury.paySelfRoi(msg.sender, payableRoi);
+        treasury.paySelfRoi(user, payableRoi);
 
         if (address(rankReward) != address(0)) {
-            rankReward.processRoiIncome(msg.sender, payableRoi);
+            rankReward.processRoiIncome(user, payableRoi);
             // ROI is eligible income for Same Rank (10% of this accepted ROI slice)
-            rankReward.processSameRankIncome(msg.sender, payableRoi);
+            rankReward.processSameRankIncome(user, payableRoi);
         }
 
-        if (account.isActive && incomeManager.isRoiCapReached(msg.sender)) {
-            _deactivateLocal(account);
+        if (account.isActive && incomeManager.isRoiCapReached(user)) {
+            _deactivateLocal(user);
         }
 
-        emit RoiClaimed(msg.sender, payableRoi);
-    }
-
-    function getRemainingDailyBudget() external view returns (uint256) {
-        uint256 currentDay = block.timestamp / 1 days;
-
-        if (currentDay > budgetDay) {
-            if (address(treasury) == address(0)) {
-                return 0;
-            }
-            return treasury.getAvailableDailyRoiBudget();
-        }
-
-        return dailyBudget - dailyBudgetUsed;
+        emit RoiClaimed(user, payableRoi);
     }
 
     function _refreshDailyBudget() internal {
@@ -266,7 +378,8 @@ contract InterdependentReward is ReentrancyGuard {
         }
     }
 
-    function _deactivateLocal(RoiAccount storage account) internal {
+    function _deactivateLocal(address user) internal {
+        RoiAccount storage account = roiAccounts[user];
         if (!account.isActive) {
             return;
         }
@@ -278,5 +391,32 @@ contract InterdependentReward is ReentrancyGuard {
         } else {
             totalActivePrincipal = 0;
         }
+
+        _removeActiveRoiUser(user);
+    }
+
+    function _addActiveRoiUser(address user) internal {
+        if (activeIndex[user] != 0) {
+            return;
+        }
+        activeRoiUsers.push(user);
+        activeIndex[user] = activeRoiUsers.length; // 1-based
+    }
+
+    function _removeActiveRoiUser(address user) internal {
+        uint256 index = activeIndex[user];
+        if (index == 0) {
+            return;
+        }
+
+        uint256 lastIndex = activeRoiUsers.length;
+        if (index != lastIndex) {
+            address lastUser = activeRoiUsers[lastIndex - 1];
+            activeRoiUsers[index - 1] = lastUser;
+            activeIndex[lastUser] = index;
+        }
+
+        activeRoiUsers.pop();
+        activeIndex[user] = 0;
     }
 }
