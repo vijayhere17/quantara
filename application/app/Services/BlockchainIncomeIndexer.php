@@ -302,10 +302,13 @@ class BlockchainIncomeIndexer
     {
         $token = BigInteger::weiToTokenFloat($amountHex, 18);
 
+        // BTCB (18 decimals) must be priced in USD. A rate of ~1 (legacy
+        // stablecoin default) turns a $2.50 L1 reward into ~0.00004167 USD,
+        // which formatdecimal(..., 4) then stores as 0.0000 in ewallet_logs.
+        $defaultBtcUsd = 60000.0;
         $rate = function_exists('getcoinrate') ? (float) getcoinrate() : 0.0;
-        if ($rate <= 0) {
-            // Fallback: treat 1 token ≈ $1 for ledger mirror when feed unavailable
-            $rate = 1.0;
+        if ($rate < 1000.0) {
+            $rate = $defaultBtcUsd;
         }
 
         return round($token * $rate, 8);
