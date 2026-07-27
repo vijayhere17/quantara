@@ -9,15 +9,19 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
  * @title TreasuryManager
  * @notice Handles all treasury fund accounting and payouts.
  *
- * Activation distribution (Phase 1 business plan):
+ * Activation distribution (Phase 1):
  * - 30% ROI Pool → interdependentFundBalance (entire 30%, unsplit)
  * - 70% Working Wallet
  *     - 5% of Working Wallet → Charity (~3.5% of package)
  *     - remainder (~66.5% of package) → working incomes
  *
- * Reserve and Community Builder are NOT funded on activation.
- * They will be funded via income recycling (Phase 2).
+ * Income recycling (Phase 2) — applies to EVERY payout (Self ROI, working, community):
+ * - 70% → user wallet
+ * - 25% → ROI Pool
+ * -  3% → Reserve
+ * -  2% → Community Builder Pool
  *
+ * IncomeManager caps still count the gross accepted amount before recycling.
  * Regeneration Wallet is no longer funded on activation.
  */
 contract TreasuryManager is ReentrancyGuard {
@@ -49,6 +53,10 @@ contract TreasuryManager is ReentrancyGuard {
     uint256 public totalCharityPaid;
     uint256 public totalRegenerationPaid;
     uint256 public totalReserveWithdrawn;
+    uint256 public totalIncomeRecycled;
+    uint256 public totalRecycledToRoi;
+    uint256 public totalRecycledToReserve;
+    uint256 public totalRecycledToCommunity;
 
     /// @notice Gross Working Wallet share of each activation (before charity cut).
     uint256 public constant WORKING_SIDE_BPS = 7000; // 70%
@@ -56,11 +64,16 @@ contract TreasuryManager is ReentrancyGuard {
     uint256 public constant CHARITY_BPS = 500; // 5% of working side
     /// @notice Entire ROI Pool share on activation (unsplit — no reserve/community cut).
     uint256 public constant INTERDEPENDENT_BPS = 3000; // 30% ROI Pool
-    /// @dev Used by income recycling (Phase 2); not credited on activation.
-    uint256 public constant RESERVE_BPS = 300; // 3% of recycled income
-    /// @dev Used by income recycling (Phase 2); not credited on activation.
-    uint256 public constant COMMUNITY_BPS = 200; // 2% of recycled income
-    // Activation: 3000 ROI + 7000 working side (= charity 5% of working + working incomes)
+    /// @notice Recycle / legacy reserve share (3% of recycled income).
+    uint256 public constant RESERVE_BPS = 300;
+    /// @notice Recycle / legacy community share (2% of recycled income).
+    uint256 public constant COMMUNITY_BPS = 200;
+
+    /// @notice User net payout share of every recycled income.
+    uint256 public constant RECYCLE_USER_BPS = 7000; // 70%
+    /// @notice Recycled share returning to ROI Pool.
+    uint256 public constant RECYCLE_ROI_BPS = 2500; // 25%
+    // RECYCLE reserve/community reuse RESERVE_BPS / COMMUNITY_BPS (300 / 200)
 
     event CoreContractUpdated(address indexed coreContract);
     event RewardContractUpdated(address indexed rewardContract);
@@ -77,9 +90,20 @@ contract TreasuryManager is ReentrancyGuard {
         uint256 workingAmount,
         uint256 charityAmount
     );
+    /// @notice Net amount transferred to the user after recycling.
     event SelfRoiPaid(address indexed user, uint256 amount);
+    /// @notice Net amount transferred to the user after recycling.
     event WorkingIncomePaid(address indexed user, uint256 amount);
+    /// @notice Net amount transferred to the user after recycling.
     event CommunityBuilderPaid(address indexed user, uint256 amount);
+    event IncomeRecycled(
+        address indexed user,
+        uint256 grossAmount,
+        uint256 userPayout,
+        uint256 toRoiPool,
+        uint256 toReserve,
+        uint256 toCommunity
+    );
     event CharityFundsTransferred(address indexed wallet, uint256 amount);
     event RegenerationFundsTransferred(address indexed wallet, uint256 amount);
     event ReserveFundsWithdrawn(address indexed to, uint256 amount);
@@ -145,7 +169,7 @@ contract TreasuryManager is ReentrancyGuard {
 
         // ROI Pool: entire 30% stays in interdependent fund (unsplit on activation).
         uint256 interdependentAmount = (amount * INTERDEPENDENT_BPS) / 10000;
-        // Reserve / Community funded later via income recycling — not on activation.
+        // Reserve / Community funded via income recycling — not on activation.
         uint256 reserveAmount = 0;
         uint256 communityAmount = 0;
 
@@ -159,8 +183,6 @@ contract TreasuryManager is ReentrancyGuard {
         interdependentFundBalance += interdependentAmount;
         charityFundBalance += charityAmount;
         workingFundBalance += workingAmount;
-        // reserveFundBalance / communityBuilderFundBalance / regenerationFundBalance
-        // intentionally not credited on activation.
 
         emit ContributionProcessed(
             amount,
@@ -176,6 +198,23 @@ contract TreasuryManager is ReentrancyGuard {
         return (interdependentFundBalance * 5) / 100;
     }
 
+    /**
+     * @notice Preview recycling split for a gross income amount.
+     * @dev User gets remainder after 25/3/2 cuts so parts always sum to `amount`.
+     */
+    function previewRecycling(uint256 amount)
+        external
+        pure
+        returns (
+            uint256 userPayout,
+            uint256 toRoiPool,
+            uint256 toReserve,
+            uint256 toCommunity
+        )
+    {
+        return _splitRecycled(amount);
+    }
+
     function paySelfRoi(
         address user,
         uint256 amount
@@ -188,17 +227,19 @@ contract TreasuryManager is ReentrancyGuard {
             "Insufficient interdependent fund"
         );
 
+        // Debit gross from ROI pool; recycling credits 25% back into the same pool.
         interdependentFundBalance -= amount;
-        totalSelfRoiPaid += amount;
 
-        btcbToken.safeTransfer(user, amount);
+        uint256 userPayout = _recycleAndPay(user, amount);
+        totalSelfRoiPaid += userPayout;
 
-        emit SelfRoiPaid(user, amount);
+        emit SelfRoiPaid(user, userPayout);
     }
 
     /**
      * @notice Pays working-pool income (contribution / booster / rank / same-rank leadership).
      * @dev Only source for working incomes — Community Builder uses payCommunityBuilder.
+     *      `amount` is the gross accepted income; user receives 70% after recycling.
      */
     function payWorkingIncome(
         address user,
@@ -210,11 +251,11 @@ contract TreasuryManager is ReentrancyGuard {
         require(workingFundBalance >= amount, "Insufficient working fund");
 
         workingFundBalance -= amount;
-        totalWorkingIncomePaid += amount;
 
-        btcbToken.safeTransfer(user, amount);
+        uint256 userPayout = _recycleAndPay(user, amount);
+        totalWorkingIncomePaid += userPayout;
 
-        emit WorkingIncomePaid(user, amount);
+        emit WorkingIncomePaid(user, userPayout);
     }
 
     function payCommunityBuilder(
@@ -230,11 +271,11 @@ contract TreasuryManager is ReentrancyGuard {
         );
 
         communityBuilderFundBalance -= amount;
-        totalCommunityPaid += amount;
 
-        btcbToken.safeTransfer(user, amount);
+        uint256 userPayout = _recycleAndPay(user, amount);
+        totalCommunityPaid += userPayout;
 
-        emit CommunityBuilderPaid(user, amount);
+        emit CommunityBuilderPaid(user, userPayout);
     }
 
     function transferCharityFunds(uint256 amount) external onlyOwner nonReentrant {
@@ -281,8 +322,7 @@ contract TreasuryManager is ReentrancyGuard {
 
     /**
      * @notice Credit community builder fund when matching BTCB is already held by treasury.
-     * @dev Activation no longer funds this bucket; Phase 2 recycling will credit it on payouts.
-     *      Owner helper keeps Community Builder / ops top-ups testable until recycling ships.
+     * @dev Useful for tests / ops top-ups; recycling also credits this bucket on every payout.
      */
     function creditCommunityBuilderFund(uint256 amount) external onlyOwner {
         require(amount > 0, "Invalid amount");
@@ -291,10 +331,60 @@ contract TreasuryManager is ReentrancyGuard {
 
     /**
      * @notice Credit reserve fund when matching BTCB is already held by treasury.
-     * @dev Activation no longer funds this bucket; Phase 2 recycling will credit it on payouts.
      */
     function creditReserveFund(uint256 amount) external onlyOwner {
         require(amount > 0, "Invalid amount");
         reserveFundBalance += amount;
+    }
+
+    function _splitRecycled(uint256 amount)
+        internal
+        pure
+        returns (
+            uint256 userPayout,
+            uint256 toRoiPool,
+            uint256 toReserve,
+            uint256 toCommunity
+        )
+    {
+        toRoiPool = (amount * RECYCLE_ROI_BPS) / 10000;
+        toReserve = (amount * RESERVE_BPS) / 10000;
+        toCommunity = (amount * COMMUNITY_BPS) / 10000;
+        // Remainder (~70% + flooring dust) goes to the user so parts sum exactly.
+        userPayout = amount - toRoiPool - toReserve - toCommunity;
+    }
+
+    /**
+     * @dev Credits recycle buckets and transfers the user share. Tokens for recycle
+     *      stay in the treasury (already held); only `userPayout` leaves.
+     */
+    function _recycleAndPay(
+        address user,
+        uint256 amount
+    ) internal returns (uint256 userPayout) {
+        uint256 toRoiPool;
+        uint256 toReserve;
+        uint256 toCommunity;
+        (userPayout, toRoiPool, toReserve, toCommunity) = _splitRecycled(amount);
+
+        interdependentFundBalance += toRoiPool;
+        reserveFundBalance += toReserve;
+        communityBuilderFundBalance += toCommunity;
+
+        totalRecycledToRoi += toRoiPool;
+        totalRecycledToReserve += toReserve;
+        totalRecycledToCommunity += toCommunity;
+        totalIncomeRecycled += toRoiPool + toReserve + toCommunity;
+
+        btcbToken.safeTransfer(user, userPayout);
+
+        emit IncomeRecycled(
+            user,
+            amount,
+            userPayout,
+            toRoiPool,
+            toReserve,
+            toCommunity
+        );
     }
 }

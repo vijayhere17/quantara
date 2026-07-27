@@ -213,8 +213,9 @@ async function main() {
     `delta=${rootDelta1} expected=${expectL1} ($${usd(rootDelta1).toFixed(2)})`,
   );
   check(
-    "Step1 / Root token wallet +L1",
-    (await token.balanceOf(root.address)) - step1.beforeBal.root === expectL1,
+    "Step1 / Root token wallet +L1 net (70% after recycle)",
+    (await token.balanceOf(root.address)) - step1.beforeBal.root ===
+      expectL1 - (expectL1 * 2500n) / 10000n - (expectL1 * 300n) / 10000n - (expectL1 * 200n) / 10000n,
   );
   check(
     "Step1 / Event L1 to Root",

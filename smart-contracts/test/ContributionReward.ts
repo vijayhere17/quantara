@@ -66,8 +66,12 @@ describe("ContributionReward", function () {
     expect(await income.contributionEarned(level2.address)).to.equal(300n);
     expect(await income.contributionEarned(level3.address)).to.equal(200n);
 
-    expect(await mockBTCB.balanceOf(level1.address)).to.equal(500n);
-    expect(await mockBTCB.balanceOf(level2.address)).to.equal(300n);
-    expect(await mockBTCB.balanceOf(level3.address)).to.equal(200n);
+    // Phase 2: wallet receives 70% after income recycling
+    expect(await mockBTCB.balanceOf(level1.address)).to.equal(350n);
+    expect(await mockBTCB.balanceOf(level2.address)).to.equal(210n);
+    expect(await mockBTCB.balanceOf(level3.address)).to.equal(140n);
+
+    expect(await treasury.reserveFundBalance()).to.equal(30n); // 3% of 1000
+    expect(await treasury.communityBuilderFundBalance()).to.equal(20n); // 2% of 1000
   });
 });

@@ -256,10 +256,46 @@ async function main() {
   }
 
   check("Event / RoiClaimed amount > 0", roiClaimedAmt > 0n, roiClaimedAmt.toString());
+
+  // Phase 2 recycling: SelfRoiPaid is net (~70%); RoiClaimed / IncomeManager stay gross.
+  // Same tx may also pay rank/same-rank working income (also recycled).
+  let selfRecycleUser = 0n;
+  let selfRecycleRoi = 0n;
+  let totalRecycleRoi = 0n;
+  let totalRecycleReserve = 0n;
+  let totalRecycleCommunity = 0n;
+  let totalNetPaidOut = 0n;
+  for (const log of receipt?.logs || []) {
+    try {
+      const p = treasury.interface.parseLog({ topics: log.topics as string[], data: log.data });
+      if (p?.name === "IncomeRecycled") {
+        const gross = BigInt(p.args.grossAmount);
+        const userPayout = BigInt(p.args.userPayout);
+        const toRoi = BigInt(p.args.toRoiPool);
+        const toReserve = BigInt(p.args.toReserve);
+        const toCommunity = BigInt(p.args.toCommunity);
+        totalRecycleRoi += toRoi;
+        totalRecycleReserve += toReserve;
+        totalRecycleCommunity += toCommunity;
+        totalNetPaidOut += userPayout;
+        if (gross === roiClaimedAmt) {
+          selfRecycleUser = userPayout;
+          selfRecycleRoi = toRoi;
+        }
+      }
+    } catch {
+      //
+    }
+  }
+  const expectNet =
+    roiClaimedAmt -
+    (roiClaimedAmt * 2500n) / 10000n -
+    (roiClaimedAmt * 300n) / 10000n -
+    (roiClaimedAmt * 200n) / 10000n;
   check(
-    "Event / SelfRoiPaid amount == RoiClaimed",
-    selfRoiPaidAmt === roiClaimedAmt,
-    `self=${selfRoiPaidAmt} claimed=${roiClaimedAmt}`,
+    "Event / SelfRoiPaid == net recycled payout (~70%)",
+    selfRoiPaidAmt === expectNet && selfRoiPaidAmt === selfRecycleUser,
+    `self=${selfRoiPaidAmt} expectNet=${expectNet} recycledUser=${selfRecycleUser}`,
   );
   check(
     "Event / claimed == pending (full 1-day payout)",
@@ -292,23 +328,30 @@ async function main() {
   console.log(`  remaining ROI cap      : ${ethers.formatEther(after.remainingRoiCap)}`);
 
   check(
-    "User token / +claimed amount",
-    after.userBal - before.userBal === roiClaimedAmt,
+    "User token / +net Self ROI payout (~70%)",
+    after.userBal - before.userBal === expectNet,
   );
   check(
-    "Treasury token / -claimed amount",
-    before.treasuryBal - after.treasuryBal === roiClaimedAmt,
+    "Treasury token / -all net payouts in claim tx",
+    before.treasuryBal - after.treasuryBal === totalNetPaidOut,
+    `Δ=${before.treasuryBal - after.treasuryBal} netPaid=${totalNetPaidOut}`,
   );
   check(
-    "ROI wallet (interdependent) / -claimed amount (only ROI wallet funds ROI)",
-    before.roiFund - after.roiFund === roiClaimedAmt,
+    "ROI wallet / -Self ROI gross + all recycle-to-ROI in tx",
+    before.roiFund - after.roiFund === roiClaimedAmt - totalRecycleRoi,
+    `Δ=${before.roiFund - after.roiFund} expect=${roiClaimedAmt - totalRecycleRoi} selfRecycleRoi=${selfRecycleRoi}`,
   );
   check(
-    "Other treasury buckets unchanged (working/regen/reserve/community)",
-    after.workingFund === before.workingFund &&
-      after.regenFund === before.regenFund &&
-      after.reserveFund === before.reserveFund &&
-      after.communityFund === before.communityFund,
+    "Reserve / +all 3% recycle in tx",
+    after.reserveFund - before.reserveFund === totalRecycleReserve,
+  );
+  check(
+    "Community / +all 2% recycle in tx",
+    after.communityFund - before.communityFund === totalRecycleCommunity,
+  );
+  check(
+    "Regen unchanged on claim",
+    after.regenFund === before.regenFund,
   );
   // Daily pool enforcement: this single claim cannot exceed today's 5% pool
   check(
@@ -334,8 +377,8 @@ async function main() {
     `got=${bpsAfterClaim} expect=${expectAfter} raw=${rawAfter}`,
   );
   check(
-    "Treasury.totalSelfRoiPaid / +claimed",
-    after.totalSelfRoiPaid - before.totalSelfRoiPaid === roiClaimedAmt,
+    "Treasury.totalSelfRoiPaid / +net payout",
+    after.totalSelfRoiPaid - before.totalSelfRoiPaid === expectNet,
   );
   check("IncomeManager / roiEarned == claimed", after.roiEarned === roiClaimedAmt);
   check(

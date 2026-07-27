@@ -102,6 +102,12 @@ describe("CommunityBuilder", function () {
     expect(await communityBuilder.communityIncome(q8.address)).to.equal(400n);
 
     expect(await income.communityEarned(q5.address)).to.equal(100n);
-    expect(await treasury.communityBuilderFundBalance()).to.equal(0n);
+    // Gross claims recycled 2% back into community (1000 * 2% = 20)
+    expect(await treasury.communityBuilderFundBalance()).to.equal(20n);
+    // Wallets receive 70% net
+    expect(await mockBTCB.balanceOf(q5.address)).to.equal(70n);
+    expect(await mockBTCB.balanceOf(q6.address)).to.equal(140n);
+    expect(await mockBTCB.balanceOf(q7.address)).to.equal(210n);
+    expect(await mockBTCB.balanceOf(q8.address)).to.equal(280n);
   });
 });

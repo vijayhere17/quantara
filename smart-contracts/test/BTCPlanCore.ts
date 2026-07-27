@@ -331,15 +331,17 @@ describe("BTCPlanCore", function () {
 
     const treasuryBefore = await mockBTCB.balanceOf(await treasury.getAddress());
     const userBefore = await mockBTCB.balanceOf(user.address);
+    const [userPayout] = await treasury.previewRecycling(pendingRoi);
 
     await interdependentReward.connect(user).claimRoi();
 
+    // Caps / ledgers track gross; wallet receives net after recycling
     expect(await incomeManager.roiEarned(user.address)).to.equal(pendingRoi);
     expect(await mockBTCB.balanceOf(user.address)).to.equal(
-      userBefore + pendingRoi
+      userBefore + userPayout
     );
     expect(await mockBTCB.balanceOf(await treasury.getAddress())).to.equal(
-      treasuryBefore - pendingRoi
+      treasuryBefore - userPayout
     );
   });
 });
