@@ -376,8 +376,11 @@ const CONTRIB_ABI = [
   "function owner() view returns (address)",
   "function coreContract() view returns (address)",
   "function LEVEL_1_BPS() view returns (uint256)",
+  "function LEVEL_1_GA_BPS() view returns (uint256)",
   "function LEVEL_2_BPS() view returns (uint256)",
   "function LEVEL_3_BPS() view returns (uint256)",
+  "function getLevel1Bps(address) view returns (uint256)",
+  "function contributionBooster() view returns (address)",
   "function sponsors(address) view returns (address)",
   "function contributionIncome(address) view returns (uint256)",
   "function levelIncome(address,uint256) view returns (uint256)",
@@ -391,11 +394,17 @@ const BOOSTER_ABI = [
   "function BOOSTER_REWARD_BPS() view returns (uint256)",
   "function QUALIFICATION_PERIOD() view returns (uint256)",
   "function BOOSTER_PERIOD() view returns (uint256)",
+  "function QUALIFY_VOLUME() view returns (uint256)",
+  "function QUALIFY_VOLUME_HIGH() view returns (uint256)",
   "function sponsors(address) view returns (address)",
   "function boosterAccounts(address) view returns (uint256 joinedAt, uint256 boosterActivatedAt, uint256 boosterExpiresAt, uint256 boosterIncome, bool qualified)",
+  "function groupVolume(address) view returns (uint256)",
+  "function maxLegVolume(address) view returns (uint256)",
+  "function getFiftyFiftyVolume(address) view returns (uint256)",
   "function isBoosterActive(address) view returns (bool)",
+  "function isGrowthAcceleratorActive(address) view returns (bool)",
   "event BoosterQualified(address indexed user, uint256 expiresAt)",
-  "event BoosterRewardPaid(address indexed sponsor, address indexed fromUser, uint256 amount)",
+  "event VolumeRecorded(address indexed sponsor, address indexed fromLeg, uint256 volume, uint256 fiftyFiftyVolume)",
   "event UserRegistered(address indexed user, address indexed sponsor)",
 ];
 
@@ -1588,6 +1597,12 @@ async function main() {
   } else {
     try {
       row("LEVEL_1_BPS", (await contrib.LEVEL_1_BPS()).toString() + " (5%)");
+      try {
+        row("LEVEL_1_GA_BPS", (await contrib.LEVEL_1_GA_BPS()).toString() + " (10% while GA active)");
+        row("getLevel1Bps(qaWallet)", (await contrib.getLevel1Bps(qaWallet)).toString());
+      } catch {
+        /* older ABI */
+      }
       row("LEVEL_2_BPS", (await contrib.LEVEL_2_BPS()).toString() + " (3%)");
       row("LEVEL_3_BPS", (await contrib.LEVEL_3_BPS()).toString() + " (2%)");
       row("Sponsor", await contrib.sponsors(qaWallet));
@@ -1614,9 +1629,15 @@ async function main() {
     record("Booster", "SKIP", ["ContributionBooster missing"]);
   } else {
     try {
-      row("BOOSTER_REWARD_BPS", (await booster.BOOSTER_REWARD_BPS()).toString() + " (10%)");
+      row("BOOSTER_REWARD_BPS (L1 replace hint)", (await booster.BOOSTER_REWARD_BPS()).toString() + " (10%)");
+      row("QUALIFY_VOLUME (USD BV min)", (await booster.QUALIFY_VOLUME()).toString());
+      try {
+        row("QUALIFY_VOLUME_HIGH (USD BV)", (await booster.QUALIFY_VOLUME_HIGH()).toString());
+      } catch {
+        /* older ABI */
+      }
       row("QUALIFICATION_PERIOD (s)", (await booster.QUALIFICATION_PERIOD()).toString());
-      row("BOOSTER_PERIOD (s)", (await booster.BOOSTER_PERIOD()).toString());
+      row("BOOSTER_PERIOD / GA window (s)", (await booster.BOOSTER_PERIOD()).toString());
       const ba = await booster.boosterAccounts(qaWallet);
       row("Qualified", String(ba.qualified));
       row("Joined At", ba.joinedAt > 0n ? new Date(Number(ba.joinedAt) * 1000).toISOString() : "—");
@@ -1632,15 +1653,18 @@ async function main() {
           ? new Date(Number(ba.boosterExpiresAt) * 1000).toISOString()
           : "—",
       );
-      row("Booster income paid (BTCB)", fmtUnits(ba.boosterIncome));
-      row("isBoosterActive()", String(await booster.isBoosterActive(qaWallet)));
+      row("Group volume (USD)", (await booster.groupVolume(qaWallet)).toString());
+      row("50:50 volume (USD)", (await booster.getFiftyFiftyVolume(qaWallet)).toString());
+      row("isBoosterActive / GA active", String(await booster.isBoosterActive(qaWallet)));
       const now = BigInt(Math.floor(Date.now() / 1000));
       const remainingDays =
         ba.boosterExpiresAt > now
           ? Number((ba.boosterExpiresAt - now) / 86400n)
           : 0;
       row("Remaining days", String(remainingDays));
-      record("Booster", "PASS");
+      record("Booster / Growth Accelerator", "PASS", [
+        "50:50 GV qualification; L1 10% replaces 5% via ContributionReward",
+      ]);
     } catch (e) {
       record("Booster", "FAIL", [(e as Error).message]);
     }

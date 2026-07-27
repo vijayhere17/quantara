@@ -71,6 +71,7 @@ async function main() {
   await (await contrib.setIncomeManager(await income.getAddress())).wait();
   await (await contrib.setTreasury(await treasury.getAddress())).wait();
   await (await contrib.setRankReward(await rank.getAddress())).wait();
+  await (await contrib.setContributionBooster(await booster.getAddress())).wait();
 
   await (await booster.setCoreContract(await core.getAddress())).wait();
   await (await booster.setIncomeManager(await income.getAddress())).wait();

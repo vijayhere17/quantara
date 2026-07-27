@@ -10,4 +10,8 @@ interface IContributionBooster {
         address user,
         uint256 contributionAmount
     ) external;
+
+    function isBoosterActive(address user) external view returns (bool);
+
+    function getFiftyFiftyVolume(address user) external view returns (uint256);
 }

@@ -4,13 +4,17 @@ pragma solidity ^0.8.28;
 import {IIncomeManager} from "./interfaces/IIncomeManager.sol";
 import {IRankReward} from "./interfaces/IRankReward.sol";
 import {ITreasuryManager} from "./interfaces/ITreasuryManager.sol";
+import {IContributionBooster} from "./interfaces/IContributionBooster.sol";
 
 /**
  * @title ContributionReward
  * @notice Calculates 3-level contribution rewards. Does not enforce caps.
  * @dev Records income via IncomeManager and pays from working fund via TreasuryManager.
  *
- * Levels: L1 5%, L2 3%, L3 2%
+ * Levels:
+ * - L1 Direct Income: 5% normally, or 10% while Growth Accelerator is active (replaces 5%)
+ * - L2 3%
+ * - L3 2%
  */
 contract ContributionReward {
     address public owner;
@@ -19,8 +23,10 @@ contract ContributionReward {
     IIncomeManager public incomeManager;
     ITreasuryManager public treasury;
     IRankReward public rankReward;
+    IContributionBooster public contributionBooster;
 
     uint256 public constant LEVEL_1_BPS = 500; // 5%
+    uint256 public constant LEVEL_1_GA_BPS = 1000; // 10% while Growth Accelerator active
     uint256 public constant LEVEL_2_BPS = 300; // 3%
     uint256 public constant LEVEL_3_BPS = 200; // 2%
 
@@ -32,6 +38,7 @@ contract ContributionReward {
     event IncomeManagerUpdated(address indexed incomeManager);
     event TreasuryUpdated(address indexed treasury);
     event RankRewardUpdated(address indexed rankReward);
+    event ContributionBoosterUpdated(address indexed contributionBooster);
     event SponsorSet(address indexed user, address indexed sponsor);
     event ContributionRewardPaid(
         address indexed beneficiary,
@@ -73,6 +80,12 @@ contract ContributionReward {
         emit RankRewardUpdated(_rankReward);
     }
 
+    function setContributionBooster(address _contributionBooster) external onlyOwner {
+        require(_contributionBooster != address(0), "Invalid contribution booster");
+        contributionBooster = IContributionBooster(_contributionBooster);
+        emit ContributionBoosterUpdated(_contributionBooster);
+    }
+
     function setSponsor(address user, address sponsor) external {
         require(msg.sender == coreContract, "Only core contract");
         require(user != address(0), "Invalid user");
@@ -80,6 +93,16 @@ contract ContributionReward {
 
         sponsors[user] = sponsor;
         emit SponsorSet(user, sponsor);
+    }
+
+    function getLevel1Bps(address sponsor) public view returns (uint256) {
+        if (
+            address(contributionBooster) != address(0) &&
+            contributionBooster.isBoosterActive(sponsor)
+        ) {
+            return LEVEL_1_GA_BPS;
+        }
+        return LEVEL_1_BPS;
     }
 
     function processContribution(address user, uint256 amount) external {
@@ -91,14 +114,21 @@ contract ContributionReward {
 
         address currentSponsor = sponsors[user];
 
-        uint256[3] memory rewardBps = [LEVEL_1_BPS, LEVEL_2_BPS, LEVEL_3_BPS];
-
         for (uint256 level = 1; level <= 3; level++) {
             if (currentSponsor == address(0)) {
                 break;
             }
 
-            uint256 rewardAmount = (amount * rewardBps[level - 1]) / 10000;
+            uint256 rewardBps;
+            if (level == 1) {
+                rewardBps = getLevel1Bps(currentSponsor);
+            } else if (level == 2) {
+                rewardBps = LEVEL_2_BPS;
+            } else {
+                rewardBps = LEVEL_3_BPS;
+            }
+
+            uint256 rewardAmount = (amount * rewardBps) / 10000;
             if (rewardAmount == 0) {
                 currentSponsor = sponsors[currentSponsor];
                 continue;

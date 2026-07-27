@@ -56,6 +56,7 @@ describe("Quantara Integration", function () {
     await contribution.setIncomeManager(await income.getAddress());
     await contribution.setTreasury(await treasury.getAddress());
     await contribution.setRankReward(await rank.getAddress());
+    await contribution.setContributionBooster(await booster.getAddress());
 
     await booster.setCoreContract(await core.getAddress());
     await booster.setIncomeManager(await income.getAddress());
