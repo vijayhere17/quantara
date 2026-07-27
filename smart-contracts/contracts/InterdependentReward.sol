@@ -357,8 +357,8 @@ contract InterdependentReward is ReentrancyGuard {
 
         if (address(rankReward) != address(0)) {
             rankReward.processRoiIncome(user, payableRoi);
-            // ROI is eligible income for Same Rank (10% of this accepted ROI slice)
-            rankReward.processSameRankIncome(user, payableRoi);
+            // Tier Booster: 10% of this Self ROI slice when direct sponsor shares rank
+            rankReward.processTierBooster(user, payableRoi);
         }
 
         if (account.isActive && incomeManager.isRoiCapReached(user)) {

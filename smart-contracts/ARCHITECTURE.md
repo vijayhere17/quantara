@@ -10,10 +10,10 @@
 Progression unlock (`packageCompleted`): first of ROI-cap or Working-cap.  
 Final income shutdown (`packageActive=false`): both caps exhausted.
 
-## Same Rank
+## Tier Booster (Phase 4) & Same Rank
 
-1. **Matching (ongoing):** 10% of each eligible income slice to direct same-rank sponsor.
-2. **Achievement (one-time):** when a user first reaches a rank the sponsor already holds, sponsor receives 10% of the user's **totalEarned** at that moment. Deduped per `(user, sponsor, rank)`.
+1. **Tier Booster (ongoing, Self ROI only):** when a direct earns Self ROI and holds the exact same non-None rank as their sponsor, the sponsor receives **10% of that Self ROI slice**. Not applied to Contribution / Rank / Community / other working incomes. Paid via `RankReward.processTierBooster` (reward contract only); recycled like all incomes.
+2. **Same Rank achievement (one-time):** when a user first reaches a rank the sponsor already holds, sponsor receives 10% of the user's **totalEarned** at that moment. Deduped per `(user, sponsor, rank)`.
 
 ## Rank multipliers (architecture only)
 

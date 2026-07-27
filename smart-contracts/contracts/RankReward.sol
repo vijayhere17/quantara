@@ -7,20 +7,20 @@ import {ITreasuryManager} from "./interfaces/ITreasuryManager.sol";
 
 /**
  * @title RankReward
- * @notice Rank qualification, differential rank income, and same-rank income.
+ * @notice Rank qualification, differential rank income, Tier Booster, and same-rank achievement.
  *
- * Same Rank — two mechanisms:
+ * Tier Booster (Phase 4):
  * -----------------------------------------
- * 1) Ongoing matching (eligible income slices):
- *    For each accepted income event credited to a user (the earner), if the earner's
- *    direct sponsor holds the exact same non-None rank, the sponsor receives 10% of
- *    that accepted amount. Eligible: ROI, Contribution, Booster, Rank, Community.
- *    SameRank income itself does NOT re-trigger Same Rank.
+ * When a direct referral earns Self ROI and holds the exact same non-None rank as their
+ * direct sponsor, the sponsor receives 10% of that Self ROI slice only.
+ * Not applied to Contribution, Rank, Community, or other working incomes.
+ * Tier Booster income itself does NOT re-trigger Tier Booster.
  *
- * 2) Rank achievement bonus (business plan):
- *    When a user first reaches a rank that their direct sponsor already holds,
- *    the sponsor receives a one-time 10% of the user's TOTAL earned income
- *    (IncomeManager.totalEarned). Deduped per (user, sponsor, rank).
+ * Same Rank achievement bonus (one-time):
+ * -----------------------------------------
+ * When a user first reaches a rank that their direct sponsor already holds,
+ * the sponsor receives a one-time 10% of the user's TOTAL earned income
+ * (IncomeManager.totalEarned). Deduped per (user, sponsor, rank).
  *
  * Rank income-cap multipliers (architecture present, application gated):
  * - Default / Q1-Q2 / Q4 / Q6 / Q8 → 3
@@ -65,10 +65,12 @@ contract RankReward {
     mapping(address => uint256) public maxLegVolume;
     mapping(address => mapping(address => mapping(Rank => uint256))) public legRankCount;
 
-    /// @notice Contracts allowed to report eligible income for Same Rank bonus.
+    /// @notice Contracts historically allowed to report income; Tier Booster is reward-contract only.
     mapping(address => bool) public sameRankReporters;
 
     uint256 public constant SAME_RANK_REWARD_BPS = 1000; // 10%
+    /// @notice Alias for Tier Booster BPS (10% of Self ROI).
+    uint256 public constant TIER_BOOSTER_BPS = 1000;
 
     /// @dev one-time achievement: user reached sponsor's rank → paid already
     mapping(address => mapping(address => mapping(Rank => bool))) public sameRankAchievementPaid;
@@ -83,7 +85,9 @@ contract RankReward {
     event SponsorSet(address indexed user, address indexed sponsor);
     event RankUpdated(address indexed user, Rank oldRank, Rank newRank);
     event RankIncomePaid(address indexed beneficiary, address indexed fromUser, uint256 amount);
+    /// @notice Tier Booster payout (10% of direct's Self ROI when same rank).
     event SameRankIncomePaid(address indexed beneficiary, address indexed fromUser, uint256 amount);
+    event TierBoosterPaid(address indexed beneficiary, address indexed fromUser, uint256 amount);
     event SameRankAchievementPaid(
         address indexed beneficiary,
         address indexed fromUser,
@@ -218,16 +222,21 @@ contract RankReward {
     }
 
     /**
-     * @notice Pays 10% Same Rank bonus on a slice of the earner's eligible income.
-     * @param user Earner who just received eligible income.
-     * @param eligibleIncomeAmount Accepted eligible income amount (see contract docs).
+     * @notice Tier Booster: pays 10% of a direct's Self ROI when ranks match.
+     * @dev Only InterdependentReward may call. `selfRoiAmount` must be the accepted Self ROI slice.
      */
     function processSameRankIncome(
         address user,
-        uint256 eligibleIncomeAmount
+        uint256 selfRoiAmount
     ) external {
-        require(sameRankReporters[msg.sender], "Not authorized reporter");
-        _processSameRankIncome(user, eligibleIncomeAmount);
+        require(msg.sender == rewardContract, "Only reward contract");
+        _processTierBooster(user, selfRoiAmount);
+    }
+
+    /// @notice Explicit Tier Booster entrypoint (same as processSameRankIncome).
+    function processTierBooster(address user, uint256 selfRoiAmount) external {
+        require(msg.sender == rewardContract, "Only reward contract");
+        _processTierBooster(user, selfRoiAmount);
     }
 
     function recordPackageVolume(address user, uint256 volume) external {
@@ -582,16 +591,15 @@ contract RankReward {
         if (paid > 0) {
             rankIncome[beneficiary] += paid;
             emit RankIncomePaid(beneficiary, fromUser, paid);
-            // Rank income is eligible income → may generate Same Rank for beneficiary's sponsor
-            _processSameRankIncome(beneficiary, paid);
+            // Rank income does NOT trigger Tier Booster (Self ROI only).
         }
     }
 
-    function _processSameRankIncome(
+    function _processTierBooster(
         address user,
-        uint256 eligibleIncomeAmount
+        uint256 selfRoiAmount
     ) internal {
-        if (eligibleIncomeAmount == 0) {
+        if (selfRoiAmount == 0) {
             return;
         }
         if (address(incomeManager) == address(0) || address(treasury) == address(0)) {
@@ -604,13 +612,11 @@ contract RankReward {
         }
 
         Rank userRank = userRanks[user];
-        Rank sponsorRank = userRanks[sponsor];
-
-        if (userRank == Rank.None || userRank != sponsorRank) {
+        if (userRank == Rank.None || userRank != userRanks[sponsor]) {
             return;
         }
 
-        uint256 rewardAmount = (eligibleIncomeAmount * SAME_RANK_REWARD_BPS) / 10000;
+        uint256 rewardAmount = (selfRoiAmount * TIER_BOOSTER_BPS) / 10000;
         uint256 paid = _payWorkingIncome(
             sponsor,
             rewardAmount,
@@ -620,7 +626,16 @@ contract RankReward {
         if (paid > 0) {
             sameRankIncome[sponsor] += paid;
             emit SameRankIncomePaid(sponsor, user, paid);
+            emit TierBoosterPaid(sponsor, user, paid);
         }
+    }
+
+    /// @dev Legacy name — redirects to Tier Booster (Self ROI only).
+    function _processSameRankIncome(
+        address user,
+        uint256 eligibleIncomeAmount
+    ) internal {
+        _processTierBooster(user, eligibleIncomeAmount);
     }
 
     function _payWorkingIncome(

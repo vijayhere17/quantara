@@ -180,11 +180,6 @@ contract CommunityBuilder {
 
         treasury.payCommunityBuilder(msg.sender, acceptedAmount);
 
-        // Community is eligible income for Same Rank bonus
-        if (address(rankReward) != address(0)) {
-            rankReward.processSameRankIncome(msg.sender, acceptedAmount);
-        }
-
         emit CommunityRewardClaimed(msg.sender, currentRound, acceptedAmount);
     }
 
