@@ -8,7 +8,7 @@
  *   - 3 distinct mined txs
  *   - core.users(wallet) fields
  *   - token balance delta == package BTCB amount (USD $50 priced via feed)
- *   - treasury fund buckets sum to token payment (30/25/3/2/40)
+ *   - treasury fund buckets: 30% ROI pool (unsplit) + 70% working (5% of working → charity)
  *   - IncomeManager streams are zero for the new user
  *
  * Optional Laravel sync:
@@ -115,6 +115,7 @@ async function main() {
     roi: await treasury.interdependentFundBalance(),
     reserve: await treasury.reserveFundBalance(),
     community: await treasury.communityBuilderFundBalance(),
+    charity: await treasury.charityFundBalance(),
     regeneration: await treasury.regenerationFundBalance(),
   };
 
@@ -224,12 +225,13 @@ async function main() {
     `treasury +${ethers.formatEther(treasuryBalAfter - treasuryBalBefore)}`,
   );
 
-  console.log("\n── Step 6: Treasury fund distribution (30/25/3/2/40) ──");
+  console.log("\n── Step 6: Treasury fund distribution (30% ROI + 70% working / charity) ──");
   const fundsAfter = {
     working: await treasury.workingFundBalance(),
     roi: await treasury.interdependentFundBalance(),
     reserve: await treasury.reserveFundBalance(),
     community: await treasury.communityBuilderFundBalance(),
+    charity: await treasury.charityFundBalance(),
     regeneration: await treasury.regenerationFundBalance(),
   };
   const diffs = {
@@ -237,27 +239,24 @@ async function main() {
     roi: fundsAfter.roi - fundsBefore.roi,
     reserve: fundsAfter.reserve - fundsBefore.reserve,
     community: fundsAfter.community - fundsBefore.community,
+    charity: fundsAfter.charity - fundsBefore.charity,
     working: fundsAfter.working - fundsBefore.working,
   };
 
+  // Phase 1: entire 30% → ROI pool; reserve/community 0 on activation;
+  // working side = remainder (~70%), of which 5% → charity.
+  const expectedRoi = (tokenAmountNeeded * 3000n) / 10000n;
+  const workingSide = tokenAmountNeeded - expectedRoi;
+  const expectedCharity = (workingSide * 500n) / 10000n;
+  const expectedWorking = workingSide - expectedCharity;
   const expected = {
-    regeneration: (tokenAmountNeeded * 3000n) / 10000n,
-    roi: (tokenAmountNeeded * 2500n) / 10000n,
-    reserve: (tokenAmountNeeded * 300n) / 10000n,
-    community: (tokenAmountNeeded * 200n) / 10000n,
-    working: (tokenAmountNeeded * 4000n) / 10000n,
+    regeneration: 0n,
+    roi: expectedRoi,
+    reserve: 0n,
+    community: 0n,
+    charity: expectedCharity,
+    working: expectedWorking,
   };
-  // Flooring dust assigned to working
-  let sumExact =
-    expected.regeneration +
-    expected.roi +
-    expected.reserve +
-    expected.community +
-    expected.working;
-  if (sumExact < tokenAmountNeeded) {
-    expected.working += tokenAmountNeeded - sumExact;
-    sumExact = tokenAmountNeeded;
-  }
 
   console.log("Fund                  Before → After   Diff          Expected");
   for (const key of [
@@ -265,6 +264,7 @@ async function main() {
     "roi",
     "reserve",
     "community",
+    "charity",
     "working",
   ] as const) {
     console.log(
@@ -284,6 +284,7 @@ async function main() {
     diffs.roi +
     diffs.reserve +
     diffs.community +
+    diffs.charity +
     diffs.working;
   check(
     "Treasury / total fund increase = package payment",

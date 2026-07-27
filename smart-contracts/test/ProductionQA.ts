@@ -97,7 +97,7 @@ async function deployWired() {
 }
 
 describe("ProductionQA", function () {
-  it("distributes activation as 30/25/3/2/40", async function () {
+  it("distributes activation as 30% ROI pool + 70% working (5% of working → charity)", async function () {
     const { mockBTCB, core, treasury } = await deployWired();
 
     await core.register(ethers.ZeroAddress);
@@ -108,17 +108,22 @@ describe("ProductionQA", function () {
     const roi = await treasury.interdependentFundBalance();
     const reserve = await treasury.reserveFundBalance();
     const community = await treasury.communityBuilderFundBalance();
+    const charity = await treasury.charityFundBalance();
     const working = await treasury.workingFundBalance();
-    const sum = regen + roi + reserve + community + working;
+    const sum = regen + roi + reserve + community + charity + working;
 
     expect(sum).to.be.gt(0n);
+    expect(regen).to.equal(0n);
+    expect(reserve).to.equal(0n);
+    expect(community).to.equal(0n);
+
     // BPS ratios within 1 bps of target (flooring)
     const bps = (part: bigint) => (part * 10000n) / sum;
-    expect(bps(regen) >= 2999n && bps(regen) <= 3000n).to.equal(true);
-    expect(bps(roi) >= 2499n && bps(roi) <= 2500n).to.equal(true);
-    expect(bps(reserve) >= 299n && bps(reserve) <= 300n).to.equal(true);
-    expect(bps(community) >= 199n && bps(community) <= 200n).to.equal(true);
-    expect(bps(working) >= 3999n && bps(working) <= 4001n).to.equal(true);
+    expect(bps(roi) >= 2999n && bps(roi) <= 3000n).to.equal(true);
+    // Charity ≈ 3.5% of package (5% of 70%)
+    expect(bps(charity) >= 349n && bps(charity) <= 351n).to.equal(true);
+    // Working incomes ≈ 66.5%
+    expect(bps(working) >= 6649n && bps(working) <= 6651n).to.equal(true);
   });
 
   it("stops ROI when total income hits 3X even if ROI stream alone is under 3X", async function () {

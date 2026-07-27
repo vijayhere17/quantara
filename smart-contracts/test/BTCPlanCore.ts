@@ -158,18 +158,16 @@ describe("BTCPlanCore", function () {
     expect(roi.isActive).to.equal(true);
     expect(roi.principal).to.equal(tokenAmount);
 
-    // Final plan: ROI side 25/3/2; working side = remainder (~70%), 5% of working → charity
-    const interdependent = (tokenAmount * 2500n) / 10000n;
-    const reserve = (tokenAmount * 300n) / 10000n;
-    const community = (tokenAmount * 200n) / 10000n;
-    const workingSide = tokenAmount - interdependent - reserve - community;
+    // Phase 1: ROI pool entire 30% unsplit; working 70% with 5% of working → charity
+    const interdependent = (tokenAmount * 3000n) / 10000n;
+    const workingSide = tokenAmount - interdependent;
     const charity = (workingSide * 500n) / 10000n;
     const working = workingSide - charity;
 
     expect(await treasury.regenerationFundBalance()).to.equal(0n);
     expect(await treasury.interdependentFundBalance()).to.equal(interdependent);
-    expect(await treasury.reserveFundBalance()).to.equal(reserve);
-    expect(await treasury.communityBuilderFundBalance()).to.equal(community);
+    expect(await treasury.reserveFundBalance()).to.equal(0n);
+    expect(await treasury.communityBuilderFundBalance()).to.equal(0n);
     expect(await treasury.charityFundBalance()).to.equal(charity);
     expect(await treasury.workingFundBalance()).to.equal(working);
 
