@@ -1697,9 +1697,6 @@ async function main() {
       row("Tier Booster / same-rank income (BTCB)", fmtUnits(await rank.sameRankIncome(qaWallet)));
       row("Achievement bonus paid (BTCB)", fmtUnits(await rank.sameRankAchievementIncome(qaWallet)));
       row("Income cap multiplier", (await rank.getIncomeCapMultiplier(qaWallet)).toString());
-      record("Rank / Tier Booster", "PASS", [
-        "Tier Booster = 10% of Self ROI when same rank; achievement bonus separate",
-      ]);
 
       sub("Qualification checks");
       row("Seed", String(await rank.checkSeedQualification(qaWallet)));
@@ -1722,7 +1719,9 @@ async function main() {
           row(`Direct[${i}] ${shortAddr(d)}`, fmtUsd(vol));
         }
       }
-      record("Rank", "PASS");
+      record("Rank", "PASS", [
+        "Tier Booster = 10% of Self ROI when same rank; achievement bonus separate",
+      ]);
     } catch (e) {
       record("Rank", "FAIL", [(e as Error).message]);
     }
