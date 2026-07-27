@@ -52,7 +52,7 @@ describe("ContributionBooster", function () {
     const sponsorAccount = await booster.boosterAccounts(sponsor.address);
     expect(sponsorAccount.boosterIncome).to.equal(1000n); // 10%
     expect(await income.boosterEarned(sponsor.address)).to.equal(1000n);
-    expect(await mockBTCB.balanceOf(sponsor.address)).to.equal(1000n);
+    expect(await mockBTCB.balanceOf(sponsor.address)).to.equal(700n); // 70% after recycle
   });
 
   it("Should not qualify booster after 30 days from joining", async function () {

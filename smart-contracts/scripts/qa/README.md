@@ -41,7 +41,7 @@ npm run qa:bsc
 
 ## What it checks
 
-Contract discovery · token (any BEP-20) · user · package ladder · wallet txs (from events) · real events only · balances · **exact** Phase 1 fund split (30% ROI pool unsplit + 70% working, 5% of working → charity) · ROI · contribution L1–L3 · booster · rank · community · ledgers · security · optional Laravel sync · BSC explorer base by chainId
+Contract discovery · token (any BEP-20) · user · package ladder · wallet txs (from events) · real events only · balances · **exact** Phase 1 fund split (30% ROI pool unsplit + 70% working, 5% of working → charity) · Phase 2 income recycling (70/25/3/2) · ROI · contribution L1–L3 · booster · rank · community · ledgers · security · optional Laravel sync · BSC explorer base by chainId
 
 ## Notes
 

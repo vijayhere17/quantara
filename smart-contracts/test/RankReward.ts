@@ -141,7 +141,7 @@ describe("RankReward", function () {
 
     expect(await rankReward.rankIncome(sponsor.address)).to.equal(100n);
     expect(await income.rankEarned(sponsor.address)).to.equal(100n);
-    expect(await mockBTCB.balanceOf(sponsor.address)).to.equal(100n);
+    expect(await mockBTCB.balanceOf(sponsor.address)).to.equal(70n); // 70% after recycle
   });
 
   it("Should pay 10% Same Rank on eligible income and track sameRankEarned", async function () {
@@ -183,7 +183,7 @@ describe("RankReward", function () {
     expect(await rankReward.sameRankIncome(sponsor.address)).to.equal(100n);
     expect(await income.sameRankEarned(sponsor.address)).to.equal(100n);
     expect(await income.rankEarned(sponsor.address)).to.equal(0n);
-    expect(await mockBTCB.balanceOf(sponsor.address)).to.equal(100n);
+    expect(await mockBTCB.balanceOf(sponsor.address)).to.equal(70n); // 70% after recycle
   });
 
   it("Should not distribute same rank income when ranks differ", async function () {
