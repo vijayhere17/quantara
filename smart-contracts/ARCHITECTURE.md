@@ -42,7 +42,7 @@ Contract: `ContributionBooster` (Growth Accelerator semantics).
 | Rule | Value |
 |------|-------|
 | Qualification window | 30 days from registration |
-| Requirement | 3000 BV using **50:50** group volume |
+| Requirement | **1000 or 3000** BV using **50:50** group volume (min threshold = 1000) |
 | 50:50 formula | `2 * min(strongestLeg, remainingLegs)` |
 | Reward window | 30 days after qualification |
 | Direct Income while active | **10% L1** (replaces 5%, not additive) |

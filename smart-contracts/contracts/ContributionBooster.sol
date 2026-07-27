@@ -6,7 +6,8 @@ pragma solidity ^0.8.28;
  * @notice Qualifies sponsors for elevated Direct Income via 50:50 Group Volume.
  *
  * Qualification (within 30 days of registration):
- * - Achieve 3000 Business Volume using 50:50 Group Volume:
+ * - Achieve **1000 or 3000** Business Volume using 50:50 Group Volume
+ *   (minimum threshold = 1000; 3000 also qualifies):
  *   eligible = 2 * min(strongestLeg, remainingLegs)
  *
  * Reward window:
@@ -20,7 +21,10 @@ contract ContributionBooster {
 
     uint256 public constant QUALIFICATION_PERIOD = 30 days;
     uint256 public constant BOOSTER_PERIOD = 30 days;
-    uint256 public constant QUALIFY_VOLUME = 3000;
+    /// @notice Minimum 50:50 BV to qualify (1000). Reaching 3000 also qualifies.
+    uint256 public constant QUALIFY_VOLUME = 1000;
+    /// @notice Higher documented milestone (still uses the same ≥1000 check).
+    uint256 public constant QUALIFY_VOLUME_HIGH = 3000;
     /// @dev Legacy constant kept for ABI compatibility; Direct Income replace is in ContributionReward.
     uint256 public constant BOOSTER_REWARD_BPS = 1000;
 

@@ -122,12 +122,12 @@ describe("ContributionReward", function () {
       owner,
     } = await setup();
 
-    // Qualify level1 via 50:50 volume from two directs
+    // Qualify level1 via 50:50 volume from two directs (1000 BV)
     const [, , , , , directA, directB] = await ethers.getSigners();
     await booster.registerUser(directA.address, level1.address);
     await booster.registerUser(directB.address, level1.address);
-    await booster.processPackage(directA.address, 1500);
-    await booster.processPackage(directB.address, 1500);
+    await booster.processPackage(directA.address, 500);
+    await booster.processPackage(directB.address, 500);
     expect(await booster.isBoosterActive(level1.address)).to.equal(true);
     expect(await contributionReward.getLevel1Bps(level1.address)).to.equal(
       1000n,
@@ -159,8 +159,8 @@ describe("ContributionReward", function () {
     const [, , , , , directA, directB] = await ethers.getSigners();
     await booster.registerUser(directA.address, level1.address);
     await booster.registerUser(directB.address, level1.address);
-    await booster.processPackage(directA.address, 1500);
-    await booster.processPackage(directB.address, 1500);
+    await booster.processPackage(directA.address, 500);
+    await booster.processPackage(directB.address, 500);
     expect(await booster.isBoosterActive(level1.address)).to.equal(true);
 
     await ethers.provider.send("evm_increaseTime", [31 * 24 * 60 * 60]);

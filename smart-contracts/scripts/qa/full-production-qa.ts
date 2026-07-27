@@ -376,8 +376,11 @@ const CONTRIB_ABI = [
   "function owner() view returns (address)",
   "function coreContract() view returns (address)",
   "function LEVEL_1_BPS() view returns (uint256)",
+  "function LEVEL_1_GA_BPS() view returns (uint256)",
   "function LEVEL_2_BPS() view returns (uint256)",
   "function LEVEL_3_BPS() view returns (uint256)",
+  "function getLevel1Bps(address) view returns (uint256)",
+  "function contributionBooster() view returns (address)",
   "function sponsors(address) view returns (address)",
   "function contributionIncome(address) view returns (uint256)",
   "function levelIncome(address,uint256) view returns (uint256)",
@@ -392,6 +395,7 @@ const BOOSTER_ABI = [
   "function QUALIFICATION_PERIOD() view returns (uint256)",
   "function BOOSTER_PERIOD() view returns (uint256)",
   "function QUALIFY_VOLUME() view returns (uint256)",
+  "function QUALIFY_VOLUME_HIGH() view returns (uint256)",
   "function sponsors(address) view returns (address)",
   "function boosterAccounts(address) view returns (uint256 joinedAt, uint256 boosterActivatedAt, uint256 boosterExpiresAt, uint256 boosterIncome, bool qualified)",
   "function groupVolume(address) view returns (uint256)",
@@ -1593,6 +1597,12 @@ async function main() {
   } else {
     try {
       row("LEVEL_1_BPS", (await contrib.LEVEL_1_BPS()).toString() + " (5%)");
+      try {
+        row("LEVEL_1_GA_BPS", (await contrib.LEVEL_1_GA_BPS()).toString() + " (10% while GA active)");
+        row("getLevel1Bps(qaWallet)", (await contrib.getLevel1Bps(qaWallet)).toString());
+      } catch {
+        /* older ABI */
+      }
       row("LEVEL_2_BPS", (await contrib.LEVEL_2_BPS()).toString() + " (3%)");
       row("LEVEL_3_BPS", (await contrib.LEVEL_3_BPS()).toString() + " (2%)");
       row("Sponsor", await contrib.sponsors(qaWallet));
@@ -1620,7 +1630,12 @@ async function main() {
   } else {
     try {
       row("BOOSTER_REWARD_BPS (L1 replace hint)", (await booster.BOOSTER_REWARD_BPS()).toString() + " (10%)");
-      row("QUALIFY_VOLUME (USD BV)", (await booster.QUALIFY_VOLUME()).toString());
+      row("QUALIFY_VOLUME (USD BV min)", (await booster.QUALIFY_VOLUME()).toString());
+      try {
+        row("QUALIFY_VOLUME_HIGH (USD BV)", (await booster.QUALIFY_VOLUME_HIGH()).toString());
+      } catch {
+        /* older ABI */
+      }
       row("QUALIFICATION_PERIOD (s)", (await booster.QUALIFICATION_PERIOD()).toString());
       row("BOOSTER_PERIOD / GA window (s)", (await booster.BOOSTER_PERIOD()).toString());
       const ba = await booster.boosterAccounts(qaWallet);

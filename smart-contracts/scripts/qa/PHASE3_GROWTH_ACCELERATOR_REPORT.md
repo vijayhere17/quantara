@@ -6,7 +6,7 @@ Growth Accelerator replaces the old additive booster:
 
 | Before | After |
 |--------|--------|
-| Qualify by activating $1000/$3000 in 30 days | Qualify with **3000 BV** via **50:50** group volume in 30 days |
+| Qualify by activating $1000/$3000 in 30 days | Qualify with **1000 or 3000 BV** via **50:50** group volume in 30 days (min = 1000) |
 | Extra **additive** 10% Direct reward | L1 Direct Income **becomes 10%** (replaces 5%) for 30 days |
 | `processDirectContribution` paid Booster income | No-op — payout is only via `ContributionReward` |
 
@@ -16,7 +16,9 @@ Growth Accelerator replaces the old additive booster:
 eligibleGV = 2 * min(strongestLeg, remainingLegs)
 ```
 
-Example: legs 1500 / 700 / 500 / 300 → eligible **3000** → qualifies.
+Examples:
+- Legs 500 / 500 → eligible **1000** → qualifies
+- Legs 1500 / 700 / 500 / 300 → eligible **3000** → qualifies
 
 ## Contracts modified
 
