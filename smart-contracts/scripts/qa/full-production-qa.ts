@@ -289,11 +289,11 @@ const TREASURY_ABI = [
   "function communityBuilderContract() view returns (address)",
   "function charityWallet() view returns (address)",
   "function regenerationWallet() view returns (address)",
-  "function REGENERATION_BPS() view returns (uint256)",
   "function INTERDEPENDENT_BPS() view returns (uint256)",
   "function RESERVE_BPS() view returns (uint256)",
   "function COMMUNITY_BPS() view returns (uint256)",
-  "function WORKING_BPS() view returns (uint256)",
+  "function WORKING_SIDE_BPS() view returns (uint256)",
+  "function CHARITY_BPS() view returns (uint256)",
   "function interdependentFundBalance() view returns (uint256)",
   "function reserveFundBalance() view returns (uint256)",
   "function communityBuilderFundBalance() view returns (uint256)",
@@ -308,7 +308,7 @@ const TREASURY_ABI = [
   "function totalReserveWithdrawn() view returns (uint256)",
   "function getAvailableDailyRoiBudget() view returns (uint256)",
   "function workingPayers(address) view returns (bool)",
-  "event ContributionProcessed(uint256 amount, uint256 regenerationAmount, uint256 interdependentAmount, uint256 reserveAmount, uint256 communityAmount, uint256 workingAmount)",
+  "event ContributionProcessed(uint256 amount, uint256 interdependentAmount, uint256 reserveAmount, uint256 communityAmount, uint256 workingAmount, uint256 charityAmount)",
   "event SelfRoiPaid(address indexed user, uint256 amount)",
   "event WorkingIncomePaid(address indexed user, uint256 amount)",
   "event CommunityBuilderPaid(address indexed user, uint256 amount)",
@@ -704,11 +704,11 @@ async function main() {
         row("rankReward", await core!.rankReward());
       }
       if (name === "TreasuryManager") {
-        await safeRow(treasury!, "REGENERATION_BPS", "REGENERATION_BPS", [], (v) => String(v));
         await safeRow(treasury!, "INTERDEPENDENT_BPS", "INTERDEPENDENT_BPS", [], (v) => String(v));
+        await safeRow(treasury!, "WORKING_SIDE_BPS", "WORKING_SIDE_BPS", [], (v) => String(v));
+        await safeRow(treasury!, "CHARITY_BPS", "CHARITY_BPS", [], (v) => String(v));
         await safeRow(treasury!, "RESERVE_BPS", "RESERVE_BPS", [], (v) => String(v));
         await safeRow(treasury!, "COMMUNITY_BPS", "COMMUNITY_BPS", [], (v) => String(v));
-        await safeRow(treasury!, "WORKING_BPS", "WORKING_BPS", [], (v) => String(v));
         await safeRow(treasury!, "coreContract", "coreContract");
         await safeRow(treasury!, "rewardContract", "rewardContract");
         await safeRow(treasury!, "communityBuilder", "communityBuilderContract");
@@ -724,36 +724,28 @@ async function main() {
     }
   }
 
-  // BPS sanity — prefer getters; if absent, verify from ContributionProcessed later
+  // BPS sanity — Phase 1 activation: 30% ROI + 70% working side
   if (treasury) {
-    const bpsNames = [
-      "REGENERATION_BPS",
-      "INTERDEPENDENT_BPS",
-      "RESERVE_BPS",
-      "COMMUNITY_BPS",
-      "WORKING_BPS",
-    ] as const;
-    const bpsValues: bigint[] = [];
-    let bpsMissing = false;
-    for (const fn of bpsNames) {
-      const result = await safeCall<bigint>(treasury, fn);
-      if (!result.ok) {
-        bpsMissing = true;
-        break;
-      }
-      bpsValues.push(result.value);
-    }
-    if (bpsMissing) {
+    const interdependent = await safeCall<bigint>(treasury, "INTERDEPENDENT_BPS");
+    const workingSide = await safeCall<bigint>(treasury, "WORKING_SIDE_BPS");
+    const charity = await safeCall<bigint>(treasury, "CHARITY_BPS");
+    if (!interdependent.ok || !workingSide.ok || !charity.ok) {
       record("Contracts / Treasury BPS", "WARNING", [
-        "BPS getters not exposed by deployed ABI — will verify 30/25/3/2/40 from ContributionProcessed event",
+        "BPS getters not fully exposed — will verify split from ContributionProcessed event",
+      ]);
+    } else if (
+      interdependent.value === 3000n &&
+      workingSide.value === 7000n &&
+      charity.value === 500n &&
+      interdependent.value + workingSide.value === 10000n
+    ) {
+      record("Contracts / Treasury BPS", "PASS", [
+        "Activation: 30% ROI pool (unsplit) + 70% working; charity = 5% of working side",
       ]);
     } else {
-      const sum = bpsValues.reduce((a, b) => a + b, 0n);
-      if (sum === 10000n && bpsValues[0] === 3000n && bpsValues[1] === 2500n && bpsValues[2] === 300n && bpsValues[3] === 200n && bpsValues[4] === 4000n) {
-        record("Contracts / Treasury BPS", "PASS", ["30/25/3/2/40 = 10000 BPS"]);
-      } else {
-        record("Contracts / Treasury BPS", "FAIL", [`BPS values = [${bpsValues.join(",")}], sum = ${sum}`]);
-      }
+      record("Contracts / Treasury BPS", "FAIL", [
+        `INTERDEPENDENT=${interdependent.value} WORKING_SIDE=${workingSide.value} CHARITY=${charity.value}`,
+      ]);
     }
   } else {
     record("Contracts", "FAIL", ["TreasuryManager missing"]);
@@ -1248,11 +1240,11 @@ async function main() {
         let packageAmount = 0n;
         let split: {
           amount: bigint;
-          regenerationAmount: bigint;
           interdependentAmount: bigint;
           reserveAmount: bigint;
           communityAmount: bigint;
           workingAmount: bigint;
+          charityAmount: bigint;
         } | null = null;
 
         for (const log of receipt.logs) {
@@ -1269,11 +1261,11 @@ async function main() {
               if (p?.name === "ContributionProcessed") {
                 split = {
                   amount: p.args.amount,
-                  regenerationAmount: p.args.regenerationAmount,
                   interdependentAmount: p.args.interdependentAmount,
                   reserveAmount: p.args.reserveAmount,
                   communityAmount: p.args.communityAmount,
                   workingAmount: p.args.workingAmount,
+                  charityAmount: p.args.charityAmount,
                 };
               }
             }
@@ -1288,11 +1280,12 @@ async function main() {
         row("Token amount (event)", fmtUnits(tokenAmount));
 
         const buckets = [
-          ["regenerationFundBalance", "Regeneration (30%)"],
-          ["interdependentFundBalance", "ROI Pool (25%)"],
-          ["reserveFundBalance", "Reserve (3%)"],
-          ["communityBuilderFundBalance", "Community (2%)"],
-          ["workingFundBalance", "Working (40%)"],
+          ["regenerationFundBalance", "Regeneration (0%)"],
+          ["interdependentFundBalance", "ROI Pool (30%)"],
+          ["reserveFundBalance", "Reserve (0% activation)"],
+          ["communityBuilderFundBalance", "Community (0% activation)"],
+          ["charityFundBalance", "Charity (~3.5%)"],
+          ["workingFundBalance", "Working incomes (~66.5%)"],
         ] as const;
 
         const treasAddr = await treasury.getAddress();
@@ -1337,30 +1330,32 @@ async function main() {
         if (split) {
           sub("ContributionProcessed event (exact split in activation tx)");
           row("amount", fmtUnits(split.amount));
-          row("regenerationAmount", fmtUnits(split.regenerationAmount));
           row("interdependentAmount", fmtUnits(split.interdependentAmount));
           row("reserveAmount", fmtUnits(split.reserveAmount));
           row("communityAmount", fmtUnits(split.communityAmount));
           row("workingAmount", fmtUnits(split.workingAmount));
+          row("charityAmount", fmtUnits(split.charityAmount));
           const eventSum =
-            split.regenerationAmount +
             split.interdependentAmount +
             split.reserveAmount +
             split.communityAmount +
-            split.workingAmount;
+            split.workingAmount +
+            split.charityAmount;
           row("Event parts sum", fmtUnits(eventSum));
           row("Match tokenAmount", eventSum === tokenAmount ? "YES" : "NO", eventSum === tokenAmount ? c.green : c.red);
 
+          // Phase 1: 30% ROI unsplit; reserve/community 0; working side remainder with 5% charity
+          const expectedRoi = (tokenAmount * 3000n) / 10000n;
+          const workingSide = tokenAmount - expectedRoi;
+          const expectedCharity = (workingSide * 500n) / 10000n;
+          const expectedWorking = workingSide - expectedCharity;
           const expected = {
-            regen: (tokenAmount * 3000n) / 10000n,
-            roi: (tokenAmount * 2500n) / 10000n,
-            reserve: (tokenAmount * 300n) / 10000n,
-            community: (tokenAmount * 200n) / 10000n,
+            roi: expectedRoi,
+            reserve: 0n,
+            community: 0n,
+            charity: expectedCharity,
+            working: expectedWorking,
           };
-          // working gets remainder (incl. dust) per TreasuryManager
-          const expectedWorking =
-            tokenAmount -
-            (expected.regen + expected.roi + expected.reserve + expected.community);
 
           // Same activation tx pays contribution from Working via payWorkingIncome.
           // Treasury token Δ is therefore tokenAmount - workingPaidOut (NOT tokenAmount).
@@ -1408,18 +1403,22 @@ async function main() {
           const communityDelta =
             (await fundBalanceAt(treasury, "communityBuilderFundBalance", block)) -
             (await fundBalanceAt(treasury, "communityBuilderFundBalance", before));
+          const charityDelta =
+            (await fundBalanceAt(treasury, "charityFundBalance", block)) -
+            (await fundBalanceAt(treasury, "charityFundBalance", before));
           const bucketsMatchEvent =
-            regenDelta === split.regenerationAmount &&
+            regenDelta === 0n &&
             roiDelta === split.interdependentAmount &&
             reserveDelta === split.reserveAmount &&
-            communityDelta === split.communityAmount;
+            communityDelta === split.communityAmount &&
+            charityDelta === split.charityAmount;
 
           const splitOk =
-            split.regenerationAmount === expected.regen &&
             split.interdependentAmount === expected.roi &&
             split.reserveAmount === expected.reserve &&
             split.communityAmount === expected.community &&
-            split.workingAmount === expectedWorking &&
+            split.charityAmount === expected.charity &&
+            split.workingAmount === expected.working &&
             eventSum === tokenAmount;
 
           const ok =
@@ -1428,7 +1427,11 @@ async function main() {
             bucketsMatchEvent;
 
           const failNotes: string[] = [];
-          if (!splitOk) failNotes.push("ContributionProcessed split mismatch vs 30/25/3/2/40 BPS");
+          if (!splitOk) {
+            failNotes.push(
+              "ContributionProcessed split mismatch vs Phase 1 (30% ROI + 70% working/charity)",
+            );
+          }
           if (treasuryDelta !== expectedTreasuryDelta) {
             failNotes.push(
               `Treasury token Δ ${fmtUnits(treasuryDelta)} ≠ tokenAmount−workingPaid ${fmtUnits(expectedTreasuryDelta)}`,
@@ -1443,7 +1446,8 @@ async function main() {
             ok ? "PASS" : "FAIL",
             ok
               ? [
-                  "30/25/3/2/40 verified from ContributionProcessed",
+                  "Phase 1: 30% ROI pool (unsplit) + 70% working (5% of working → charity)",
+                  "Reserve/community not funded on activation",
                   "Treasury token Δ = package − instant WorkingIncomePaid (contribution)",
                 ]
               : failNotes,

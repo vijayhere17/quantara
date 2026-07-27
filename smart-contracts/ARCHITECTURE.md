@@ -20,18 +20,20 @@ Final income shutdown (`packageActive=false`): both caps exhausted.
 `RankReward.getIncomeCapMultiplier`: Q3→5, Q5→6, Q7→7, else 3.  
 `IncomeManager.applyRankCapMultipliers` defaults to **false**.
 
-## Treasury BPS (business plan)
+## Treasury BPS (activation — Phase 1)
 
-| Bucket | BPS | % |
-|--------|-----|---|
-| Contract Regeneration | 3000 | 30% |
-| Interdependent (ROI) | 2500 | 25% |
-| Reserve | 300 | 3% |
-| Community Builder | 200 | 2% |
-| Working | 4000 | 40% |
+| Bucket | BPS | % of package |
+|--------|-----|--------------|
+| ROI Pool (interdependent, unsplit) | 3000 | 30% |
+| Working side (gross) | 7000 | 70% |
+| → Charity (5% of working side) | — | ~3.5% |
+| → Working incomes | — | ~66.5% |
+| Reserve | 0 on activation | (Phase 2 recycling) |
+| Community Builder | 0 on activation | (Phase 2 recycling) |
+| Regeneration | 0 | not funded |
 
-Dust from flooring → Working.  
-Reserve withdrawable by owner. Regeneration transferable to configured wallet.
+Dust from flooring → Working side.  
+Reserve withdrawable by owner when later funded. Regeneration transferable if legacy balance remains.
 
 ## Packages
 

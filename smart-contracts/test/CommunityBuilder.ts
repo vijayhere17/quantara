@@ -72,6 +72,11 @@ describe("CommunityBuilder", function () {
     await mockBTCB.transfer(await treasury.getAddress(), contributionAmount);
     await treasury.processContribution(contributionAmount);
 
+    // Activation no longer funds community; credit pool for distribution test (Phase 2 will recycle).
+    const communityPool = 1000n;
+    await mockBTCB.transfer(await treasury.getAddress(), communityPool);
+    await treasury.creditCommunityBuilderFund(communityPool);
+
     await rankReward.setRank(q5.address, 5);
     await rankReward.setRank(q6.address, 6);
     await rankReward.setRank(q7.address, 7);
