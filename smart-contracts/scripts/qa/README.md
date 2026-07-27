@@ -39,6 +39,14 @@ npm run qa:bsc
 | `DEPLOYED_ADDRESSES` | Override path to `deployed-addresses.json` |
 | `TOKEN_ADDRESS` | Used at deploy time for real BEP-20 (not required for QA itself) |
 
+## Phase 5 simulators
+
+```bash
+npm run qa:simulators
+```
+
+See `PHASE5_QA_SIMULATORS_GUIDE.md` for every simulator, purpose, and command.
+
 ## What it checks
 
 Contract discovery · token (any BEP-20) · user · package ladder · wallet txs (from events) · real events only · balances · **exact** Phase 1 fund split (30% ROI pool unsplit + 70% working, 5% of working → charity) · Phase 2 income recycling (70/25/3/2) · Phase 3 Growth Accelerator (50:50 GV → L1 10% replace) · Phase 4 Tier Booster (10% of Self ROI when same rank) · ROI · contribution L1–L3 · rank · community · ledgers · security · optional Laravel sync · BSC explorer base by chainId

@@ -32,3 +32,5 @@
 
 # QA run artifacts (keep markdown reports)
 /scripts/qa/reports/*.json
+/scripts/qa/reports/phase5-simulators-20*.md
+!/scripts/qa/reports/phase5-simulators-latest.md
