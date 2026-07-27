@@ -161,14 +161,6 @@ contract ContributionReward {
                     level,
                     acceptedAmount
                 );
-
-                // Contribution is eligible income for Same Rank bonus
-                if (address(rankReward) != address(0)) {
-                    rankReward.processSameRankIncome(
-                        currentSponsor,
-                        acceptedAmount
-                    );
-                }
             }
 
             currentSponsor = sponsors[currentSponsor];

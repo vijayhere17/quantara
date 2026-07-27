@@ -412,6 +412,7 @@ const RANK_ABI = [
   "function owner() view returns (address)",
   "function coreContract() view returns (address)",
   "function SAME_RANK_REWARD_BPS() view returns (uint256)",
+  "function TIER_BOOSTER_BPS() view returns (uint256)",
   "function userRanks(address) view returns (uint8)",
   "function rankRewardBps(uint8) view returns (uint256)",
   "function sponsors(address) view returns (address)",
@@ -436,6 +437,7 @@ const RANK_ABI = [
   "event RankUpdated(address indexed user, uint8 oldRank, uint8 newRank)",
   "event RankIncomePaid(address indexed beneficiary, address indexed fromUser, uint256 amount)",
   "event SameRankIncomePaid(address indexed beneficiary, address indexed fromUser, uint256 amount)",
+  "event TierBoosterPaid(address indexed beneficiary, address indexed fromUser, uint256 amount)",
   "event SameRankAchievementPaid(address indexed beneficiary, address indexed fromUser, uint8 rank, uint256 amount)",
 ];
 
@@ -1132,6 +1134,7 @@ async function main() {
       { name: "RankUpdated", signature: "RankUpdated(address,uint8,uint8)", address: await rank.getAddress() },
       { name: "RankIncomePaid", signature: "RankIncomePaid(address,address,uint256)", address: await rank.getAddress() },
       { name: "SameRankIncomePaid", signature: "SameRankIncomePaid(address,address,uint256)", address: await rank.getAddress() },
+      { name: "TierBoosterPaid", signature: "TierBoosterPaid(address,address,uint256)", address: await rank.getAddress() },
       { name: "SameRankAchievementPaid", signature: "SameRankAchievementPaid(address,address,uint8,uint256)", address: await rank.getAddress() },
     );
   }
@@ -1681,12 +1684,17 @@ async function main() {
       const r = Number(await rank.userRanks(qaWallet));
       row("Current Rank", `${r} (${RANK_NAMES[r] ?? "?"})`);
       row("SAME_RANK_REWARD_BPS", (await rank.SAME_RANK_REWARD_BPS()).toString());
+      try {
+        row("TIER_BOOSTER_BPS (Self ROI only)", (await rank.TIER_BOOSTER_BPS()).toString());
+      } catch {
+        /* older ABI */
+      }
       row("Direct count", (await rank.directCount(qaWallet)).toString());
       row("Personal volume", fmtUsd(await rank.personalVolume(qaWallet)));
       row("Group volume", fmtUsd(await rank.groupVolume(qaWallet)));
       row("Max leg volume", fmtUsd(await rank.maxLegVolume(qaWallet)));
       row("Rank income paid (BTCB)", fmtUnits(await rank.rankIncome(qaWallet)));
-      row("Same-rank income (BTCB)", fmtUnits(await rank.sameRankIncome(qaWallet)));
+      row("Tier Booster / same-rank income (BTCB)", fmtUnits(await rank.sameRankIncome(qaWallet)));
       row("Achievement bonus paid (BTCB)", fmtUnits(await rank.sameRankAchievementIncome(qaWallet)));
       row("Income cap multiplier", (await rank.getIncomeCapMultiplier(qaWallet)).toString());
 
@@ -1711,7 +1719,9 @@ async function main() {
           row(`Direct[${i}] ${shortAddr(d)}`, fmtUsd(vol));
         }
       }
-      record("Rank", "PASS");
+      record("Rank", "PASS", [
+        "Tier Booster = 10% of Self ROI when same rank; achievement bonus separate",
+      ]);
     } catch (e) {
       record("Rank", "FAIL", [(e as Error).message]);
     }

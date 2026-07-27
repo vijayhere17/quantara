@@ -9,15 +9,17 @@ interface IRankReward {
     function processRoiIncome(address user, uint256 roiAmount) external;
 
     /**
-     * @notice Pays same-rank bonus based on a slice of the earner's eligible income.
-     * @param user Earner whose income triggered the bonus.
-     * @param eligibleIncomeAmount Amount of eligible income just accepted for `user`
-     *        (see RankReward comments for the definition of total eligible income).
+     * @notice Tier Booster: 10% of Self ROI when direct sponsor shares the same rank.
+     * @param user Earner who just received Self ROI.
+     * @param selfRoiAmount Accepted Self ROI amount for `user`.
      */
     function processSameRankIncome(
         address user,
-        uint256 eligibleIncomeAmount
+        uint256 selfRoiAmount
     ) external;
+
+    /// @notice Explicit Tier Booster entrypoint (Self ROI only).
+    function processTierBooster(address user, uint256 selfRoiAmount) external;
 
     /**
      * @notice Rank-based income-cap multiplier (architecture only).
