@@ -35,6 +35,23 @@ Final income shutdown (`packageActive=false`): both caps exhausted.
 Dust from flooring → Working side.  
 Reserve withdrawable by owner when later funded. Regeneration transferable if legacy balance remains.
 
+## Growth Accelerator (Phase 3)
+
+Contract: `ContributionBooster` (Growth Accelerator semantics).
+
+| Rule | Value |
+|------|-------|
+| Qualification window | 30 days from registration |
+| Requirement | 3000 BV using **50:50** group volume |
+| 50:50 formula | `2 * min(strongestLeg, remainingLegs)` |
+| Reward window | 30 days after qualification |
+| Direct Income while active | **10% L1** (replaces 5%, not additive) |
+| After expiry | L1 returns to **5%** |
+
+Volume is recorded in `ContributionBooster.processPackage` (USD package size).  
+`ContributionReward.getLevel1Bps` reads `isBoosterActive` to choose 5% vs 10%.  
+`processDirectContribution` is a no-op (no second payout).
+
 ## Income recycling (Phase 2)
 
 Every payout (`paySelfRoi`, `payWorkingIncome`, `payCommunityBuilder`) splits the **gross** accepted amount:

@@ -77,6 +77,9 @@ async function deploySystem() {
   await contributionReward.setIncomeManager(await incomeManager.getAddress());
   await contributionReward.setTreasury(await treasury.getAddress());
   await contributionReward.setRankReward(await rankReward.getAddress());
+  await contributionReward.setContributionBooster(
+    await contributionBooster.getAddress()
+  );
 
   await contributionBooster.setCoreContract(await core.getAddress());
   await contributionBooster.setIncomeManager(await incomeManager.getAddress());

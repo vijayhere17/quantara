@@ -262,8 +262,11 @@ async function main() {
   await (
     await contributionReward.setRankReward(await rank.getAddress())
   ).wait();
+  await (
+    await contributionReward.setContributionBooster(await booster.getAddress())
+  ).wait();
 
-  // Booster wiring
+  // Booster / Growth Accelerator wiring
   await (await booster.setCoreContract(await core.getAddress())).wait();
   await (await booster.setIncomeManager(await income.getAddress())).wait();
   await (await booster.setTreasury(await treasury.getAddress())).wait();

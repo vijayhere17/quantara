@@ -263,12 +263,22 @@ contract BTCPlanCore is ReentrancyGuard {
         // Reset income window for this package and set principal
         incomeManager.startPackage(msg.sender, tokenAmount);
 
-        if (address(contributionReward) != address(0)) {
-            contributionReward.processContribution(msg.sender, tokenAmount);
+        // Record volume before contribution payouts so Growth Accelerator can
+        // qualify on this activation and elevate L1 Direct Income when earned.
+        if (address(rankReward) != address(0)) {
+            rankReward.recordPackageVolume(msg.sender, amount);
         }
 
         if (address(contributionBooster) != address(0)) {
             contributionBooster.processPackage(msg.sender, amount);
+        }
+
+        if (address(contributionReward) != address(0)) {
+            contributionReward.processContribution(msg.sender, tokenAmount);
+        }
+
+        // Legacy hook: Growth Accelerator no longer pays an additive bonus here.
+        if (address(contributionBooster) != address(0)) {
             contributionBooster.processDirectContribution(msg.sender, tokenAmount);
         }
 
@@ -278,10 +288,6 @@ contract BTCPlanCore is ReentrancyGuard {
         user.packageIndex = uint8(getPackageIndex(amount));
         user.packageCycle = expectedCycle;
         user.packageCompleted = false;
-
-        if (address(rankReward) != address(0)) {
-            rankReward.recordPackageVolume(msg.sender, amount);
-        }
 
         emit PackageActivated(msg.sender, amount, expectedCycle, tokenAmount);
     }
