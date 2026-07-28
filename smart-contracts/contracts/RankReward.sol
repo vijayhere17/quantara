@@ -9,7 +9,12 @@ import {ITreasuryManager} from "./interfaces/ITreasuryManager.sol";
  * @title RankReward
  * @notice Rank qualification, differential rank income, Tier Booster, and same-rank achievement.
  *
- * Tier Booster (Phase 4):
+ * Rank income (differential on downline Self ROI):
+ * -----------------------------------------
+ * When a downline claims Self ROI, each ranked upline earns only the **gap** between
+ * their rank % and the highest rank % already "used" below them (including the
+ * claimant's own rank). Example: upline Sprout 15%, downline Seed 10% → upline gets 5%
+ * of that Self ROI slice. Tier Booster is separate (same rank → 10% of Self ROI).
  * -----------------------------------------
  * When a direct referral earns Self ROI and holds the exact same non-None rank as their
  * direct sponsor, the sponsor receives 10% of that Self ROI slice only.
@@ -198,8 +203,15 @@ contract RankReward {
         require(address(incomeManager) != address(0), "Income manager not set");
         require(address(treasury) != address(0), "Treasury not set");
 
-        address currentSponsor = sponsors[user];
+        // Differential rank income: start from the claimant's rank % so uplines
+        // only earn the gap (e.g. Sprout 15% − Seed 10% = 5% on downline Self ROI).
         uint256 highestPaidBps = 0;
+        Rank claimantRank = userRanks[user];
+        if (claimantRank != Rank.None) {
+            highestPaidBps = rankRewardBps[claimantRank];
+        }
+
+        address currentSponsor = sponsors[user];
 
         while (currentSponsor != address(0)) {
             Rank currentRank = userRanks[currentSponsor];
