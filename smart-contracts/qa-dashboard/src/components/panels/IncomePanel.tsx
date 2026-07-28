@@ -20,9 +20,15 @@ import {
   walletFromIndex,
 } from "@/hooks/useContracts";
 import { dualFromContracts, type DualAmount } from "@/lib/money";
+import {
+  findClaimableDownline,
+  loadIncomeLedger,
+  type IncomeEntry,
+} from "@/lib/incomeLedger";
 import { RANK_NAMES } from "@/lib/constants";
 import { shortAddr } from "@/lib/utils";
 import { useDashboardStore } from "@/store/dashboardStore";
+import { toast } from "sonner";
 
 type IncomeTab = "direct" | "self" | "rank" | "team" | "other";
 
@@ -52,6 +58,8 @@ export function IncomePanel() {
   const [levels, setLevels] = useState<
     { level: number; dual: DualAmount; pct: string }[]
   >([]);
+  const [ledger, setLedger] = useState<IncomeEntry[]>([]);
+  const [teamMsg, setTeamMsg] = useState("");
   const [loading, setLoading] = useState(false);
 
   const tracked = users.find(
@@ -63,6 +71,7 @@ export function IncomePanel() {
       setBuckets([]);
       setPendingRoi(null);
       setLevels([]);
+      setLedger([]);
       return;
     }
     setLoading(true);
@@ -157,6 +166,12 @@ export function IncomePanel() {
         /* */
       }
       setLevels(lv);
+
+      try {
+        setLedger(await loadIncomeLedger(contracts, selectedUser));
+      } catch {
+        setLedger([]);
+      }
     } finally {
       setLoading(false);
     }
@@ -187,6 +202,44 @@ export function IncomePanel() {
       const signer = await signerFor(c);
       const tx = await claimSelfRoi(c, signer);
       return { hash: tx.hash as string };
+    });
+  };
+
+  const onGenerateTeamRoi = async () => {
+    if (!selectedUser || !contracts) return;
+    setTeamMsg("");
+    await run(`Generate Team ROI for ${shortAddr(selectedUser)}`, async (c) => {
+      const row = await loadUserRow(c, selectedUser);
+      if (row.rank < 1) {
+        const tx = await c.rank.setRank(selectedUser, 1);
+        await tx.wait();
+        setTeamMsg("Set rank to Seed automatically.");
+      }
+      const downline = await findClaimableDownline(c, selectedUser, users);
+      if (!downline) {
+        throw new Error(
+          "No activated downline found under this user. Create a child → Register → Activate first.",
+        );
+      }
+      const beforeInc = await c.income.incomes(selectedUser);
+      const beforeRank = BigInt(beforeInc.rankEarned ?? beforeInc[4] ?? 0);
+      await increaseTime(c.provider, 86400);
+      const dSigner =
+        downline.walletIndex != null
+          ? walletFromIndex(downline.walletIndex, c.provider)
+          : await getSignerFor(c, downline.address);
+      const claim = await claimSelfRoi(c, dSigner);
+      const afterInc = await c.income.incomes(selectedUser);
+      const afterRank = BigInt(afterInc.rankEarned ?? afterInc[4] ?? 0);
+      const delta = afterRank - beforeRank;
+      const dual = await dualFromContracts(c, delta);
+      const msg =
+        delta > 0n
+          ? `Team ROI PASS: Rank Income +${dual.label} from downline ${shortAddr(downline.address, 4)} claiming Self ROI`
+          : `Downline ${shortAddr(downline.address, 4)} claimed ROI, but Rank Income delta is 0 — check Seed+ rank on upline and that ROI was payable.`;
+      setTeamMsg(msg);
+      toast.message(msg);
+      return { hash: claim.hash as string, result: dual };
     });
   };
 
@@ -400,39 +453,58 @@ export function IncomePanel() {
             <div className="space-y-3">
               <Card>
                 <CardHeader>
-                  <CardTitle>Team ROI path (how upline earns from ROI)</CardTitle>
+                  <CardTitle>Team ROI (= Rank Income)</CardTitle>
                   <CardDescription>
-                    When a downline claims Self ROI, ranked uplines can earn{" "}
-                    <strong>Rank Income</strong> (differential BPS). That is the
-                    “team ROI” path — not a separate pool.
+                    Root at Seed is not enough by itself. Team ROI pays only when a
+                    downline <strong>claims Self ROI</strong>. Then Seed earns 10%
+                    of that ROI (differential), shown as Rank Income.
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="text-xs text-ink space-y-2 leading-relaxed">
-                  <ol className="list-decimal pl-4 space-y-1">
-                    <li>Build tree: Root → Sponsor → Member (all activated).</li>
-                    <li>
-                      Give Sponsor a rank (Seed+) using Rank tab actions below or
-                      Rank Income tab.
-                    </li>
-                    <li>
-                      On <strong>Member</strong>: +1 Day → Claim Self ROI.
-                    </li>
-                    <li>
-                      Select <strong>Sponsor</strong> here — Rank Income bucket
-                      should increase (BTCB + $).
-                    </li>
-                  </ol>
+                <CardContent className="text-xs text-ink space-y-3 leading-relaxed">
                   <p className="text-muted">
-                    Current user rank:{" "}
-                    <Badge tone="accent">{RANK_NAMES[rank] ?? rank}</Badge>
+                    Your tree already has downlines. Use the button below to
+                    auto: ensure Seed rank → +1 day on a downline → Claim their
+                    Self ROI → refresh Rank Income on this user.
                   </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      disabled={busy || !selectedUser}
+                      onClick={() => void onGenerateTeamRoi()}
+                    >
+                      Generate Team ROI now
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={busy}
+                      onClick={() => void onSetRank(1)}
+                    >
+                      Ensure Seed rank
+                    </Button>
+                  </div>
+                  {teamMsg ? (
+                    <p className="rounded-md border border-accent/40 bg-accent/10 px-3 py-2 text-ink">
+                      {teamMsg}
+                    </p>
+                  ) : (
+                    <p className="text-muted">
+                      Current rank:{" "}
+                      <Badge tone="accent">{RANK_NAMES[rank] ?? "None"}</Badge>
+                      {rank < 1
+                        ? " — set Seed first or click Generate (auto-sets Seed)."
+                        : " — ready. Click Generate Team ROI now."}
+                    </p>
+                  )}
                 </CardContent>
               </Card>
               <StatCard
-                label="Rank Income on this user"
+                label="Rank Income on this user (Team ROI total)"
                 value={bucket("rank") ? `${bucket("rank")!.dual.token} BTCB` : "0"}
                 hint={bucket("rank")?.dual.usd}
-                tone="ok"
+                tone={
+                  bucket("rank") && bucket("rank")!.dual.wei > 0n ? "ok" : "warn"
+                }
               />
             </div>
           ) : null}
@@ -528,6 +600,80 @@ export function IncomePanel() {
               </CardContent>
             </Card>
           ) : null}
+
+          {/* Source ledger — always visible when a user is selected */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Income entries — where it came from</CardTitle>
+              <CardDescription>
+                Each row shows type, from whom, BTCB + $, and why it was paid
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="overflow-x-auto">
+              <table className="w-full min-w-[900px] text-left text-xs">
+                <thead className="text-muted border-b border-line">
+                  <tr>
+                    <th className="py-2 pr-2">When</th>
+                    <th className="py-2 pr-2">Type</th>
+                    <th className="py-2 pr-2">From</th>
+                    <th className="py-2 pr-2">Gross BTCB</th>
+                    <th className="py-2 pr-2">Gross $</th>
+                    <th className="py-2 pr-2">Net BTCB</th>
+                    <th className="py-2 pr-2">Net $</th>
+                    <th className="py-2">Why</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ledger.map((e) => (
+                    <tr key={e.id} className="border-b border-line/50 align-top">
+                      <td className="py-2 pr-2 text-muted whitespace-nowrap">
+                        {e.at
+                          ? new Date(e.at).toLocaleString()
+                          : `block ${e.block}`}
+                      </td>
+                      <td className="py-2 pr-2">
+                        <Badge
+                          tone={
+                            e.type.includes("Rank")
+                              ? "accent"
+                              : e.type.includes("Direct")
+                                ? "ok"
+                                : "default"
+                          }
+                        >
+                          {e.type}
+                        </Badge>
+                      </td>
+                      <td className="py-2 pr-2 font-mono">
+                        {e.from ? shortAddr(e.from, 4) : "—"}
+                        {e.level ? ` · L${e.level}` : ""}
+                      </td>
+                      <td className="py-2 pr-2 font-mono">
+                        {e.gross?.token ?? "—"}
+                      </td>
+                      <td className="py-2 pr-2 font-mono text-accent">
+                        {e.gross?.usd ?? "—"}
+                      </td>
+                      <td className="py-2 pr-2 font-mono">{e.net?.token ?? "—"}</td>
+                      <td className="py-2 pr-2 font-mono text-accent">
+                        {e.net?.usd ?? "—"}
+                      </td>
+                      <td className="py-2 text-muted max-w-xs">{e.reason}</td>
+                    </tr>
+                  ))}
+                  {!ledger.length ? (
+                    <tr>
+                      <td colSpan={8} className="py-8 text-center text-muted">
+                        No income events yet for this user. Activate a downline
+                        (Direct) or click <strong>Generate Team ROI now</strong>{" "}
+                        (Rank / Team ROI).
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </CardContent>
+          </Card>
         </>
       )}
     </div>
