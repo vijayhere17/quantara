@@ -195,6 +195,8 @@ contract TreasuryManager is ReentrancyGuard {
     }
 
     function getAvailableDailyRoiBudget() external view returns (uint256) {
+        // Max 5% of ROI pool that may be paid as Self ROI per day.
+        // Actual payout can be lower (1% per-user cap); remainder stays in pool.
         return (interdependentFundBalance * 5) / 100;
     }
 

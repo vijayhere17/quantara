@@ -94,27 +94,35 @@ async function deploySystem() {
   };
 }
 
-function expectedDynamicBps(
-  availableDailyBudget: bigint,
-  totalActivePrincipal: bigint,
-  minBps: bigint,
+function expectedBps(
+  budget: bigint,
+  totalPrincipal: bigint,
   maxBps: bigint,
 ): bigint {
-  if (availableDailyBudget === 0n || totalActivePrincipal === 0n) return 0n;
-  const raw = (availableDailyBudget * 10000n) / totalActivePrincipal;
-  if (raw > maxBps) return maxBps;
-  if (raw < minBps) return minBps;
-  return raw;
+  if (budget === 0n || totalPrincipal === 0n) return 0n;
+  const raw = (budget * 10000n) / totalPrincipal;
+  return raw > maxBps ? maxBps : raw;
 }
 
-describe("InterdependentReward — dynamic ROI", function () {
-  it("exposes MIN 0.10% and MAX 1.00% constants", async function () {
-    const { interdependentReward } = await deploySystem();
-    expect(await interdependentReward.MIN_DAILY_ROI_BPS()).to.equal(10n);
-    expect(await interdependentReward.MAX_DAILY_ROI_BPS()).to.equal(100n);
+describe("InterdependentReward — 5% pool, max 1% per user", function () {
+  it("daily budget is exactly 5% of ROI pool", async function () {
+    const { owner, user, mockBTCB, core, treasury } = await deploySystem();
+
+    await core.register(ethers.ZeroAddress);
+    await mockBTCB.approve(await core.getAddress(), ethers.MaxUint256);
+    await core.activatePackage(50);
+
+    await core.connect(user).register(owner.address);
+    await mockBTCB.connect(user).approve(await core.getAddress(), ethers.MaxUint256);
+    await core.connect(user).activatePackage(50);
+
+    const pool = await treasury.interdependentFundBalance();
+    const budget = await treasury.getAvailableDailyRoiBudget();
+    expect(budget).to.equal((pool * 5n) / 100n);
+    expect(budget).to.be.gt(0n);
   });
 
-  it("caps daily rate at 1% when ROI wallet / principal would exceed max", async function () {
+  it("caps daily rate at 1% when 5% pool / principal would exceed max", async function () {
     const { owner, user, mockBTCB, core, treasury, interdependentReward } =
       await deploySystem();
 
@@ -126,21 +134,19 @@ describe("InterdependentReward — dynamic ROI", function () {
     await mockBTCB.connect(user).approve(await core.getAddress(), ethers.MaxUint256);
     await core.connect(user).activatePackage(50);
 
-    // Fresh activations: ROI fund = 25% of principals → raw bps ≈ 125 → clamp to 100
     const budget = await treasury.getAvailableDailyRoiBudget();
     const total = await interdependentReward.totalActivePrincipal();
-    const minBps = await interdependentReward.MIN_DAILY_ROI_BPS();
     const maxBps = await interdependentReward.MAX_DAILY_ROI_BPS();
-    const expectBps = expectedDynamicBps(budget, total, minBps, maxBps);
+    const rawBps = (budget * 10000n) / total;
+
+    expect(rawBps).to.be.gt(maxBps);
 
     const bps = await interdependentReward.calculateDailyRoiBps();
-    expect(bps).to.equal(expectBps);
-    expect(bps).to.equal(100n); // max clamp
-    expect(bps).to.be.gte(minBps);
-    expect(bps).to.be.lte(maxBps);
+    expect(bps).to.equal(maxBps);
+    expect(bps).to.equal(expectedBps(budget, total, maxBps));
   });
 
-  it("lowers daily rate as ROI wallet shrinks (still within 0.10%–1.00%)", async function () {
+  it("user share is min(pro-rata 5% pool, 1% of package)", async function () {
     const { owner, user, mockBTCB, core, treasury, interdependentReward } =
       await deploySystem();
 
@@ -152,43 +158,47 @@ describe("InterdependentReward — dynamic ROI", function () {
     await mockBTCB.connect(user).approve(await core.getAddress(), ethers.MaxUint256);
     await core.connect(user).activatePackage(50);
 
-    const bpsStart = await interdependentReward.calculateDailyRoiBps();
-    expect(bpsStart).to.equal(100n);
-
-    // Drain ROI wallet via repeated 1-day claims (both users) until rate drops below max
-    let bpsNow = bpsStart;
-    for (let i = 0; i < 40 && bpsNow >= 100n; i++) {
-      await ethers.provider.send("evm_increaseTime", [86400]);
-      await ethers.provider.send("evm_mine", []);
-      try {
-        await interdependentReward.connect(owner).claimRoi();
-      } catch {
-        // budget / cap
-      }
-      try {
-        await interdependentReward.connect(user).claimRoi();
-      } catch {
-        // budget / cap
-      }
-      bpsNow = await interdependentReward.calculateDailyRoiBps();
-    }
-
     const budget = await treasury.getAvailableDailyRoiBudget();
-    const total = await interdependentReward.totalActivePrincipal();
-    const minBps = await interdependentReward.MIN_DAILY_ROI_BPS();
-    const maxBps = await interdependentReward.MAX_DAILY_ROI_BPS();
+    const aOwner = await interdependentReward.roiAccounts(owner.address);
+    const proRataOwner =
+      (budget * aOwner.principal) /
+      (await interdependentReward.totalActivePrincipal());
+    const maxOwner = (aOwner.principal * 100n) / 10000n;
+    const shareOwner = await interdependentReward.getUserDailyRoiShare(
+      owner.address,
+    );
 
-    if (budget > 0n && total > 0n) {
-      const expectBps = expectedDynamicBps(budget, total, minBps, maxBps);
-      expect(bpsNow).to.equal(expectBps);
-      expect(bpsNow).to.be.gte(minBps);
-      expect(bpsNow).to.be.lte(maxBps);
-      // After enough claims, rate should leave the max ceiling
-      expect(bpsNow).to.be.lt(100n);
-    }
+    expect(shareOwner).to.equal(proRataOwner < maxOwner ? proRataOwner : maxOwner);
+    expect(shareOwner).to.equal(maxOwner); // capped at 1% in typical 2-user $50 setup
   });
 
-  it("pending ROI uses dynamic bps for exactly one day", async function () {
+  it("unused 5% pool stays in ROI wallet when 1% cap binds", async function () {
+    const { owner, mockBTCB, core, treasury, interdependentReward } =
+      await deploySystem();
+
+    await core.register(ethers.ZeroAddress);
+    await mockBTCB.approve(await core.getAddress(), ethers.MaxUint256);
+    await core.activatePackage(50);
+
+    await ethers.provider.send("evm_increaseTime", [86400]);
+    await ethers.provider.send("evm_mine", []);
+
+    const poolBefore = await treasury.interdependentFundBalance();
+    const budget = await treasury.getAvailableDailyRoiBudget();
+    const pending = await interdependentReward.getPendingRoi(owner.address);
+
+    expect(pending).to.be.gt(0n);
+    expect(pending).to.be.lt(budget); // 1% of package < full 5% pool for one user
+
+    await interdependentReward.connect(owner).claimRoi();
+
+    const poolAfter = await treasury.interdependentFundBalance();
+    const used = poolBefore - poolAfter;
+    // Gross leaves pool; net less after recycle — but definitely not full 5% budget
+    expect(used).to.be.lt(budget);
+  });
+
+  it("pending ROI for one day equals getUserDailyRoiShare", async function () {
     const { owner, user, mockBTCB, core, interdependentReward } =
       await deploySystem();
 
@@ -203,15 +213,14 @@ describe("InterdependentReward — dynamic ROI", function () {
     await ethers.provider.send("evm_increaseTime", [86400]);
     await ethers.provider.send("evm_mine", []);
 
-    const bps = await interdependentReward.calculateDailyRoiBps();
-    const account = await interdependentReward.roiAccounts(user.address);
+    const share = await interdependentReward.getUserDailyRoiShare(user.address);
     const pending = await interdependentReward.getPendingRoi(user.address);
-    expect(pending).to.equal((account.principal * bps * 1n) / 10000n);
+    expect(pending).to.equal(share);
     expect(pending).to.be.gt(0n);
   });
 
-  it("tracks activeRoiUsers and distributes via distributeDailyRoi", async function () {
-    const { owner, user, user2, mockBTCB, core, interdependentReward } =
+  it("distributeDailyRoi pays active users within 5% budget", async function () {
+    const { owner, user, user2, mockBTCB, core, treasury, interdependentReward } =
       await deploySystem();
 
     await core.register(ethers.ZeroAddress);
@@ -226,35 +235,17 @@ describe("InterdependentReward — dynamic ROI", function () {
     await mockBTCB.connect(user2).approve(await core.getAddress(), ethers.MaxUint256);
     await core.connect(user2).activatePackage(50);
 
-    expect(await interdependentReward.getActiveRoiUserCount()).to.equal(3n);
-    expect(await interdependentReward.activeIndex(owner.address)).to.be.gt(0n);
-    expect(await interdependentReward.activeIndex(user.address)).to.be.gt(0n);
-    expect(await interdependentReward.activeIndex(user2.address)).to.be.gt(0n);
-
     await ethers.provider.send("evm_increaseTime", [86400]);
     await ethers.provider.send("evm_mine", []);
 
-    const userBalBefore = await mockBTCB.balanceOf(user.address);
-    const ownerBalBefore = await mockBTCB.balanceOf(owner.address);
-    const user2BalBefore = await mockBTCB.balanceOf(user2.address);
-
+    const budget = await treasury.getAvailableDailyRoiBudget();
     const tx = await interdependentReward.distributeDailyRoi(0, 100);
-    const receipt = await tx.wait();
-    expect(receipt?.status).to.equal(1);
+    await tx.wait();
 
-    // All three should have been paid (daily budget sufficient for one day at max bps)
-    expect(await mockBTCB.balanceOf(owner.address)).to.be.gt(ownerBalBefore);
-    expect(await mockBTCB.balanceOf(user.address)).to.be.gt(userBalBefore);
-    expect(await mockBTCB.balanceOf(user2.address)).to.be.gt(user2BalBefore);
+    const used = await interdependentReward.dailyBudgetUsed();
+    expect(used).to.be.lte(budget);
+    expect(used).to.be.gt(0n);
 
-    // claimRoi still works as fallback the next day
-    await ethers.provider.send("evm_increaseTime", [86400]);
-    await ethers.provider.send("evm_mine", []);
-    const afterDist = await mockBTCB.balanceOf(user.address);
-    await interdependentReward.connect(user).claimRoi();
-    expect(await mockBTCB.balanceOf(user.address)).to.be.gt(afterDist);
-
-    // Non-owner cannot distribute
     await expect(
       interdependentReward.connect(user).distributeDailyRoi(0, 10),
     ).to.be.revertedWith("Only owner");

@@ -8,15 +8,17 @@ import {ITreasuryManager} from "./interfaces/ITreasuryManager.sol";
 
 /**
  * @title InterdependentReward
- * @notice Calculates and pays ROI. Never stores income caps.
+ * @notice Calculates and pays Self ROI from the ROI (interdependent) pool only.
  * @dev All income recording and cap validation goes through IncomeManager.
  *
  * Rules:
  * - ROI funded only from ROI (interdependent) wallet — never minted
- * - Daily distribution pool = 5% of current ROI wallet balance
- * - Dynamic daily rate from pool / totalActivePrincipal, clamped to:
- *     MIN 0.10% (10 bps) … MAX 1.00% (100 bps)
- * - Total paid to all users in a day never exceeds that 5% pool
+ * - Daily distribution pool = **5% of current ROI wallet balance** (max outflow)
+ *   Example: ROI pool $1000 → at most $50 may be paid that day
+ * - That budget is shared **pro-rata by package principal**, but each user
+ *   earns **at most 1% of their package per day**
+ * - Any unused portion of the 5% stays in the ROI pool (never withdrawn)
+ * - Total paid to all users in a day never exceeds that 5% cap
  *   (enforced via dailyBudget / dailyBudgetUsed)
  * - Max ROI income: 3X package (enforced by IncomeManager)
  * - Once total income hits 3X, ROI stops (IncomeManager)
@@ -34,7 +36,9 @@ contract InterdependentReward is ReentrancyGuard {
     ITreasuryManager public treasury;
     IIncomeManager public incomeManager;
 
-    uint256 public constant MIN_DAILY_ROI_BPS = 10; // 0.10%
+    /// @dev Max 1% of package per day per user. Daily pool is 5% of ROI wallet;
+    ///      pro-rata share is capped at this rate — unused budget stays in pool.
+    uint256 public constant MIN_DAILY_ROI_BPS = 0;
     uint256 public constant MAX_DAILY_ROI_BPS = 100; // 1.00%
 
     uint256 public dailyBudget;
@@ -147,10 +151,9 @@ contract InterdependentReward is ReentrancyGuard {
     }
 
     /**
-     * @notice Dynamic daily ROI rate in basis points from the ROI wallet.
+     * @notice Effective daily ROI rate in basis points (pro-rata from 5% pool, max 1%).
      * @dev rawBps = (5% of ROI wallet) * 10000 / totalActivePrincipal
-     *      then clamped to [MIN_DAILY_ROI_BPS, MAX_DAILY_ROI_BPS].
-     *      Returns 0 when there is no active principal or no daily budget.
+     *      capped at MAX_DAILY_ROI_BPS (100 = 1%). Unused pool share stays in wallet.
      */
     function calculateDailyRoiBps() public view returns (uint256) {
         if (totalActivePrincipal == 0 || address(treasury) == address(0)) {
@@ -162,16 +165,29 @@ contract InterdependentReward is ReentrancyGuard {
             return 0;
         }
 
-        uint256 roiBps = (availableDailyBudget * 10000) / totalActivePrincipal;
-
-        if (roiBps > MAX_DAILY_ROI_BPS) {
+        uint256 rawBps = (availableDailyBudget * 10000) / totalActivePrincipal;
+        if (rawBps > MAX_DAILY_ROI_BPS) {
             return MAX_DAILY_ROI_BPS;
         }
-        if (roiBps < MIN_DAILY_ROI_BPS) {
-            return MIN_DAILY_ROI_BPS;
-        }
+        return rawBps;
+    }
 
-        return roiBps;
+    /**
+     * @notice One day's Self ROI for a user: pro-rata 5% pool share, capped at 1% of package.
+     */
+    function getUserDailyRoiShare(address user) public view returns (uint256) {
+        RoiAccount memory account = roiAccounts[user];
+        if (!account.isActive || account.principal == 0 || totalActivePrincipal == 0) {
+            return 0;
+        }
+        if (address(treasury) == address(0)) {
+            return 0;
+        }
+        uint256 availableDailyBudget = treasury.getAvailableDailyRoiBudget();
+        uint256 proRata = (availableDailyBudget * account.principal) /
+            totalActivePrincipal;
+        uint256 maxPerDay = (account.principal * MAX_DAILY_ROI_BPS) / 10000;
+        return proRata < maxPerDay ? proRata : maxPerDay;
     }
 
     function getPendingRoi(address user) public view returns (uint256) {
@@ -185,8 +201,8 @@ contract InterdependentReward is ReentrancyGuard {
             return 0;
         }
 
-        uint256 currentDailyRoi = calculateDailyRoiBps();
-        return (account.principal * currentDailyRoi * daysPassed) / 10000;
+        // Same formula as getUserDailyRoiShare × days (avoids BPS rounding drift)
+        return getUserDailyRoiShare(user) * daysPassed;
     }
 
     /**

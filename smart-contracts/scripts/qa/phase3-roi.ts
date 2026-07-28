@@ -1,13 +1,15 @@
 /**
- * Phase 3 — ROI cycle QA (dynamic daily rate).
+ * Phase 3 — ROI cycle QA (5% of ROI pool shared by package).
  *
  * Existing ROI processor: InterdependentReward.claimRoi()
  * One cycle = advance exactly 1 day (86400s) + claimRoi() once for the subject user.
  *
- * Dynamic business rules verified here:
- *   - Daily pool = 5% of ROI (interdependent) wallet
- *   - Rate = pool * 10000 / totalActivePrincipal, clamped to [0.10%, 1.00%]
- *   - Payout never exceeds the daily 5% pool; never minted
+ * Business rules verified here:
+ *   - Daily pool = 5% of ROI (interdependent) wallet (max outflow)
+ *     Example: ROI pool $1000 → at most $50 that day
+ *   - Rate = pool * 10000 / totalActivePrincipal, capped at 1% (100 bps)
+ *   - Each user share = min(pro-rata, 1% of package); unused stays in pool
+ *   - Payout never exceeds the daily 5% pool cap; never minted
  *   - ROI cap remains 3X principal
  *
  * Prerequisites (localhost):
@@ -110,7 +112,7 @@ async function main() {
 
   const minBps = BigInt(await reward.MIN_DAILY_ROI_BPS());
   const maxBps = BigInt(await reward.MAX_DAILY_ROI_BPS());
-  check("Constants / MIN_DAILY_ROI_BPS = 10 (0.10%)", minBps === 10n, minBps.toString());
+  check("Constants / MIN_DAILY_ROI_BPS = 0", minBps === 0n, minBps.toString());
   check("Constants / MAX_DAILY_ROI_BPS = 100 (1.00%)", maxBps === 100n, maxBps.toString());
 
   const rawBps =
@@ -119,9 +121,7 @@ async function main() {
       : 0n;
   let expectBps = 0n;
   if (before.availableDailyBudget > 0n && before.totalActivePrincipal > 0n) {
-    if (rawBps > maxBps) expectBps = maxBps;
-    else if (rawBps < minBps) expectBps = minBps;
-    else expectBps = rawBps;
+    expectBps = rawBps > maxBps ? maxBps : rawBps;
   }
 
   check(
@@ -130,14 +130,9 @@ async function main() {
     before.pending.toString(),
   );
   check(
-    "Dynamic / daily BPS == clamp(5%ROI*10000/principal, 10, 100)",
+    "Dynamic / daily BPS == min(5%ROI*10000/principal, 100)",
     before.dailyBps === expectBps,
     `got=${before.dailyBps} expect=${expectBps} raw=${rawBps}`,
-  );
-  check(
-    "Dynamic / daily BPS ≥ 0.10% (when budget > 0)",
-    before.availableDailyBudget === 0n || before.dailyBps >= minBps,
-    before.dailyBps.toString(),
   );
   check(
     "Dynamic / daily BPS ≤ 1.00%",
@@ -150,10 +145,10 @@ async function main() {
     `pool=${before.availableDailyBudget} fund*5/100=${(before.roiFund * 5n) / 100n}`,
   );
 
-  console.log("\n── Before snapshot (dynamic ROI) ──");
+  console.log("\n── Before snapshot (5% pool, max 1% per user) ──");
   console.log(`  principal              : ${ethers.formatEther(principal)} BTCB`);
-  console.log(`  rawBps (uncapped)      : ${rawBps}`);
-  console.log(`  dailyBps (clamped)     : ${before.dailyBps}  [${minBps}…${maxBps}]`);
+  console.log(`  rawBps                 : ${rawBps}`);
+  console.log(`  dailyBps (capped 1%)   : ${before.dailyBps}`);
   console.log(`  totalActivePrincipal   : ${ethers.formatEther(before.totalActivePrincipal)}`);
   console.log(`  ROI fund               : ${ethers.formatEther(before.roiFund)}`);
   console.log(`  available daily budget : ${ethers.formatEther(before.availableDailyBudget)} (5% of ROI fund)`);
@@ -169,7 +164,13 @@ async function main() {
 
   // dailyBps may recompute after time travel (same formula if fund unchanged)
   const dailyBpsAfter = BigInt(await reward.calculateDailyRoiBps());
-  const expectPendingAfter = (principal * dailyBpsAfter * 1n) / 10000n;
+  let shareAfter = 0n;
+  try {
+    shareAfter = BigInt(await reward.getUserDailyRoiShare(subject.address));
+  } catch {
+    shareAfter = (principal * dailyBpsAfter * 1n) / 10000n;
+  }
+  const expectPendingAfter = shareAfter;
 
   check(
     "After +1d / pending ROI > 0",
@@ -177,13 +178,13 @@ async function main() {
     pendingAfterDay.toString(),
   );
   check(
-    "After +1d / pending == principal * dynamicBps / 10000 (not fixed 1%)",
+    "After +1d / pending == package share (5% pool, max 1%)",
     pendingAfterDay === expectPendingAfter,
-    `got=${pendingAfterDay} expect=${expectPendingAfter} bps=${dailyBpsAfter}`,
+    `got=${pendingAfterDay} expect=${expectPendingAfter} share=${shareAfter} bps=${dailyBpsAfter}`,
   );
   check(
-    "After +1d / dynamic BPS still within [0.10%, 1.00%]",
-    dailyBpsAfter >= minBps && dailyBpsAfter <= maxBps,
+    "After +1d / daily BPS ≤ 1.00%",
+    dailyBpsAfter <= maxBps,
     dailyBpsAfter.toString(),
   );
 
@@ -359,20 +360,20 @@ async function main() {
     roiClaimedAmt <= before.availableDailyBudget,
     `claimed=${roiClaimedAmt} pool=${before.availableDailyBudget}`,
   );
-  // After payout, rate may drop if wallet shrank (dynamic — not stuck at 1%)
+  // After payout, rate may drop if wallet shrank (still unclamped 5% share)
   const bpsAfterClaim = BigInt(await reward.calculateDailyRoiBps());
   const budgetAfter = BigInt(await treasury.getAvailableDailyRoiBudget());
   const totalAfter = BigInt(await reward.totalActivePrincipal());
   const rawAfter =
     totalAfter > 0n ? (budgetAfter * 10000n) / totalAfter : 0n;
-  let expectAfter = 0n;
-  if (budgetAfter > 0n && totalAfter > 0n) {
-    if (rawAfter > maxBps) expectAfter = maxBps;
-    else if (rawAfter < minBps) expectAfter = minBps;
-    else expectAfter = rawAfter;
-  }
+  const expectAfter =
+    budgetAfter > 0n && totalAfter > 0n
+      ? rawAfter > maxBps
+        ? maxBps
+        : rawAfter
+      : 0n;
   check(
-    "After claim / BPS still matches dynamic clamp formula",
+    "After claim / BPS == min(5% pool / principal, 100)",
     bpsAfterClaim === expectAfter,
     `got=${bpsAfterClaim} expect=${expectAfter} raw=${rawAfter}`,
   );
