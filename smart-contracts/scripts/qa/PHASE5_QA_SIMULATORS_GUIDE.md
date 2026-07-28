@@ -30,16 +30,22 @@ Writes:
 | `npm run qa:simulators:tier` | Tier Booster (Self ROI only) |
 | `npm run qa:simulators:recycle` | Income recycling 70/25/3/2 |
 
-Or (Windows-safe CLI):
+Or via the Node launcher (works on Windows + Unix; Hardhat 3 rejects `--` script args):
 
 ```bash
-npx hardhat run scripts/qa/simulators/run-all.ts -- --sim PackageSimulator
+node scripts/qa/simulators/launch.mjs PackageSimulator
+```
+
+PowerShell env fallback:
+
+```powershell
+$env:QA_SIM="PackageSimulator"; npx hardhat run scripts/qa/simulators/run-all.ts
 ```
 
 ## Tree generator options
 
 ```bash
-npx hardhat run scripts/qa/simulators/run-all.ts -- --sim ReferralTree --depth 3 --directs 2
+node scripts/qa/simulators/launch.mjs ReferralTree --depth 3 --directs 2
 ```
 
 - `--depth`: 1–9 (default 2)

@@ -1,15 +1,14 @@
 /**
  * Phase 5 — run all QA simulators and write PASS/FAIL reports.
  *
+ * Prefer the cross-platform launcher (Hardhat 3 rejects `--` script args):
  *   npm run qa:simulators
- *   npx hardhat run scripts/qa/simulators/run-all.ts
- *
- * Filter one simulator (Windows + Unix safe):
- *   npx hardhat run scripts/qa/simulators/run-all.ts -- --sim PackageSimulator
  *   npm run qa:simulators:package
+ *   node scripts/qa/simulators/launch.mjs PackageSimulator
+ *   node scripts/qa/simulators/launch.mjs ReferralTree --depth 3 --directs 2
  *
- * Optional tree knobs:
- *   --depth 3 --directs 2
+ * Env fallback (PowerShell):
+ *   $env:QA_SIM="PackageSimulator"; npx hardhat run scripts/qa/simulators/run-all.ts
  */
 import hre from "hardhat";
 import { ALL_SIMULATORS } from "./simulations";
