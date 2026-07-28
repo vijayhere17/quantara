@@ -30,20 +30,20 @@ Writes:
 | `npm run qa:simulators:tier` | Tier Booster (Self ROI only) |
 | `npm run qa:simulators:recycle` | Income recycling 70/25/3/2 |
 
-Or:
+Or (Windows-safe CLI):
 
 ```bash
-QA_SIM=TierBooster npm run qa:simulators
+npx hardhat run scripts/qa/simulators/run-all.ts -- --sim PackageSimulator
 ```
 
-## Tree generator env
+## Tree generator options
 
 ```bash
-QA_TREE_DEPTH=3 QA_TREE_DIRECTS=2 npm run qa:simulators:tree
+npx hardhat run scripts/qa/simulators/run-all.ts -- --sim ReferralTree --depth 3 --directs 2
 ```
 
-- `QA_TREE_DEPTH`: 1–9 (default 2)
-- `QA_TREE_DIRECTS`: 1–5 (default 2)
+- `--depth`: 1–9 (default 2)
+- `--directs`: 1–5 (default 2)
 
 ## What each verifies
 
