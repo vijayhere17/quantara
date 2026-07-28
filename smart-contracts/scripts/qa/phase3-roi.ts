@@ -5,11 +5,11 @@
  * One cycle = advance exactly 1 day (86400s) + claimRoi() once for the subject user.
  *
  * Business rules verified here:
- *   - Daily pool = 5% of ROI (interdependent) wallet only
- *     Example: ROI pool $1000 → distribute at most $50 that day
- *   - Rate = pool * 10000 / totalActivePrincipal (no 0.10%–1% clamp)
- *   - Each user share = principal / totalActivePrincipal × daily pool
- *   - Payout never exceeds the daily 5% pool; never minted
+ *   - Daily pool = 5% of ROI (interdependent) wallet (max outflow)
+ *     Example: ROI pool $1000 → at most $50 that day
+ *   - Rate = pool * 10000 / totalActivePrincipal, capped at 1% (100 bps)
+ *   - Each user share = min(pro-rata, 1% of package); unused stays in pool
+ *   - Payout never exceeds the daily 5% pool cap; never minted
  *   - ROI cap remains 3X principal
  *
  * Prerequisites (localhost):
@@ -112,21 +112,17 @@ async function main() {
 
   const minBps = BigInt(await reward.MIN_DAILY_ROI_BPS());
   const maxBps = BigInt(await reward.MAX_DAILY_ROI_BPS());
-  check("Constants / MIN_DAILY_ROI_BPS = 0 (no floor)", minBps === 0n, minBps.toString());
-  check(
-    "Constants / MAX_DAILY_ROI_BPS = max (no ceiling)",
-    maxBps === 2n ** 256n - 1n,
-    maxBps.toString(),
-  );
+  check("Constants / MIN_DAILY_ROI_BPS = 0", minBps === 0n, minBps.toString());
+  check("Constants / MAX_DAILY_ROI_BPS = 100 (1.00%)", maxBps === 100n, maxBps.toString());
 
   const rawBps =
     before.totalActivePrincipal > 0n
       ? (before.availableDailyBudget * 10000n) / before.totalActivePrincipal
       : 0n;
-  const expectBps =
-    before.availableDailyBudget > 0n && before.totalActivePrincipal > 0n
-      ? rawBps
-      : 0n;
+  let expectBps = 0n;
+  if (before.availableDailyBudget > 0n && before.totalActivePrincipal > 0n) {
+    expectBps = rawBps > maxBps ? maxBps : rawBps;
+  }
 
   check(
     "Before / pending ROI = 0 (same day as activation)",
@@ -134,9 +130,14 @@ async function main() {
     before.pending.toString(),
   );
   check(
-    "Dynamic / daily BPS == 5%ROI*10000/principal (unclamped)",
+    "Dynamic / daily BPS == min(5%ROI*10000/principal, 100)",
     before.dailyBps === expectBps,
     `got=${before.dailyBps} expect=${expectBps} raw=${rawBps}`,
+  );
+  check(
+    "Dynamic / daily BPS ≤ 1.00%",
+    before.dailyBps <= maxBps,
+    before.dailyBps.toString(),
   );
   check(
     "Dynamic / daily pool == 5% of ROI wallet",
@@ -144,9 +145,10 @@ async function main() {
     `pool=${before.availableDailyBudget} fund*5/100=${(before.roiFund * 5n) / 100n}`,
   );
 
-  console.log("\n── Before snapshot (5% pool / package share) ──");
+  console.log("\n── Before snapshot (5% pool, max 1% per user) ──");
   console.log(`  principal              : ${ethers.formatEther(principal)} BTCB`);
-  console.log(`  dailyBps (unclamped)   : ${before.dailyBps}`);
+  console.log(`  rawBps                 : ${rawBps}`);
+  console.log(`  dailyBps (capped 1%)   : ${before.dailyBps}`);
   console.log(`  totalActivePrincipal   : ${ethers.formatEther(before.totalActivePrincipal)}`);
   console.log(`  ROI fund               : ${ethers.formatEther(before.roiFund)}`);
   console.log(`  available daily budget : ${ethers.formatEther(before.availableDailyBudget)} (5% of ROI fund)`);
@@ -176,9 +178,14 @@ async function main() {
     pendingAfterDay.toString(),
   );
   check(
-    "After +1d / pending == package share of 5% pool",
+    "After +1d / pending == package share (5% pool, max 1%)",
     pendingAfterDay === expectPendingAfter,
     `got=${pendingAfterDay} expect=${expectPendingAfter} share=${shareAfter} bps=${dailyBpsAfter}`,
+  );
+  check(
+    "After +1d / daily BPS ≤ 1.00%",
+    dailyBpsAfter <= maxBps,
+    dailyBpsAfter.toString(),
   );
 
   const usd = (wei: bigint) => Number(ethers.formatEther(wei)) * BTC_USD;
@@ -360,9 +367,13 @@ async function main() {
   const rawAfter =
     totalAfter > 0n ? (budgetAfter * 10000n) / totalAfter : 0n;
   const expectAfter =
-    budgetAfter > 0n && totalAfter > 0n ? rawAfter : 0n;
+    budgetAfter > 0n && totalAfter > 0n
+      ? rawAfter > maxBps
+        ? maxBps
+        : rawAfter
+      : 0n;
   check(
-    "After claim / BPS == 5% pool / principal (unclamped)",
+    "After claim / BPS == min(5% pool / principal, 100)",
     bpsAfterClaim === expectAfter,
     `got=${bpsAfterClaim} expect=${expectAfter} raw=${rawAfter}`,
   );
