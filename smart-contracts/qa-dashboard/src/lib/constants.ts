@@ -3,8 +3,9 @@ export const RPC_URL =
 
 export const CHAIN_ID = Number(import.meta.env.VITE_CHAIN_ID || 31337);
 
-/** Hardhat account #0 — deployer / root / funder */
+/** Deployer / root / funder — Hardhat #0 locally; set VITE_DEPLOYER_PK on testnet */
 export const DEPLOYER_PK =
+  import.meta.env.VITE_DEPLOYER_PK ||
   "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
 
 export const PACKAGE_LADDER = [
