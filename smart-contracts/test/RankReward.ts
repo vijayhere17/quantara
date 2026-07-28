@@ -144,6 +144,83 @@ describe("RankReward", function () {
     expect(await mockBTCB.balanceOf(sponsor.address)).to.equal(70n); // 70% after recycle
   });
 
+  it("Should pay differential rank income when upline rank exceeds downline rank", async function () {
+    const [owner, sponsor, user] = await ethers.getSigners();
+
+    const mockBTCB = await ethers.deployContract("MockBTCB");
+    const treasury = await ethers.deployContract("TreasuryManager", [
+      await mockBTCB.getAddress(),
+    ]);
+    const income = await ethers.deployContract("IncomeManager");
+    const rankReward = await ethers.deployContract("RankReward");
+
+    await rankReward.setCoreContract(owner.address);
+    await rankReward.setRewardContract(owner.address);
+    await rankReward.setIncomeManager(await income.getAddress());
+    await rankReward.setTreasury(await treasury.getAddress());
+
+    await treasury.setCoreContract(owner.address);
+    await treasury.setWorkingPayer(await rankReward.getAddress(), true);
+    await income.setAuthorizedContract(await rankReward.getAddress(), true);
+    await income.setAuthorizedContract(owner.address, true);
+
+    await income.startPackage(sponsor.address, 1_000_000n);
+
+    const fund = 50000n;
+    await mockBTCB.transfer(await treasury.getAddress(), fund);
+    await treasury.processContribution(fund);
+
+    await rankReward.setSponsor(user.address, sponsor.address);
+    await rankReward.setRank(user.address, 1); // Seed 10%
+    await rankReward.setRank(sponsor.address, 2); // Sprout 15%
+
+    const roi = 10_000n;
+    await rankReward.processRoiIncome(user.address, roi);
+
+    // 15% − 10% = 5% of Self ROI
+    expect(await rankReward.rankIncome(sponsor.address)).to.equal(500n);
+    expect(await income.rankEarned(sponsor.address)).to.equal(500n);
+  });
+
+  it("Should not pay rank differential when only same-rank Tier Booster applies", async function () {
+    const [owner, sponsor, user] = await ethers.getSigners();
+
+    const mockBTCB = await ethers.deployContract("MockBTCB");
+    const treasury = await ethers.deployContract("TreasuryManager", [
+      await mockBTCB.getAddress(),
+    ]);
+    const income = await ethers.deployContract("IncomeManager");
+    const rankReward = await ethers.deployContract("RankReward");
+
+    await rankReward.setCoreContract(owner.address);
+    await rankReward.setRewardContract(owner.address);
+    await rankReward.setIncomeManager(await income.getAddress());
+    await rankReward.setTreasury(await treasury.getAddress());
+
+    await treasury.setCoreContract(owner.address);
+    await treasury.setWorkingPayer(await rankReward.getAddress(), true);
+    await income.setAuthorizedContract(await rankReward.getAddress(), true);
+    await income.setAuthorizedContract(owner.address, true);
+
+    await income.startPackage(sponsor.address, 1_000_000n);
+    await income.startPackage(user.address, 1_000_000n);
+
+    const fund = 100000n;
+    await mockBTCB.transfer(await treasury.getAddress(), fund);
+    await treasury.processContribution(fund);
+
+    await rankReward.setSponsor(user.address, sponsor.address);
+    await rankReward.setRank(sponsor.address, 1);
+    await rankReward.setRank(user.address, 1);
+
+    const roi = 1000n;
+    await rankReward.processRoiIncome(user.address, roi);
+    await rankReward.processTierBooster(user.address, roi);
+
+    expect(await rankReward.rankIncome(sponsor.address)).to.equal(0n);
+    expect(await rankReward.sameRankIncome(sponsor.address)).to.equal(100n);
+  });
+
   it("Should pay Tier Booster 10% of Self ROI when ranks match", async function () {
     const [owner, sponsor, user] = await ethers.getSigners();
 
