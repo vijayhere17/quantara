@@ -8,14 +8,15 @@ import {ITreasuryManager} from "./interfaces/ITreasuryManager.sol";
 
 /**
  * @title InterdependentReward
- * @notice Calculates and pays ROI. Never stores income caps.
+ * @notice Calculates and pays Self ROI from the ROI (interdependent) pool only.
  * @dev All income recording and cap validation goes through IncomeManager.
  *
  * Rules:
  * - ROI funded only from ROI (interdependent) wallet — never minted
- * - Daily distribution pool = 5% of current ROI wallet balance
- * - Dynamic daily rate from pool / totalActivePrincipal, clamped to:
- *     MIN 0.10% (10 bps) … MAX 1.00% (100 bps)
+ * - Daily distribution pool = **5% of current ROI wallet balance**
+ *   Example: ROI pool $1000 → daily budget $50 only
+ * - That daily budget is shared by **all active users pro-rata by package
+ *   principal** (equal rate for equal packages; larger package → larger share)
  * - Total paid to all users in a day never exceeds that 5% pool
  *   (enforced via dailyBudget / dailyBudgetUsed)
  * - Max ROI income: 3X package (enforced by IncomeManager)
@@ -34,8 +35,10 @@ contract InterdependentReward is ReentrancyGuard {
     ITreasuryManager public treasury;
     IIncomeManager public incomeManager;
 
-    uint256 public constant MIN_DAILY_ROI_BPS = 10; // 0.10%
-    uint256 public constant MAX_DAILY_ROI_BPS = 100; // 1.00%
+    /// @dev Legacy ABI placeholders (no longer clamp the rate). Daily share is
+    ///      always (5% of ROI pool) × principal / totalActivePrincipal.
+    uint256 public constant MIN_DAILY_ROI_BPS = 0;
+    uint256 public constant MAX_DAILY_ROI_BPS = type(uint256).max;
 
     uint256 public dailyBudget;
     uint256 public dailyBudgetUsed;
@@ -147,9 +150,10 @@ contract InterdependentReward is ReentrancyGuard {
     }
 
     /**
-     * @notice Dynamic daily ROI rate in basis points from the ROI wallet.
+     * @notice Effective daily ROI rate in basis points for the current pool.
      * @dev rawBps = (5% of ROI wallet) * 10000 / totalActivePrincipal
-     *      then clamped to [MIN_DAILY_ROI_BPS, MAX_DAILY_ROI_BPS].
+     *      No min/max clamp — the full daily 5% is shared by package weight.
+     *      Example: pool $1000 → budget $50; two equal packages each earn $25/day.
      *      Returns 0 when there is no active principal or no daily budget.
      */
     function calculateDailyRoiBps() public view returns (uint256) {
@@ -162,16 +166,22 @@ contract InterdependentReward is ReentrancyGuard {
             return 0;
         }
 
-        uint256 roiBps = (availableDailyBudget * 10000) / totalActivePrincipal;
+        return (availableDailyBudget * 10000) / totalActivePrincipal;
+    }
 
-        if (roiBps > MAX_DAILY_ROI_BPS) {
-            return MAX_DAILY_ROI_BPS;
+    /**
+     * @notice One day's Self ROI share for a user from the 5% pool (pro-rata by package).
+     */
+    function getUserDailyRoiShare(address user) public view returns (uint256) {
+        RoiAccount memory account = roiAccounts[user];
+        if (!account.isActive || account.principal == 0 || totalActivePrincipal == 0) {
+            return 0;
         }
-        if (roiBps < MIN_DAILY_ROI_BPS) {
-            return MIN_DAILY_ROI_BPS;
+        if (address(treasury) == address(0)) {
+            return 0;
         }
-
-        return roiBps;
+        uint256 availableDailyBudget = treasury.getAvailableDailyRoiBudget();
+        return (availableDailyBudget * account.principal) / totalActivePrincipal;
     }
 
     function getPendingRoi(address user) public view returns (uint256) {
@@ -185,8 +195,8 @@ contract InterdependentReward is ReentrancyGuard {
             return 0;
         }
 
-        uint256 currentDailyRoi = calculateDailyRoiBps();
-        return (account.principal * currentDailyRoi * daysPassed) / 10000;
+        // Same formula as getUserDailyRoiShare × days (avoids BPS rounding drift)
+        return getUserDailyRoiShare(user) * daysPassed;
     }
 
     /**

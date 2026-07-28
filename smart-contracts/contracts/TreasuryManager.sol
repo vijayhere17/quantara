@@ -195,6 +195,8 @@ contract TreasuryManager is ReentrancyGuard {
     }
 
     function getAvailableDailyRoiBudget() external view returns (uint256) {
+        // Only 5% of the ROI pool may be distributed as Self ROI per day.
+        // That budget is shared pro-rata by active package principals.
         return (interdependentFundBalance * 5) / 100;
     }
 
