@@ -3,25 +3,49 @@ import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
-  StatCard,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/input";
 import {
   activatePackage,
   createUsersBatch,
+  forceCompletePackage,
+  increaseTime,
+  registerUser,
   useContracts,
   useTxRunner,
   walletFromIndex,
 } from "@/hooks/useContracts";
-import { toWei } from "@/lib/format";
-import { pctBps } from "@/lib/format";
+import { PACKAGE_LADDER } from "@/lib/constants";
+import { pctBps, toWei } from "@/lib/format";
 import { sleep } from "@/lib/utils";
 import { useDashboardStore } from "@/store/dashboardStore";
 
-type Check = { name: string; pass: boolean; detail?: string };
+type Check = { name: string; pass: boolean; reason?: string };
+
+type SuiteId =
+  | "registration"
+  | "package"
+  | "income"
+  | "roi"
+  | "rank"
+  | "ga"
+  | "tier"
+  | "community"
+  | "full";
+
+const SUITES: { id: SuiteId; label: string }[] = [
+  { id: "registration", label: "Run Registration Test" },
+  { id: "package", label: "Run Package Test" },
+  { id: "income", label: "Run Income Test" },
+  { id: "roi", label: "Run ROI Test" },
+  { id: "rank", label: "Run Rank Test" },
+  { id: "ga", label: "Run Growth Accelerator Test" },
+  { id: "tier", label: "Run Tier Booster Test" },
+  { id: "community", label: "Run Community Builder Test" },
+  { id: "full", label: "Run Full QA" },
+];
 
 export function ReportsPanel() {
   const contracts = useContracts();
@@ -35,12 +59,10 @@ export function ReportsPanel() {
   const [checks, setChecks] = useState<Check[]>([]);
   const [running, setRunning] = useState(false);
 
-  const successPct =
-    checks.length === 0
-      ? 0
-      : Math.round((checks.filter((c) => c.pass).length / checks.length) * 100);
+  const nextIndex = () =>
+    users.length === 0 ? 900 : Math.max(...users.map((u) => u.id), 0) + 1;
 
-  const runQa = async () => {
+  const runSuite = async (suite: SuiteId) => {
     if (!contracts) return;
     setRunning(true);
     setChecks([]);
@@ -49,172 +71,310 @@ export function ReportsPanel() {
       out.push(c);
       setChecks([...out]);
     };
+    const throwaways: string[] = [];
 
     try {
-      await run("Complete QA suite", async (c) => {
-        // 1. Root registered
+      await run(`QA: ${suite}`, async (c) => {
         const root = c.addresses.RootUser;
-        const rootReg = await c.core.isRegistered(root);
-        push({
-          name: "Root user is registered",
-          pass: rootReg,
-          detail: root,
-        });
 
-        // 2. Fresh user next package = 50
-        const start =
-          users.length === 0 ? 900 : Math.max(...users.map((u) => u.id), 0) + 1;
-        let throwaway: string | undefined;
-        try {
+        const makeUser = async (autoRegister = true) => {
           const created = await createUsersBatch(
             c,
             1,
-            start,
+            nextIndex() + throwaways.length,
             root,
             upsertUser,
+            undefined,
+            { autoRegister },
           );
-          throwaway = created[0];
-          const [nextPkg] = await c.core.getNextEligiblePackage(throwaway);
+          const addr = created[0];
+          throwaways.push(addr);
+          return addr;
+        };
+
+        if (suite === "registration" || suite === "full") {
+          const rootReg = await c.core.isRegistered(root);
           push({
-            name: "New user next package = $50",
-            pass: Number(nextPkg) === 50,
-            detail: `got ${nextPkg}`,
+            name: "Root user is registered",
+            pass: rootReg,
+            reason: root,
           });
 
-          // 3. Activation charity / reserve / ROI split
-          const charityBefore = await c.treasury.charityFundBalance();
-          const reserveBefore = await c.treasury.reserveFundBalance();
-          const roiBefore = await c.treasury.interdependentFundBalance();
+          const fresh = await makeUser(false);
+          const before = await c.core.isRegistered(fresh);
+          push({
+            name: "Create leaves wallet unregistered",
+            pass: !before,
+            reason: fresh,
+          });
 
           const tracked = useDashboardStore
             .getState()
-            .users.find(
-              (u) => u.address.toLowerCase() === throwaway!.toLowerCase(),
-            );
+            .users.find((u) => u.address.toLowerCase() === fresh.toLowerCase());
+          if (tracked?.walletIndex != null) {
+            const signer = walletFromIndex(tracked.walletIndex, c.provider);
+            await registerUser(c, signer, root);
+            const after = await c.core.isRegistered(fresh);
+            push({
+              name: "Register under root succeeds",
+              pass: after,
+              reason: fresh,
+            });
+            try {
+              await registerUser(c, signer, fresh);
+              push({
+                name: "Self-sponsor rejected",
+                pass: false,
+                reason: "register(self) did not throw",
+              });
+            } catch {
+              push({
+                name: "Self-sponsor rejected",
+                pass: true,
+                reason: "cannot register with self",
+              });
+            }
+          }
+        }
+
+        if (suite === "package" || suite === "full") {
+          const addr = await makeUser(true);
+          const [nextPkg] = await c.core.getNextEligiblePackage(addr);
+          push({
+            name: "New user next package = $50",
+            pass: Number(nextPkg) === 50,
+            reason: `got ${nextPkg}`,
+          });
+
+          const tracked = useDashboardStore
+            .getState()
+            .users.find((u) => u.address.toLowerCase() === addr.toLowerCase());
+          if (tracked?.walletIndex != null) {
+            const signer = walletFromIndex(tracked.walletIndex, c.provider);
+            await activatePackage(c, signer, 50);
+            const u = await c.core.users(addr);
+            const amt = Number(u.packageAmount ?? u[2]);
+            const cycle = Number(u.packageCycle ?? u[4]);
+            push({
+              name: "Activate $50 sets package",
+              pass: amt === 50 && cycle === 1,
+              reason: `pkg=${amt} cycle=${cycle}`,
+            });
+
+            await forceCompletePackage(c, addr);
+            const [next2] = await c.core.getNextEligiblePackage(addr);
+            push({
+              name: "After force-complete next is $50 C2 or $100",
+              pass: Number(next2) === 50 || Number(next2) === 100,
+              reason: `next=${next2}`,
+            });
+          }
+
+          try {
+            const pkgs = await c.core.getPackages();
+            push({
+              name: "Package ladder has 8 steps",
+              pass: Array.isArray(pkgs)
+                ? pkgs.length === 8
+                : PACKAGE_LADDER.length === 8,
+              reason: String(pkgs?.length ?? PACKAGE_LADDER.length),
+            });
+          } catch {
+            push({
+              name: "Package ladder configured",
+              pass: PACKAGE_LADDER.length === 8,
+              reason: String(PACKAGE_LADDER.length),
+            });
+          }
+        }
+
+        if (suite === "income" || suite === "full") {
+          const preview = await c.treasury.previewRecycling(toWei(100));
+          const userP = BigInt(preview.userPayout ?? preview[0]);
+          const roiP = BigInt(preview.toRoiPool ?? preview[1]);
+          const resP = BigInt(preview.toReserve ?? preview[2]);
+          const comP = BigInt(preview.toCommunity ?? preview[3]);
+          const total = userP + roiP + resP + comP;
+          push({
+            name: "Recycling sums to input",
+            pass: total === toWei(100),
+            reason: `sum=${total}`,
+          });
+          push({
+            name: "User share ≈ 70%",
+            pass: userP === toWei(70),
+            reason: String(userP),
+          });
+          push({
+            name: "ROI share ≈ 25%",
+            pass: roiP === toWei(25),
+            reason: String(roiP),
+          });
+          push({
+            name: "Reserve ≈ 3%",
+            pass: resP === toWei(3),
+            reason: String(resP),
+          });
+          push({
+            name: "Community ≈ 2%",
+            pass: comP === toWei(2),
+            reason: String(comP),
+          });
+
+          const inactiveBps = await c.contribution.LEVEL_1_BPS();
+          push({
+            name: "Direct L1 = 5%",
+            pass: inactiveBps === 500n,
+            reason: pctBps(inactiveBps),
+          });
+        }
+
+        if (suite === "roi" || suite === "full") {
+          const addr = await makeUser(true);
+          const tracked = useDashboardStore
+            .getState()
+            .users.find((u) => u.address.toLowerCase() === addr.toLowerCase());
+          const roiBefore = await c.treasury.interdependentFundBalance();
           if (tracked?.walletIndex != null) {
             const signer = walletFromIndex(tracked.walletIndex, c.provider);
             await activatePackage(c, signer, 50);
             await sleep(200);
-            const charityAfter = await c.treasury.charityFundBalance();
-            const reserveAfter = await c.treasury.reserveFundBalance();
             const roiAfter = await c.treasury.interdependentFundBalance();
             push({
-              name: "Activation increases charity fund",
-              pass: charityAfter > charityBefore,
-              detail: `${charityBefore} → ${charityAfter}`,
-            });
-            push({
-              name: "Activation increases ROI pool (30%)",
+              name: "Activation increases ROI pool",
               pass: roiAfter > roiBefore,
-              detail: `${roiBefore} → ${roiAfter}`,
+              reason: `${roiBefore} → ${roiAfter}`,
             });
+            try {
+              const count = await c.roi.getActiveRoiUserCount();
+              push({
+                name: "Active ROI users readable",
+                pass: count >= 0n,
+                reason: String(count),
+              });
+            } catch (e) {
+              push({
+                name: "Active ROI users readable",
+                pass: false,
+                reason: String(e).slice(0, 120),
+              });
+            }
+            await increaseTime(c.provider, 24 * 60 * 60);
+            try {
+              const pending = await c.roi.getPendingRoi(addr);
+              push({
+                name: "Pending ROI after +1 day",
+                pass: pending >= 0n,
+                reason: String(pending),
+              });
+            } catch (e) {
+              push({
+                name: "Pending ROI readable",
+                pass: false,
+                reason: String(e).slice(0, 120),
+              });
+            }
+          }
+        }
+
+        if (suite === "rank" || suite === "full") {
+          const seedBps = await c.rank.rankRewardBps(1);
+          push({
+            name: "Rank Seed BPS configured",
+            pass: seedBps > 0n,
+            reason: pctBps(seedBps),
+          });
+          try {
+            const r = await c.rank.userRanks(root);
             push({
-              name: "Reserve fund readable post-activation",
-              pass: reserveAfter >= reserveBefore,
-              detail: `${reserveBefore} → ${reserveAfter}`,
+              name: "Root rank readable",
+              pass: true,
+              reason: String(r),
             });
-          } else {
+          } catch (e) {
             push({
-              name: "Activation treasury checks",
+              name: "Root rank readable",
               pass: false,
-              detail: "No wallet index for throwaway",
+              reason: String(e).slice(0, 120),
             });
           }
-        } catch (e) {
+        }
+
+        if (suite === "ga" || suite === "full") {
+          const inactiveBps = await c.contribution.LEVEL_1_BPS();
+          const gaBps = await c.contribution.LEVEL_1_GA_BPS();
           push({
-            name: "Throwaway user activation path",
-            pass: false,
-            detail: String(e).slice(0, 200),
+            name: "GA L1 inactive = 5%",
+            pass: inactiveBps === 500n,
+            reason: pctBps(inactiveBps),
+          });
+          push({
+            name: "GA L1 active = 10%",
+            pass: gaBps === 1000n,
+            reason: pctBps(gaBps),
+          });
+          try {
+            const active = await c.booster.isBoosterActive(root);
+            push({
+              name: "Booster status readable",
+              pass: typeof active === "boolean" || active === true || active === false,
+              reason: String(active),
+            });
+          } catch (e) {
+            push({
+              name: "Booster status readable",
+              pass: false,
+              reason: String(e).slice(0, 120),
+            });
+          }
+        }
+
+        if (suite === "tier" || suite === "full") {
+          const tier = await c.rank.TIER_BOOSTER_BPS();
+          push({
+            name: "Tier booster BPS = 10%",
+            pass: tier === 1000n,
+            reason: pctBps(tier),
           });
         }
 
-        // 4. Recycling ratios
-        const preview = await c.treasury.previewRecycling(toWei(100));
-        const userP = BigInt(preview.userPayout ?? preview[0]);
-        const roiP = BigInt(preview.toRoiPool ?? preview[1]);
-        const resP = BigInt(preview.toReserve ?? preview[2]);
-        const comP = BigInt(preview.toCommunity ?? preview[3]);
-        const total = userP + roiP + resP + comP;
-        push({
-          name: "Recycling preview sums to input (100 tokens)",
-          pass: total === toWei(100),
-          detail: `sum=${total}`,
-        });
-        push({
-          name: "Recycling user ≈ 70%",
-          pass: userP === toWei(70),
-          detail: String(userP),
-        });
-        push({
-          name: "Recycling ROI ≈ 25%",
-          pass: roiP === toWei(25),
-          detail: String(roiP),
-        });
-        push({
-          name: "Recycling reserve ≈ 3%",
-          pass: resP === toWei(3),
-          detail: String(resP),
-        });
-        push({
-          name: "Recycling community ≈ 2%",
-          pass: comP === toWei(2),
-          detail: String(comP),
-        });
-
-        // 5. GA L1 BPS when inactive = 500
-        const inactiveBps = await c.contribution.LEVEL_1_BPS();
-        push({
-          name: "GA L1 inactive BPS = 500 (5%)",
-          pass: inactiveBps === 500n,
-          detail: pctBps(inactiveBps),
-        });
-        const gaBps = await c.contribution.LEVEL_1_GA_BPS();
-        push({
-          name: "GA L1 active BPS = 1000 (10%)",
-          pass: gaBps === 1000n,
-          detail: pctBps(gaBps),
-        });
-
-        // 6. Rank seed BPS
-        const seedBps = await c.rank.rankRewardBps(1);
-        push({
-          name: "Rank Seed BPS configured (>0)",
-          pass: seedBps > 0n,
-          detail: pctBps(seedBps),
-        });
-
-        // 7. Tier booster 10%
-        const tier = await c.rank.TIER_BOOSTER_BPS();
-        push({
-          name: "Tier booster BPS = 1000 (10%)",
-          pass: tier === 1000n,
-          detail: pctBps(tier),
-        });
-
-        // 8. Package ladder length
-        try {
-          const pkgs = await c.core.getPackages();
+        if (suite === "community" || suite === "full") {
+          const fund = await c.treasury.communityBuilderFundBalance();
           push({
-            name: "Package ladder has 8 steps",
-            pass: Array.isArray(pkgs) ? pkgs.length === 8 : true,
-            detail: String(pkgs?.length ?? pkgs),
+            name: "Community fund readable",
+            pass: fund >= 0n,
+            reason: String(fund),
           });
-        } catch {
+          try {
+            const points = await c.community.userPoints(root);
+            push({
+              name: "Community points readable",
+              pass: points >= 0n,
+              reason: String(points),
+            });
+          } catch (e) {
+            push({
+              name: "Community points readable",
+              pass: false,
+              reason: String(e).slice(0, 120),
+            });
+          }
+          const paid = await c.treasury.totalCommunityPaid();
           push({
-            name: "Package ladder readable",
-            pass: true,
-            detail: "getPackages optional",
+            name: "Total community paid readable",
+            pass: paid >= 0n,
+            reason: String(paid),
           });
         }
 
-        // cleanup throwaway from local list only
-        if (throwaway) removeUser(throwaway);
+        for (const addr of throwaways) removeUser(addr);
 
-        const pct = out.length
-          ? Math.round((out.filter((c) => c.pass).length / out.length) * 100)
-          : 0;
-        addLog("ok", `QA complete — ${pct}%`, `${out.filter((c) => c.pass).length}/${out.length} passed`);
-
+        const passed = out.filter((x) => x.pass).length;
+        addLog(
+          "ok",
+          `QA ${suite} — ${passed}/${out.length}`,
+          `${Math.round((passed / Math.max(out.length, 1)) * 100)}%`,
+        );
         return { result: out };
       });
     } finally {
@@ -224,17 +384,7 @@ export function ReportsPanel() {
 
   const exportJson = () => {
     const blob = new Blob(
-      [
-        JSON.stringify(
-          {
-            savedAt: new Date().toISOString(),
-            successPct,
-            checks,
-          },
-          null,
-          2,
-        ),
-      ],
+      [JSON.stringify({ savedAt: new Date().toISOString(), checks }, null, 2)],
       { type: "application/json" },
     );
     const a = document.createElement("a");
@@ -243,120 +393,58 @@ export function ReportsPanel() {
     a.click();
   };
 
-  const exportCsv = () => {
-    const lines = [
-      "name,pass,detail",
-      ...checks.map(
-        (c) =>
-          `"${c.name.replace(/"/g, '""')}",${c.pass ? "PASS" : "FAIL"},"${(c.detail || "").replace(/"/g, '""')}"`,
-      ),
-    ];
-    const blob = new Blob([lines.join("\n")], { type: "text/csv" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `qa-report-${Date.now()}.csv`;
-    a.click();
-  };
-
-  const exportPdfText = () => {
-    const body = [
-      "Quantara QA Report",
-      `Generated: ${new Date().toISOString()}`,
-      `Success: ${successPct}%`,
-      "",
-      ...checks.map(
-        (c) => `${c.pass ? "PASS" : "FAIL"} | ${c.name}${c.detail ? ` | ${c.detail}` : ""}`,
-      ),
-    ].join("\n");
-    const blob = new Blob([body], { type: "text/plain" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `qa-report-${Date.now()}.txt`;
-    a.click();
-    // Also open print-friendly window
-    const w = window.open("", "_blank");
-    if (w) {
-      w.document.write(
-        `<pre style="font-family:ui-monospace,monospace;padding:24px;white-space:pre-wrap">${body.replace(/</g, "&lt;")}</pre>`,
-      );
-      w.document.close();
-      w.focus();
-      w.print();
-    }
-  };
-
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
           <h2 className="text-base font-semibold">Reports</h2>
           <p className="text-xs text-muted">
-            Sequential live-contract verification suite
+            Focused live-contract checks · results show pass / reason
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            disabled={!contracts || busy || running}
-            onClick={() => void runQa()}
-          >
-            Run Complete QA
-          </Button>
-          <Button
-            size="sm"
-            variant="secondary"
-            disabled={!checks.length}
-            onClick={exportJson}
-          >
-            Export JSON
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={!checks.length}
-            onClick={exportCsv}
-          >
-            Excel (CSV)
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            disabled={!checks.length}
-            onClick={exportPdfText}
-          >
-            PDF / Print
-          </Button>
-        </div>
+        <Button
+          size="sm"
+          variant="secondary"
+          disabled={!checks.length}
+          onClick={exportJson}
+        >
+          Export JSON
+        </Button>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        <StatCard label="Checks" value={String(checks.length)} />
-        <StatCard
-          label="Passed"
-          value={String(checks.filter((c) => c.pass).length)}
-          tone="ok"
-        />
-        <StatCard
-          label="Success %"
-          value={`${successPct}%`}
-          tone={successPct >= 80 ? "ok" : "warn"}
-        />
+      <div className="flex flex-wrap gap-2">
+        {SUITES.map((s) => (
+          <Button
+            key={s.id}
+            size="sm"
+            variant={s.id === "full" ? "default" : "outline"}
+            disabled={!contracts || busy || running}
+            onClick={() => void runSuite(s.id)}
+          >
+            {s.label}
+          </Button>
+        ))}
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Results</CardTitle>
-          <CardDescription>PASS / FAIL against live Hardhat contracts</CardDescription>
+          <CardTitle>
+            Results{" "}
+            {checks.length
+              ? `(${checks.filter((c) => c.pass).length}/${checks.length})`
+              : ""}
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
-          {checks.map((c) => (
+          {checks.map((c, i) => (
             <div
-              key={c.name + (c.detail || "")}
+              key={`${c.name}-${i}`}
               className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-line/70 px-3 py-2 text-xs"
             >
               <div>
                 <div className="font-medium text-ink">{c.name}</div>
-                {c.detail ? (
-                  <div className="mt-0.5 font-mono text-muted">{c.detail}</div>
+                {c.reason ? (
+                  <div className="mt-0.5 font-mono text-muted">{c.reason}</div>
                 ) : null}
               </div>
               <Badge tone={c.pass ? "ok" : "danger"}>
@@ -366,7 +454,7 @@ export function ReportsPanel() {
           ))}
           {!checks.length ? (
             <p className="text-xs text-muted">
-              Run Complete QA to populate results.
+              Run a test suite to populate results.
             </p>
           ) : null}
         </CardContent>

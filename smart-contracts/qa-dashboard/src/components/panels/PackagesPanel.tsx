@@ -3,12 +3,11 @@ import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
-  StatCard,
 } from "@/components/ui/card";
-import { Badge, Select } from "@/components/ui/input";
+import { Select } from "@/components/ui/input";
+import { FlowStep } from "@/components/ui/modal";
 import {
   activatePackage,
   forceCompletePackage,
@@ -19,16 +18,9 @@ import {
   walletFromIndex,
 } from "@/hooks/useContracts";
 import { PACKAGE_LADDER } from "@/lib/constants";
-import { fmtToken, fmtUsd } from "@/lib/format";
+import { fmtUsd } from "@/lib/format";
 import { shortAddr } from "@/lib/utils";
 import { useDashboardStore } from "@/store/dashboardStore";
-
-type TreasurySnippet = {
-  roi: string;
-  charity: string;
-  reserve: string;
-  working: string;
-};
 
 export function PackagesPanel() {
   const contracts = useContracts();
@@ -46,28 +38,10 @@ export function PackagesPanel() {
   const [currentCycle, setCurrentCycle] = useState(0);
   const [completed, setCompleted] = useState(false);
   const [registered, setRegistered] = useState(false);
-  const [lastHash, setLastHash] = useState<string>("");
-  const [treasury, setTreasury] = useState<TreasurySnippet | null>(null);
 
   const tracked = users.find(
     (u) => u.address.toLowerCase() === selectedUser?.toLowerCase(),
   );
-
-  const refreshTreasury = useCallback(async () => {
-    if (!contracts) return;
-    const [roi, charity, reserve, working] = await Promise.all([
-      contracts.treasury.interdependentFundBalance(),
-      contracts.treasury.charityFundBalance(),
-      contracts.treasury.reserveFundBalance(),
-      contracts.treasury.workingFundBalance(),
-    ]);
-    setTreasury({
-      roi: fmtToken(roi),
-      charity: fmtToken(charity),
-      reserve: fmtToken(reserve),
-      working: fmtToken(working),
-    });
-  }, [contracts]);
 
   const refreshUser = useCallback(async () => {
     if (!contracts || !selectedUser) {
@@ -94,8 +68,7 @@ export function PackagesPanel() {
 
   useEffect(() => {
     void refreshUser();
-    void refreshTreasury();
-  }, [refreshUser, refreshTreasury]);
+  }, [refreshUser]);
 
   const signerForSelected = async (c: NonNullable<typeof contracts>) => {
     if (!selectedUser) throw new Error("No selected user");
@@ -112,23 +85,63 @@ export function PackagesPanel() {
     }
     await run(label || `Activate ${fmtUsd(amount)}`, async (c) => {
       const signer = await signerForSelected(c);
-      const out = await activatePackage(c, signer, amount);
-      setLastHash(out.hash);
-      await refreshTreasury();
-      return out;
+      return activatePackage(c, signer, amount);
     });
   };
 
-  const doForceComplete = async () => {
+  const doUpgrade = async () => {
     if (!selectedUser) {
       addLog("warn", "Select a user first");
       return;
     }
-    await run(`Force complete ${shortAddr(selectedUser)}`, async (c) => {
-      await forceCompletePackage(c, selectedUser);
-      await refreshTreasury();
-      return { result: true };
+    await run(`Upgrade ${shortAddr(selectedUser)}`, async (c) => {
+      if (currentPkg > 0 && !completed) {
+        await forceCompletePackage(c, selectedUser);
+      }
+      const [next] = await c.core.getNextEligiblePackage(selectedUser);
+      const amount = Number(next);
+      if (!amount) throw new Error("No next package");
+      const signer = await signerForSelected(c);
+      return activatePackage(c, signer, amount);
     });
+  };
+
+  const historySteps = () => {
+    if (!registered || currentPkg <= 0) {
+      return (
+        <p className="text-xs text-muted">No package history yet.</p>
+      );
+    }
+    const curIdx = PACKAGE_LADDER.indexOf(
+      currentPkg as (typeof PACKAGE_LADDER)[number],
+    );
+    return (
+      <div className="flex flex-col">
+        {PACKAGE_LADDER.map((amt, i) => {
+          const done = curIdx >= 0 && i < curIdx;
+          const current = i === curIdx;
+          const last = i === PACKAGE_LADDER.length - 1;
+          let detail = "Locked";
+          let tone: "ok" | "default" | "muted" = "muted";
+          if (done) {
+            detail = "Completed (C1 + C2)";
+            tone = "ok";
+          } else if (current) {
+            detail = `C${currentCycle} / 2${completed ? " done" : ""}`;
+            tone = "default";
+          }
+          return (
+            <FlowStep
+              key={amt}
+              label={fmtUsd(amt)}
+              detail={detail}
+              tone={tone}
+              last={last}
+            />
+          );
+        })}
+      </div>
+    );
   };
 
   return (
@@ -137,8 +150,7 @@ export function PackagesPanel() {
         <div>
           <h2 className="text-base font-semibold">Packages</h2>
           <p className="text-xs text-muted">
-            Ladder {PACKAGE_LADDER.join(" → ")} · two cycles then next · after
-            $10k C2 unlimited $10k
+            Ladder {PACKAGE_LADDER.join(" → ")} · two cycles then next
           </p>
         </div>
         <div className="w-72">
@@ -164,115 +176,99 @@ export function PackagesPanel() {
       {!selectedUser ? (
         <Card>
           <CardContent className="pt-4 text-sm text-muted">
-            Select a user above (or from the Users tab). Register them first,
-            then activate the highlighted next package.
+            Select a user to view package progress and activate.
           </CardContent>
         </Card>
       ) : (
         <>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <StatCard
-              label="Status"
-              value={
-                !registered
-                  ? "Not registered"
-                  : currentPkg
-                    ? `${fmtUsd(currentPkg)} C${currentCycle}${completed ? " done" : ""}`
-                    : "Registered · no package"
-              }
-              tone={registered ? "ok" : "warn"}
-            />
-            <StatCard
-              label="Next eligible"
-              value={
-                nextPkg != null
-                  ? `${fmtUsd(nextPkg)}${nextCycle != null ? ` · C${nextCycle}` : ""}`
-                  : "—"
-              }
-              tone="accent"
-            />
-            <StatCard label="Selected" value={shortAddr(selectedUser, 4)} />
-            <StatCard
-              label="Last tx"
-              value={lastHash ? shortAddr(lastHash, 6) : "—"}
-              hint={lastHash || undefined}
-            />
-          </div>
-
-          {!registered ? (
+          <div className="grid gap-3 sm:grid-cols-3">
             <Card>
-              <CardContent className="pt-4 text-sm text-warn">
-                This wallet is not registered on-chain. Go to Users → Register,
-                then come back and click the highlighted package button.
+              <CardContent className="pt-4">
+                <div className="text-[11px] uppercase tracking-wide text-muted">
+                  Current Package
+                </div>
+                <div className="mt-2 text-lg font-semibold font-mono">
+                  {!registered
+                    ? "Not registered"
+                    : currentPkg
+                      ? fmtUsd(currentPkg)
+                      : "None"}
+                </div>
               </CardContent>
             </Card>
-          ) : null}
+            <Card>
+              <CardContent className="pt-4">
+                <div className="text-[11px] uppercase tracking-wide text-muted">
+                  Progress
+                </div>
+                <div className="mt-2 text-lg font-semibold font-mono">
+                  {currentPkg ? `${currentCycle} / 2` : "—"}
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4">
+                <div className="text-[11px] uppercase tracking-wide text-muted">
+                  Next Package
+                </div>
+                <div className="mt-2 text-lg font-semibold font-mono text-accent">
+                  {nextPkg != null
+                    ? `${fmtUsd(nextPkg)}${nextCycle != null ? ` · C${nextCycle}` : ""}`
+                    : "—"}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
 
           <Card>
             <CardHeader>
-              <CardTitle>Activate / Top-up</CardTitle>
-              <CardDescription>
-                Only the next eligible amount will succeed (highlighted). Use
-                Force Complete to unlock the next cycle/package in QA.
-              </CardDescription>
+              <CardTitle>History</CardTitle>
+            </CardHeader>
+            <CardContent>{historySteps()}</CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Actions</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-wrap gap-2">
-              {PACKAGE_LADDER.map((amt) => (
-                <Button
-                  key={amt}
-                  size="sm"
-                  disabled={busy || !contracts || !registered}
-                  variant={nextPkg === amt ? "default" : "secondary"}
-                  onClick={() => void doActivate(amt)}
-                >
-                  {fmtUsd(amt)}
-                  {nextPkg === amt ? (
-                    <Badge tone="ok" className="ml-1">
-                      next
-                    </Badge>
-                  ) : null}
-                </Button>
-              ))}
+              <Button
+                size="sm"
+                disabled={
+                  busy || !contracts || !registered || nextPkg == null
+                }
+                onClick={() =>
+                  nextPkg != null
+                    ? void doActivate(nextPkg, `Activate ${fmtUsd(nextPkg)}`)
+                    : undefined
+                }
+              >
+                Activate {nextPkg != null ? fmtUsd(nextPkg) : ""}
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={busy || !contracts || !registered}
+                onClick={() => void doUpgrade()}
+              >
+                Upgrade
+              </Button>
               <Button
                 size="sm"
                 variant="outline"
                 disabled={
                   busy || !contracts || !registered || nextPkg !== 10000
                 }
-                onClick={() => void doActivate(10000, "Unlimited $10000")}
+                onClick={() => void doActivate(10000, "Top-up $10000")}
               >
-                Unlimited $10000
-              </Button>
-              <Button
-                size="sm"
-                variant="danger"
-                disabled={busy || !contracts || !registered || !currentPkg}
-                onClick={() => void doForceComplete()}
-              >
-                Force Complete Package
+                Top-up
               </Button>
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Treasury snippet</CardTitle>
-              <CardDescription>Refreshes after each tx</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <StatCard label="ROI pool" value={treasury?.roi ?? "—"} />
-                <StatCard label="Charity" value={treasury?.charity ?? "—"} />
-                <StatCard label="Reserve" value={treasury?.reserve ?? "—"} />
-                <StatCard label="Working" value={treasury?.working ?? "—"} />
-              </div>
-              {lastHash ? (
-                <p className="mt-3 text-xs font-mono text-muted break-all">
-                  Hash: {lastHash}
-                </p>
-              ) : null}
-            </CardContent>
-          </Card>
+          <p className="text-xs text-muted">
+            ROI pool updated after activation — see Overview.
+          </p>
         </>
       )}
     </div>

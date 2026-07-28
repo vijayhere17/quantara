@@ -1,10 +1,8 @@
 import type { ReactNode } from "react";
-import { TABS, type DashboardTab } from "@/lib/constants";
+import { BUSINESS_TABS, type DashboardTab } from "@/lib/constants";
 import { useDashboardStore } from "@/store/dashboardStore";
 import { Badge } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { cn, shortAddr } from "@/lib/utils";
-import { RPC_URL } from "@/lib/constants";
 
 export function DashboardShell({
   children,
@@ -17,14 +15,9 @@ export function DashboardShell({
 }) {
   const tab = useDashboardStore((s) => s.tab);
   const setTab = useDashboardStore((s) => s.setTab);
-  const mode = useDashboardStore((s) => s.mode);
-  const setMode = useDashboardStore((s) => s.setMode);
   const busy = useDashboardStore((s) => s.busy);
   const busyLabel = useDashboardStore((s) => s.busyLabel);
   const selectedUser = useDashboardStore((s) => s.selectedUser);
-  const contracts = useDashboardStore((s) => s.contracts);
-
-  const visible = TABS.filter((t) => mode === "developer" || t.client);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -42,35 +35,13 @@ export function DashboardShell({
             <Badge tone={connected ? "ok" : "danger"}>
               {connected ? "Live Hardhat" : "Disconnected"}
             </Badge>
-            <Badge tone="accent">{RPC_URL}</Badge>
-            {contracts ? (
-              <Badge>Chain {contracts.addresses.chainId}</Badge>
-            ) : null}
             {selectedUser ? (
               <Badge tone="default">User {shortAddr(selectedUser, 3)}</Badge>
             ) : null}
-            <div className="flex rounded-md border border-line overflow-hidden">
-              <Button
-                size="sm"
-                variant={mode === "client" ? "default" : "ghost"}
-                className="rounded-none"
-                onClick={() => setMode("client")}
-              >
-                Client
-              </Button>
-              <Button
-                size="sm"
-                variant={mode === "developer" ? "default" : "ghost"}
-                className="rounded-none"
-                onClick={() => setMode("developer")}
-              >
-                Developer
-              </Button>
-            </div>
           </div>
         </div>
         <nav className="mx-auto max-w-[1600px] px-2 pb-2 flex gap-1 overflow-x-auto">
-          {visible.map((t) => (
+          {BUSINESS_TABS.map((t) => (
             <button
               key={t.id}
               type="button"

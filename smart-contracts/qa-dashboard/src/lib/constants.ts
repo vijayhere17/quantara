@@ -23,45 +23,25 @@ export const RANK_NAMES = [
   "Genesis",
 ] as const;
 
+/** Business-facing tabs only (Developer holds technical tools). */
 export type DashboardTab =
   | "overview"
   | "users"
-  | "tree"
   | "packages"
-  | "roi"
   | "income"
-  | "rank"
-  | "ga"
-  | "tier"
-  | "community"
-  | "recycling"
-  | "events"
-  | "txs"
+  | "tree"
   | "reports"
-  | "timetravel"
-  | "demo"
-  | "reset"
-  | "logs"
-  | "dev";
+  | "developer";
 
-export const TABS: { id: DashboardTab; label: string; client?: boolean }[] = [
-  { id: "overview", label: "Overview", client: true },
-  { id: "users", label: "Users", client: true },
-  { id: "tree", label: "Tree", client: true },
-  { id: "packages", label: "Packages", client: true },
-  { id: "roi", label: "ROI", client: true },
-  { id: "income", label: "Income", client: true },
-  { id: "rank", label: "Rank", client: true },
-  { id: "ga", label: "Growth Accel", client: true },
-  { id: "tier", label: "Tier Booster", client: true },
-  { id: "community", label: "Community", client: true },
-  { id: "recycling", label: "Recycling", client: true },
-  { id: "events", label: "Events" },
-  { id: "txs", label: "Transactions" },
-  { id: "reports", label: "Reports", client: true },
-  { id: "timetravel", label: "Time Travel" },
-  { id: "demo", label: "Demo", client: true },
-  { id: "reset", label: "Reset" },
-  { id: "logs", label: "Logs" },
-  { id: "dev", label: "Developer" },
+export const BUSINESS_TABS: { id: DashboardTab; label: string }[] = [
+  { id: "overview", label: "Overview" },
+  { id: "users", label: "Users" },
+  { id: "packages", label: "Packages" },
+  { id: "income", label: "Income" },
+  { id: "tree", label: "Referral Tree" },
+  { id: "reports", label: "Reports" },
+  { id: "developer", label: "Developer" },
 ];
+
+/** @deprecated use BUSINESS_TABS */
+export const TABS = BUSINESS_TABS;

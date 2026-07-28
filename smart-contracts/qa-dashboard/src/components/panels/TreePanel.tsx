@@ -1,217 +1,137 @@
-import { useCallback, useEffect, useState } from "react";
-import {
-  ReactFlow,
-  Background,
-  Controls,
-  MiniMap,
-  useEdgesState,
-  useNodesState,
-  useReactFlow,
-  ReactFlowProvider,
-  type Edge,
-  type Node,
-  Handle,
-  Position,
-} from "@xyflow/react";
-import "@xyflow/react/dist/style.css";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select } from "@/components/ui/input";
 import {
-  activatePackage,
   createUsersBatch,
   loadUserRow,
   useContracts,
   useTxRunner,
-  walletFromIndex,
+  type UserRow,
 } from "@/hooks/useContracts";
 import { RANK_NAMES } from "@/lib/constants";
 import { fmtUsd } from "@/lib/format";
-import { shortAddr, sleep } from "@/lib/utils";
+import { cn, shortAddr } from "@/lib/utils";
 import { useDashboardStore } from "@/store/dashboardStore";
 
-type TreeNodeData = {
-  label: string;
-  rank: string;
-  pkg: string;
-  bv: string;
-  roi: string;
-  total: string;
+type TreeNode = {
   address: string;
+  id: number;
+  label: string;
+  children: TreeNode[];
+  row?: UserRow;
 };
 
-function TreeNode({ data }: { data: TreeNodeData }) {
-  return (
-    <div className="rounded-lg border border-line bg-surface-2 px-3 py-2 text-[11px] shadow-sm min-w-[140px]">
-      <Handle type="target" position={Position.Top} className="!bg-accent" />
-      <div className="font-semibold text-ink">{data.label}</div>
-      <div className="text-muted font-mono">{shortAddr(data.address, 3)}</div>
-      <div className="mt-1 grid grid-cols-2 gap-x-2 gap-y-0.5 text-muted">
-        <span>Rank</span>
-        <span className="text-ink">{data.rank}</span>
-        <span>Pkg</span>
-        <span className="text-ink">{data.pkg}</span>
-        <span>BV</span>
-        <span className="text-ink font-mono">{data.bv}</span>
-        <span>ROI</span>
-        <span className="text-ink font-mono">{data.roi}</span>
-        <span>Total</span>
-        <span className="text-ink font-mono">{data.total}</span>
-      </div>
-      <Handle type="source" position={Position.Bottom} className="!bg-accent" />
-    </div>
-  );
-}
-
-const nodeTypes = { tree: TreeNode };
-
-function TreeCanvas() {
+export function TreePanel() {
   const contracts = useContracts();
   const users = useDashboardStore((s) => s.users);
   const selectedUser = useDashboardStore((s) => s.selectedUser);
-  const upsertUser = useDashboardStore((s) => s.upsertUser);
   const setSelectedUser = useDashboardStore((s) => s.setSelectedUser);
+  const upsertUser = useDashboardStore((s) => s.upsertUser);
   const busy = useDashboardStore((s) => s.busy);
   const tick = useDashboardStore((s) => s.refreshTick);
   const { run } = useTxRunner();
-  const { fitView } = useReactFlow();
 
   const [depth, setDepth] = useState(2);
   const [directs, setDirects] = useState(2);
-  const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
-  const [collapsed, setCollapsed] = useState(false);
+  const [rows, setRows] = useState<Record<string, UserRow>>({});
+  const [focus, setFocus] = useState<string | undefined>();
 
-  const buildGraph = useCallback(async () => {
+  const refresh = useCallback(async () => {
     if (!contracts || !users.length) {
-      setNodes([]);
-      setEdges([]);
+      setRows({});
       return;
     }
-
-    const byAddr = new Map(users.map((u) => [u.address.toLowerCase(), u]));
-    const rowCache: Record<string, Awaited<ReturnType<typeof loadUserRow>>> = {};
-
-    await Promise.all(
-      users.map(async (u) => {
-        try {
-          rowCache[u.address.toLowerCase()] = await loadUserRow(
-            contracts,
-            u.address,
-          );
-        } catch {
-          /* */
-        }
-      }),
-    );
-
-    const children = new Map<string, string[]>();
+    const next: Record<string, UserRow> = {};
     for (const u of users) {
-      const row = rowCache[u.address.toLowerCase()];
+      try {
+        next[u.address.toLowerCase()] = await loadUserRow(contracts, u.address);
+      } catch {
+        /* */
+      }
+    }
+    setRows(next);
+  }, [contracts, users, tick]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  useEffect(() => {
+    if (selectedUser) setFocus(selectedUser);
+  }, [selectedUser]);
+
+  const tree = useMemo(() => {
+    if (!users.length) return [] as TreeNode[];
+
+    const byAddr = new Map(
+      users.map((u) => [u.address.toLowerCase(), u] as const),
+    );
+    const children = new Map<string, string[]>();
+
+    for (const u of users) {
+      const row = rows[u.address.toLowerCase()];
       const sponsor = (row?.sponsor || u.sponsor || "").toLowerCase();
       if (!sponsor || sponsor === u.address.toLowerCase()) continue;
-      if (!byAddr.has(sponsor) && sponsor !== contracts.addresses.RootUser.toLowerCase()) {
-        continue;
-      }
+      if (!byAddr.has(sponsor)) continue;
       const list = children.get(sponsor) || [];
       list.push(u.address.toLowerCase());
       children.set(sponsor, list);
     }
 
+    const visited = new Set<string>();
+    const build = (addr: string): TreeNode | null => {
+      if (visited.has(addr) || !byAddr.has(addr)) return null;
+      visited.add(addr);
+      const u = byAddr.get(addr)!;
+      const kids = (children.get(addr) || [])
+        .map(build)
+        .filter(Boolean) as TreeNode[];
+      return {
+        address: u.address,
+        id: u.id,
+        label: u.label || `User ${u.id}`,
+        children: kids,
+        row: rows[addr],
+      };
+    };
+
     const rootKey = (
       selectedUser ||
-      contracts.addresses.RootUser ||
+      contracts?.addresses.RootUser ||
       users[0]?.address ||
       ""
     ).toLowerCase();
 
-    const laid: Node[] = [];
-    const eds: Edge[] = [];
-    const visited = new Set<string>();
+    const roots: TreeNode[] = [];
+    if (byAddr.has(rootKey)) {
+      const n = build(rootKey);
+      if (n) roots.push(n);
+    }
 
-    const place = (
-      addr: string,
-      depthIdx: number,
-      xSlot: number,
-      span: number,
-    ) => {
-      if (visited.has(addr) || !byAddr.has(addr)) return;
-      visited.add(addr);
-      const u = byAddr.get(addr)!;
-      const row = rowCache[addr];
-      laid.push({
-        id: addr,
-        type: "tree",
-        position: { x: xSlot, y: depthIdx * 160 },
-        data: {
-          label: u.label || `U${u.id}`,
-          address: u.address,
-          rank: RANK_NAMES[row?.rank ?? 0] ?? "—",
-          pkg: row?.registered ? fmtUsd(row.packageAmount) : "—",
-          bv: row?.groupVolume ?? "—",
-          roi: row?.roiEarned ?? "—",
-          total: row?.totalEarned ?? "—",
-        } satisfies TreeNodeData,
-      });
-
-      if (collapsed && depthIdx > 0) return;
-
-      const kids = children.get(addr) || [];
-      if (!kids.length) return;
-      const childSpan = span / Math.max(kids.length, 1);
-      kids.forEach((child, i) => {
-        eds.push({
-          id: `${addr}-${child}`,
-          source: addr,
-          target: child,
-          style: { stroke: "#2dd4bf" },
-        });
-        const cx = xSlot - span / 2 + childSpan * (i + 0.5);
-        place(child, depthIdx + 1, cx, childSpan);
-      });
-    };
-
-    // Include orphans as additional roots
-    const roots = byAddr.has(rootKey)
-      ? [rootKey]
-      : users.map((u) => u.address.toLowerCase()).filter((a) => {
-          const row = rowCache[a];
-          const sp = (row?.sponsor || "").toLowerCase();
-          return !sp || !byAddr.has(sp);
-        });
-
-    const rootSpan = Math.max(roots.length, 1) * 280;
-    roots.forEach((r, i) => {
-      place(r, 0, (i + 0.5) * (rootSpan / roots.length), rootSpan / roots.length);
-    });
-
-    // dangling users not visited
-    let orphanX = 0;
     for (const u of users) {
       const a = u.address.toLowerCase();
       if (visited.has(a)) continue;
-      place(a, 0, orphanX, 220);
-      orphanX += 240;
+      const n = build(a);
+      if (n) roots.push(n);
     }
 
-    setNodes(laid);
-    setEdges(eds);
-    await sleep(50);
-    fitView({ padding: 0.2 });
-  }, [
-    contracts,
-    users,
-    selectedUser,
-    collapsed,
-    setNodes,
-    setEdges,
-    fitView,
-    tick,
-  ]);
+    return roots;
+  }, [users, rows, selectedUser, contracts]);
 
-  useEffect(() => {
-    void buildGraph();
-  }, [buildGraph]);
+  const focusRow = focus ? rows[focus.toLowerCase()] : undefined;
+  const focusTracked = users.find(
+    (u) => u.address.toLowerCase() === focus?.toLowerCase(),
+  );
+  const focusChildren = useMemo(() => {
+    if (!focus) return 0;
+    const key = focus.toLowerCase();
+    return users.filter((u) => {
+      const row = rows[u.address.toLowerCase()];
+      const sp = (row?.sponsor || u.sponsor || "").toLowerCase();
+      return sp === key;
+    }).length;
+  }, [focus, users, rows]);
 
   const onAutoBuild = async () => {
     await run(`Auto build tree d=${depth}×${directs}`, async (c) => {
@@ -229,29 +149,49 @@ function TreeCanvas() {
             start,
             parent,
             upsertUser,
+            undefined,
+            { autoRegister: true },
           );
           start += directs;
-          for (const addr of created) {
-            const tracked = useDashboardStore
-              .getState()
-              .users.find(
-                (u) => u.address.toLowerCase() === addr.toLowerCase(),
-              );
-            if (tracked?.walletIndex != null) {
-              const signer = walletFromIndex(tracked.walletIndex, c.provider);
-              try {
-                await activatePackage(c, signer, 50);
-              } catch {
-                /* optional activate */
-              }
-            }
-            nextParents.push(addr);
-          }
+          nextParents.push(...created);
         }
         parents = nextParents;
       }
       return { result: true };
     });
+  };
+
+  const renderNode = (node: TreeNode, depthIdx: number) => {
+    const selected = focus?.toLowerCase() === node.address.toLowerCase();
+    return (
+      <div key={node.address} className="mt-1">
+        <button
+          type="button"
+          onClick={() => {
+            setFocus(node.address);
+            setSelectedUser(node.address);
+          }}
+          className={cn(
+            "w-full text-left rounded-md border px-2 py-1.5 text-xs transition",
+            selected
+              ? "border-accent bg-accent/10 text-ink"
+              : "border-line/60 hover:bg-surface-3 text-ink",
+          )}
+          style={{ marginLeft: depthIdx * 16 }}
+        >
+          <span className="font-medium">{node.label}</span>
+          <span className="ml-2 font-mono text-muted">
+            {shortAddr(node.address, 3)}
+          </span>
+          {node.row?.packageAmount ? (
+            <span className="ml-2 text-muted">
+              {fmtUsd(node.row.packageAmount)}
+            </span>
+          ) : null}
+        </button>
+        {node.children.map((c) => renderNode(c, depthIdx + 1))}
+      </div>
+    );
   };
 
   return (
@@ -260,7 +200,7 @@ function TreeCanvas() {
         <div>
           <h2 className="text-base font-semibold">Referral Tree</h2>
           <p className="text-xs text-muted">
-            React Flow from tracked sponsor links · root = selected or Root
+            Structure from tracked sponsor links · click a node for details
           </p>
         </div>
         <div className="flex flex-wrap items-end gap-2">
@@ -299,57 +239,93 @@ function TreeCanvas() {
           >
             Auto Build Tree
           </Button>
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={() => {
-              setCollapsed((v) => !v);
-              setTimeout(() => fitView({ padding: 0.2 }), 80);
-            }}
-          >
-            {collapsed ? "Expand" : "Collapse"}
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => fitView({ padding: 0.2 })}
-          >
-            Fit
-          </Button>
         </div>
       </div>
 
-      <Card className="overflow-hidden">
-        <CardContent className="p-0 h-[560px] bg-surface">
-          <ReactFlow
-            nodes={nodes}
-            edges={edges}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            nodeTypes={nodeTypes}
-            fitView
-            onNodeClick={(_, n) => setSelectedUser(n.id)}
-            proOptions={{ hideAttribution: true }}
-            colorMode="dark"
-          >
-            <Background gap={18} color="#1f2a2e" />
-            <Controls />
-            <MiniMap
-              nodeColor="#2dd4bf"
-              maskColor="rgba(0,0,0,0.6)"
-              className="!bg-surface-2"
-            />
-          </ReactFlow>
-        </CardContent>
-      </Card>
+      <div className="grid gap-3 lg:grid-cols-[1fr_280px]">
+        <Card>
+          <CardHeader>
+            <CardTitle>Tree</CardTitle>
+          </CardHeader>
+          <CardContent className="max-h-[560px] overflow-y-auto">
+            {tree.length ? (
+              tree.map((n) => renderNode(n, 0))
+            ) : (
+              <p className="text-xs text-muted py-6 text-center">
+                No tracked users yet.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Node</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-xs">
+            {focus && focusTracked ? (
+              <>
+                <Row
+                  label="User"
+                  value={focusTracked.label || `User ${focusTracked.id}`}
+                />
+                <Row label="Wallet" value={shortAddr(focus, 5)} mono />
+                <Row
+                  label="Sponsor"
+                  value={
+                    focusRow?.sponsor
+                      ? shortAddr(focusRow.sponsor, 4)
+                      : shortAddr(focusTracked.sponsor, 4)
+                  }
+                  mono
+                />
+                <Row label="Children" value={String(focusChildren)} />
+                <Row
+                  label="Rank"
+                  value={RANK_NAMES[focusRow?.rank ?? 0] ?? "—"}
+                />
+                <Row
+                  label="Package"
+                  value={
+                    focusRow?.packageAmount
+                      ? fmtUsd(focusRow.packageAmount)
+                      : "None"
+                  }
+                />
+                <Row
+                  label="BV"
+                  value={focusRow?.personalVolume ?? "—"}
+                  mono
+                />
+                <Row
+                  label="Income"
+                  value={focusRow?.totalEarned ?? "—"}
+                  mono
+                />
+              </>
+            ) : (
+              <p className="text-muted">Click a node to inspect.</p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
 
-export function TreePanel() {
+function Row({
+  label,
+  value,
+  mono,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+}) {
   return (
-    <ReactFlowProvider>
-      <TreeCanvas />
-    </ReactFlowProvider>
+    <div className="flex justify-between gap-2 border-b border-line/40 py-1.5">
+      <span className="text-muted">{label}</span>
+      <span className={mono ? "font-mono text-ink" : "text-ink"}>{value}</span>
+    </div>
   );
 }

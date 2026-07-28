@@ -54,11 +54,15 @@ export function StatCard({
   value,
   hint,
   tone = "default",
+  onClick,
+  className,
 }: {
   label: string;
   value: React.ReactNode;
   hint?: string;
   tone?: "default" | "ok" | "warn" | "accent";
+  onClick?: () => void;
+  className?: string;
 }) {
   const toneCls =
     tone === "ok"
@@ -69,7 +73,27 @@ export function StatCard({
           ? "text-accent"
           : "text-ink";
   return (
-    <Card className="animate-fade-up">
+    <Card
+      className={cn(
+        "animate-fade-up",
+        onClick &&
+          "cursor-pointer transition hover:border-accent/50 hover:bg-surface-3/40",
+        className,
+      )}
+      onClick={onClick}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={
+        onClick
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onClick();
+              }
+            }
+          : undefined
+      }
+    >
       <CardContent className="pt-4">
         <div className="text-[11px] uppercase tracking-[0.14em] text-muted">
           {label}

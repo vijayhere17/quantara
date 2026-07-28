@@ -1,14 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  StatCard,
-} from "@/components/ui/card";
-import { Badge } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge, Select } from "@/components/ui/input";
 import { useContracts } from "@/hooks/useContracts";
 import { fmtToken, toWei } from "@/lib/format";
 import { cn, shortAddr } from "@/lib/utils";
@@ -19,169 +11,187 @@ type IncomeTab =
   | "direct"
   | "contribution"
   | "rank"
-  | "ga"
   | "tier"
   | "community"
-  | "total";
+  | "leadership"
+  | "samerank";
 
-const TABS: { id: IncomeTab; label: string; methods: string[] }[] = [
-  { id: "self", label: "Self ROI", methods: ["Claim ROI", "claimRoi", "ROI"] },
-  {
-    id: "direct",
-    label: "Direct",
-    methods: ["contribution", "Direct", "Activate", "register"],
-  },
-  {
-    id: "contribution",
-    label: "Contribution",
-    methods: ["contribution", "Contribution", "Activate"],
-  },
-  { id: "rank", label: "Rank", methods: ["Rank", "updateRank", "setRank"] },
-  {
-    id: "ga",
-    label: "GA",
-    methods: ["GA", "Booster", "Growth", "Activate"],
-  },
-  {
-    id: "tier",
-    label: "Tier/SameRank",
-    methods: ["Tier", "SameRank", "sameRank", "setRank"],
-  },
-  {
-    id: "community",
-    label: "Community",
-    methods: ["Community", "claimCommunity", "Round"],
-  },
-  { id: "total", label: "Total", methods: [] },
-];
+const TABS: { id: IncomeTab; label: string; methods: string[]; field?: string }[] =
+  [
+    { id: "self", label: "Self ROI", methods: ["Claim ROI", "claimRoi", "ROI", "Self"], field: "roiEarned" },
+    {
+      id: "direct",
+      label: "Direct Income",
+      methods: ["Direct", "Activate", "contribution"],
+      field: "contributionEarned",
+    },
+    {
+      id: "contribution",
+      label: "Contribution Reward",
+      methods: ["Contribution", "contribution", "Activate"],
+      field: "contributionEarned",
+    },
+    { id: "rank", label: "Rank Income", methods: ["Rank", "updateRank", "setRank"], field: "rankEarned" },
+    {
+      id: "tier",
+      label: "Tier Booster",
+      methods: ["Tier", "Booster", "booster"],
+      field: "boosterEarned",
+    },
+    {
+      id: "community",
+      label: "Community Builder",
+      methods: ["Community", "claimCommunity", "Round"],
+      field: "communityEarned",
+    },
+    {
+      id: "leadership",
+      label: "Leadership",
+      methods: ["Leadership", "Rank", "setRank"],
+      field: "rankEarned",
+    },
+    {
+      id: "samerank",
+      label: "Same Rank",
+      methods: ["SameRank", "sameRank", "Tier"],
+      field: "sameRankEarned",
+    },
+  ];
 
 type IncomeMap = {
-  principal: string;
   roiEarned: string;
   contributionEarned: string;
   boosterEarned: string;
   rankEarned: string;
   sameRankEarned: string;
   communityEarned: string;
-  totalEarned: string;
-};
-
-type RecyclePreview = {
-  userPayout: string;
-  toRoiPool: string;
-  toReserve: string;
-  toCommunity: string;
+  raw: Record<string, bigint>;
 };
 
 export function IncomePanel() {
   const contracts = useContracts();
   const selectedUser = useDashboardStore((s) => s.selectedUser);
+  const setSelectedUser = useDashboardStore((s) => s.setSelectedUser);
+  const users = useDashboardStore((s) => s.users);
   const txs = useDashboardStore((s) => s.txs);
   const tick = useDashboardStore((s) => s.refreshTick);
 
   const [tab, setTab] = useState<IncomeTab>("self");
   const [income, setIncome] = useState<IncomeMap | null>(null);
-  const [previewAmt, setPreviewAmt] = useState("100");
-  const [recycle, setRecycle] = useState<RecyclePreview | null>(null);
+  const [netEstimate, setNetEstimate] = useState<string>("—");
 
   const load = useCallback(async () => {
     if (!contracts || !selectedUser) {
       setIncome(null);
+      setNetEstimate("—");
       return;
     }
     try {
       const inc = await contracts.income.incomes(selectedUser);
+      const raw: Record<string, bigint> = {
+        roiEarned: BigInt(inc.roiEarned ?? inc[1] ?? 0),
+        contributionEarned: BigInt(inc.contributionEarned ?? inc[2] ?? 0),
+        boosterEarned: BigInt(inc.boosterEarned ?? inc[3] ?? 0),
+        rankEarned: BigInt(inc.rankEarned ?? inc[4] ?? 0),
+        sameRankEarned: BigInt(inc.sameRankEarned ?? inc[5] ?? 0),
+        communityEarned: BigInt(inc.communityEarned ?? inc[6] ?? 0),
+      };
       setIncome({
-        principal: fmtToken(inc.principal ?? inc[0]),
-        roiEarned: fmtToken(inc.roiEarned ?? inc[1]),
-        contributionEarned: fmtToken(inc.contributionEarned ?? inc[2]),
-        boosterEarned: fmtToken(inc.boosterEarned ?? inc[3]),
-        rankEarned: fmtToken(inc.rankEarned ?? inc[4]),
-        sameRankEarned: fmtToken(inc.sameRankEarned ?? inc[5]),
-        communityEarned: fmtToken(inc.communityEarned ?? inc[6]),
-        totalEarned: fmtToken(inc.totalEarned ?? inc[7]),
+        roiEarned: fmtToken(raw.roiEarned),
+        contributionEarned: fmtToken(raw.contributionEarned),
+        boosterEarned: fmtToken(raw.boosterEarned),
+        rankEarned: fmtToken(raw.rankEarned),
+        sameRankEarned: fmtToken(raw.sameRankEarned),
+        communityEarned: fmtToken(raw.communityEarned),
+        raw,
       });
     } catch {
       setIncome(null);
     }
   }, [contracts, selectedUser, tick]);
 
-  const loadRecycle = useCallback(async () => {
-    if (!contracts) return;
-    try {
-      const amt = toWei(previewAmt || "0");
-      const p = await contracts.treasury.previewRecycling(amt);
-      setRecycle({
-        userPayout: fmtToken(p.userPayout ?? p[0]),
-        toRoiPool: fmtToken(p.toRoiPool ?? p[1]),
-        toReserve: fmtToken(p.toReserve ?? p[2]),
-        toCommunity: fmtToken(p.toCommunity ?? p[3]),
-      });
-    } catch {
-      setRecycle(null);
-    }
-  }, [contracts, previewAmt]);
-
   useEffect(() => {
     void load();
   }, [load]);
 
-  useEffect(() => {
-    void loadRecycle();
-  }, [loadRecycle]);
-
-  const fieldForTab = (t: IncomeTab): { label: string; value: string }[] => {
-    if (!income) return [];
-    switch (t) {
-      case "self":
-        return [
-          { label: "Principal", value: income.principal },
-          { label: "Self ROI earned", value: income.roiEarned },
-        ];
-      case "direct":
-      case "contribution":
-        return [
-          { label: "Contribution / Direct earned", value: income.contributionEarned },
-        ];
-      case "rank":
-        return [{ label: "Rank earned", value: income.rankEarned }];
-      case "ga":
-        return [{ label: "GA / Booster earned", value: income.boosterEarned }];
-      case "tier":
-        return [{ label: "Same-rank / Tier earned", value: income.sameRankEarned }];
-      case "community":
-        return [{ label: "Community earned", value: income.communityEarned }];
-      case "total":
-        return [
-          { label: "ROI", value: income.roiEarned },
-          { label: "Contribution", value: income.contributionEarned },
-          { label: "Booster", value: income.boosterEarned },
-          { label: "Rank", value: income.rankEarned },
-          { label: "Same rank", value: income.sameRankEarned },
-          { label: "Community", value: income.communityEarned },
-          { label: "Total earned", value: income.totalEarned },
-        ];
-    }
-  };
-
   const activeTab = TABS.find((t) => t.id === tab)!;
+
+  useEffect(() => {
+    if (!contracts || !income || !activeTab.field) {
+      setNetEstimate("—");
+      return;
+    }
+    const gross = income.raw[activeTab.field] ?? 0n;
+    if (gross === 0n) {
+      setNetEstimate("0");
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const p = await contracts.treasury.previewRecycling(gross);
+        if (!cancelled) setNetEstimate(fmtToken(p.userPayout ?? p[0]));
+      } catch {
+        // fallback 70%
+        try {
+          const p = await contracts.treasury.previewRecycling(toWei(100));
+          const userShare = BigInt(p.userPayout ?? p[0]);
+          const est = (gross * userShare) / toWei(100);
+          if (!cancelled) setNetEstimate(fmtToken(est));
+        } catch {
+          if (!cancelled) setNetEstimate(fmtToken((gross * 70n) / 100n));
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [contracts, income, activeTab]);
+
   const filteredTxs = useMemo(() => {
-    if (tab === "total") return txs.slice(0, 20);
     const keys = activeTab.methods.map((m) => m.toLowerCase());
     return txs
-      .filter((tx) =>
-        keys.some((k) => tx.method.toLowerCase().includes(k)),
-      )
-      .slice(0, 20);
-  }, [txs, tab, activeTab]);
+      .filter((tx) => keys.some((k) => tx.method.toLowerCase().includes(k)))
+      .slice(0, 30);
+  }, [txs, activeTab]);
+
+  const grossOnChain =
+    income && activeTab.field
+      ? income[activeTab.field as keyof Omit<IncomeMap, "raw">]
+      : "—";
+
+  const emptyHint =
+    tab === "direct" || tab === "contribution"
+      ? "Activate a downline package to see Direct/Contribution rows here."
+      : "No ledger events for this stream yet.";
 
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="text-base font-semibold">Income</h2>
-        <p className="text-xs text-muted">
-          Mapping for {selectedUser ? shortAddr(selectedUser) : "no user selected"}
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="text-base font-semibold">Income</h2>
+          <p className="text-xs text-muted">
+            On-chain totals and session transactions by stream
+          </p>
+        </div>
+        <div className="w-72">
+          <label className="text-[11px] uppercase tracking-wide text-muted">
+            User
+          </label>
+          <Select
+            className="mt-1"
+            value={selectedUser || ""}
+            onChange={(e) => setSelectedUser(e.target.value || undefined)}
+          >
+            <option value="">Select user…</option>
+            {users.map((u) => (
+              <option key={u.address} value={u.address}>
+                #{u.id} {shortAddr(u.address, 4)}
+                {u.label ? ` (${u.label})` : ""}
+              </option>
+            ))}
+          </Select>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-1">
@@ -202,104 +212,68 @@ export function IncomePanel() {
         ))}
       </div>
 
-      {!selectedUser ? (
-        <Card>
-          <CardContent className="pt-4 text-sm text-muted">
-            Select a user to inspect income fields.
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {fieldForTab(tab).map((f) => (
-            <StatCard key={f.label} label={f.label} value={f.value} />
-          ))}
-        </div>
-      )}
-
       <Card>
         <CardHeader>
-          <CardTitle>Recycling preview</CardTitle>
-          <CardDescription>
-            treasury.previewRecycling — 70% user / 25% ROI / 3% reserve / 2%
-            community
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <label className="text-xs text-muted">
-              Amount (token units)
-              <input
-                className="mt-1 flex h-9 w-40 rounded-md border border-line bg-surface px-3 text-sm"
-                value={previewAmt}
-                onChange={(e) => setPreviewAmt(e.target.value)}
-              />
-            </label>
-            <Button size="sm" variant="secondary" onClick={() => void loadRecycle()}>
-              Preview
-            </Button>
-          </div>
-          {recycle ? (
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-              <StatCard label="User 70%" value={recycle.userPayout} tone="ok" />
-              <StatCard label="ROI 25%" value={recycle.toRoiPool} tone="accent" />
-              <StatCard label="Reserve 3%" value={recycle.toReserve} />
-              <StatCard label="Community 2%" value={recycle.toCommunity} />
-            </div>
-          ) : null}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Related transactions</CardTitle>
-          <CardDescription>
-            Filtered by method keywords for {activeTab.label}
-          </CardDescription>
+          <CardTitle>{activeTab.label}</CardTitle>
         </CardHeader>
         <CardContent className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="text-muted border-b border-line">
-              <tr>
-                <th className="py-2 pr-2">Method</th>
-                <th className="py-2 pr-2">Status</th>
-                <th className="py-2 pr-2">Hash</th>
-                <th className="py-2">Time</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredTxs.map((tx) => (
-                <tr key={tx.id} className="border-b border-line/50">
-                  <td className="py-2 pr-2">{tx.method}</td>
-                  <td className="py-2 pr-2">
-                    <Badge
-                      tone={
-                        tx.status === "success"
-                          ? "ok"
-                          : tx.status === "failed"
-                            ? "danger"
-                            : "warn"
-                      }
-                    >
-                      {tx.status}
-                    </Badge>
-                  </td>
-                  <td className="py-2 pr-2 font-mono">
-                    {tx.hash ? shortAddr(tx.hash, 6) : "—"}
-                  </td>
-                  <td className="py-2 text-muted">
-                    {new Date(tx.timestamp).toLocaleTimeString()}
-                  </td>
-                </tr>
-              ))}
-              {!filteredTxs.length ? (
+          {!selectedUser ? (
+            <p className="text-sm text-muted">Select a user above.</p>
+          ) : (
+            <table className="w-full text-left text-xs">
+              <thead className="text-muted border-b border-line">
                 <tr>
-                  <td colSpan={4} className="py-6 text-center text-muted">
-                    No matching txs yet
-                  </td>
+                  <th className="py-2 pr-2">Date</th>
+                  <th className="py-2 pr-2">From</th>
+                  <th className="py-2 pr-2">Level</th>
+                  <th className="py-2 pr-2">Gross</th>
+                  <th className="py-2 pr-2">Recycled</th>
+                  <th className="py-2">Net</th>
                 </tr>
-              ) : null}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                <tr className="border-b border-line/50 bg-surface-3/30">
+                  <td className="py-2 pr-2 text-muted">On-chain</td>
+                  <td className="py-2 pr-2">On-chain total</td>
+                  <td className="py-2 pr-2">—</td>
+                  <td className="py-2 pr-2 font-mono">{grossOnChain}</td>
+                  <td className="py-2 pr-2 font-mono text-muted">30%</td>
+                  <td className="py-2 font-mono">{netEstimate}</td>
+                </tr>
+                {filteredTxs.map((tx) => (
+                  <tr key={tx.id} className="border-b border-line/50">
+                    <td className="py-2 pr-2 text-muted">
+                      {new Date(tx.timestamp).toLocaleString()}
+                    </td>
+                    <td className="py-2 pr-2">{tx.method}</td>
+                    <td className="py-2 pr-2">—</td>
+                    <td className="py-2 pr-2 font-mono">—</td>
+                    <td className="py-2 pr-2 font-mono">—</td>
+                    <td className="py-2">
+                      <Badge
+                        tone={
+                          tx.status === "success"
+                            ? "ok"
+                            : tx.status === "failed"
+                              ? "danger"
+                              : "warn"
+                        }
+                      >
+                        {tx.status}
+                      </Badge>
+                    </td>
+                  </tr>
+                ))}
+                {!filteredTxs.length ? (
+                  <tr>
+                    <td colSpan={6} className="py-6 text-center text-muted">
+                      {emptyHint}
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          )}
         </CardContent>
       </Card>
     </div>

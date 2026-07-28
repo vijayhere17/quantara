@@ -52,6 +52,7 @@ type DashboardState = {
   connectionError?: string;
   refreshTick: number;
   selectedUser?: string;
+  detailsUser?: string;
   users: TrackedUser[];
   logs: AppLog[];
   txs: TxRecord[];
@@ -65,6 +66,7 @@ type DashboardState = {
   setConnecting: (v: boolean, err?: string) => void;
   bumpRefresh: () => void;
   setSelectedUser: (addr?: string) => void;
+  setDetailsUser: (addr?: string) => void;
   setUsers: (users: TrackedUser[]) => void;
   upsertUser: (user: TrackedUser) => void;
   removeUser: (address: string) => void;
@@ -82,7 +84,7 @@ type DashboardState = {
 export const useDashboardStore = create<DashboardState>()(
   persist(
     (set, get) => ({
-      mode: "developer",
+      mode: "client",
       tab: "overview",
       contracts: null,
       connecting: false,
@@ -100,6 +102,7 @@ export const useDashboardStore = create<DashboardState>()(
         set({ connecting, connectionError }),
       bumpRefresh: () => set((s) => ({ refreshTick: s.refreshTick + 1 })),
       setSelectedUser: (selectedUser) => set({ selectedUser }),
+      setDetailsUser: (detailsUser) => set({ detailsUser }),
       setUsers: (users) => set({ users }),
       upsertUser: (user) =>
         set((s) => {
@@ -117,6 +120,10 @@ export const useDashboardStore = create<DashboardState>()(
             s.selectedUser?.toLowerCase() === address.toLowerCase()
               ? undefined
               : s.selectedUser,
+          detailsUser:
+            s.detailsUser?.toLowerCase() === address.toLowerCase()
+              ? undefined
+              : s.detailsUser,
         })),
       addLog: (level, message, detail) =>
         set((s) => ({
@@ -151,6 +158,7 @@ export const useDashboardStore = create<DashboardState>()(
         set({
           users: [],
           selectedUser: undefined,
+          detailsUser: undefined,
           logs: [],
           txs: [],
           refreshTick: get().refreshTick + 1,

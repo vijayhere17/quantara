@@ -19,7 +19,20 @@ import { fmtUsd } from "@/lib/format";
 import { cn, shortAddr } from "@/lib/utils";
 import { useDashboardStore } from "@/store/dashboardStore";
 
-const BATCHES = [1, 10, 50, 100, 500] as const;
+const BATCHES = [1, 10, 50] as const;
+
+function statusLabel(row?: UserRow) {
+  if (!row) return "—";
+  if (!row.registered) return "Wallet only";
+  if (row.packageAmount > 0) return "Active";
+  return "Registered";
+}
+
+function statusTone(row?: UserRow): "default" | "ok" | "warn" | "accent" {
+  if (!row || !row.registered) return "warn";
+  if (row.packageAmount > 0) return "ok";
+  return "accent";
+}
 
 export function UsersPanel() {
   const contracts = useContracts();
@@ -27,8 +40,8 @@ export function UsersPanel() {
   const users = useDashboardStore((s) => s.users);
   const selectedUser = useDashboardStore((s) => s.selectedUser);
   const setSelectedUser = useDashboardStore((s) => s.setSelectedUser);
+  const setDetailsUser = useDashboardStore((s) => s.setDetailsUser);
   const upsertUser = useDashboardStore((s) => s.upsertUser);
-  const removeUser = useDashboardStore((s) => s.removeUser);
   const addLog = useDashboardStore((s) => s.addLog);
   const busy = useDashboardStore((s) => s.busy);
   const tick = useDashboardStore((s) => s.refreshTick);
@@ -70,7 +83,6 @@ export function UsersPanel() {
       selectedUser &&
       (!forAddress || selectedUser.toLowerCase() !== forAddress.toLowerCase())
     ) {
-      // Prefer selected only if they are already registered on-chain
       const sel = rows[selectedUser.toLowerCase()];
       if (sel?.registered || selectedUser.toLowerCase() === root.toLowerCase()) {
         return selectedUser;
@@ -120,16 +132,18 @@ export function UsersPanel() {
     });
   };
 
-  const onActivate50 = async (address: string, walletIndex?: number) => {
+  const onActivate = async (address: string, walletIndex?: number) => {
     setSelectedUser(address);
-    await run(`Activate $50 ${shortAddr(address)}`, async (c) => {
+    await run(`Activate ${shortAddr(address)}`, async (c) => {
       const signer = await signerFor(c, address, walletIndex);
-      const registered = await c.core.isRegistered(address);
-      if (!registered) {
+      let row = await loadUserRow(c, address);
+      if (!row.registered) {
         const sponsor = resolveSponsor(address) || c.addresses.RootUser;
         await registerUser(c, signer, sponsor);
+        row = await loadUserRow(c, address);
       }
-      return activatePackage(c, signer, 50);
+      const amount = row.nextPackage || 50;
+      return activatePackage(c, signer, amount);
     });
   };
 
@@ -149,31 +163,16 @@ export function UsersPanel() {
     });
   };
 
-  const onDelete = (address: string) => {
-    removeUser(address);
-    addLog("warn", "Removed user from local list", address);
-  };
-
-  const onResetUser = (address: string) => {
-    removeUser(address);
-    addLog(
-      "warn",
-      "Reset user (local only)",
-      `${address} — on-chain state unchanged; redeploy to clear chain`,
-    );
-  };
-
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-base font-semibold">Users</h2>
           <p className="text-xs text-muted max-w-xl">
-            Flow: <span className="text-accent">Create</span> (wallet only) →{" "}
-            <span className="text-accent">Register</span> (sponsor = Root unless
-            another registered user is selected) →{" "}
-            <span className="text-accent">Activate $50</span> → check Packages /
-            Overview.
+            Testing flow:{" "}
+            <span className="text-accent">1. Create</span> (wallet only) →{" "}
+            <span className="text-accent">2. Register</span> (sponsor never self)
+            → <span className="text-accent">3. Activate</span> package.
           </p>
           <p className="text-xs text-muted mt-1">
             Default sponsor: {shortAddr(resolveSponsor()) || "Root"} ·{" "}
@@ -207,19 +206,19 @@ export function UsersPanel() {
           <CardTitle>Tracked users</CardTitle>
         </CardHeader>
         <CardContent className="overflow-x-auto">
-          <table className="w-full min-w-[1100px] text-left text-xs">
+          <table className="w-full min-w-[1200px] text-left text-xs">
             <thead className="text-muted border-b border-line">
               <tr>
-                <th className="py-2 pr-2">ID</th>
-                <th className="py-2 pr-2">Wallet</th>
-                <th className="py-2 pr-2">Status</th>
+                <th className="py-2 pr-2">User</th>
                 <th className="py-2 pr-2">Sponsor</th>
                 <th className="py-2 pr-2">Package</th>
-                <th className="py-2 pr-2">Next</th>
+                <th className="py-2 pr-2">Package Progress</th>
                 <th className="py-2 pr-2">Rank</th>
                 <th className="py-2 pr-2">Directs</th>
-                <th className="py-2 pr-2">Self ROI</th>
-                <th className="py-2 pr-2">Balance</th>
+                <th className="py-2 pr-2">BV</th>
+                <th className="py-2 pr-2">Total Income</th>
+                <th className="py-2 pr-2">Withdrawable</th>
+                <th className="py-2 pr-2">Status</th>
                 <th className="py-2">Actions</th>
               </tr>
             </thead>
@@ -233,6 +232,12 @@ export function UsersPanel() {
                 const isRoot =
                   u.address.toLowerCase() ===
                   contracts?.addresses.RootUser?.toLowerCase();
+                const showActivate =
+                  !isRoot &&
+                  (!registered ||
+                    row?.nextPackage === 50 ||
+                    !hasPackage ||
+                    (row?.packageAmount ?? 0) === 0);
 
                 return (
                   <tr
@@ -243,23 +248,13 @@ export function UsersPanel() {
                     )}
                     onClick={() => setSelectedUser(u.address)}
                   >
-                    <td className="py-2 pr-2 font-mono">{u.id}</td>
-                    <td className="py-2 pr-2 font-mono">
-                      {shortAddr(u.address, 3)}
-                      {u.label || isRoot ? (
-                        <Badge className="ml-1" tone="accent">
-                          {u.label || "Root"}
-                        </Badge>
-                      ) : null}
-                    </td>
                     <td className="py-2 pr-2">
-                      {!row ? (
-                        <Badge>—</Badge>
-                      ) : registered ? (
-                        <Badge tone="ok">Registered</Badge>
-                      ) : (
-                        <Badge tone="warn">Wallet only</Badge>
-                      )}
+                      <div className="font-medium text-ink">
+                        {u.label || (isRoot ? "Root" : `User ${u.id}`)}
+                      </div>
+                      <div className="font-mono text-muted">
+                        {shortAddr(u.address, 3)}
+                      </div>
                     </td>
                     <td className="py-2 pr-2 font-mono">
                       {registered
@@ -269,65 +264,70 @@ export function UsersPanel() {
                     <td className="py-2 pr-2">
                       {registered
                         ? hasPackage
-                          ? `${fmtUsd(row!.packageAmount)} C${row!.packageCycle}${
-                              row!.packageCompleted ? " ✓" : ""
-                            }`
+                          ? fmtUsd(row!.packageAmount)
                           : "None"
                         : "—"}
                     </td>
-                    <td className="py-2 pr-2 font-mono">
-                      {registered
-                        ? `${fmtUsd(row!.nextPackage)} C${row!.nextCycle}`
-                        : "—"}
+                    <td className="py-2 pr-2">
+                      {registered && hasPackage ? (
+                        <>
+                          <div>
+                            {row!.packageCycle} / 2
+                            {row!.packageCompleted ? " ✓" : ""}
+                          </div>
+                          <div className="text-muted">
+                            Next {fmtUsd(row!.nextPackage)} C{row!.nextCycle}
+                          </div>
+                        </>
+                      ) : (
+                        "—"
+                      )}
                     </td>
                     <td className="py-2 pr-2">
                       {RANK_NAMES[row?.rank ?? 0] ?? "—"}
                     </td>
                     <td className="py-2 pr-2">{row?.directCount ?? "—"}</td>
-                    <td className="py-2 pr-2 font-mono">{row?.roiEarned ?? "—"}</td>
+                    <td className="py-2 pr-2 font-mono">
+                      {row?.personalVolume ?? "—"}
+                    </td>
+                    <td className="py-2 pr-2 font-mono">
+                      {row?.totalEarned ?? "—"}
+                    </td>
                     <td className="py-2 pr-2 font-mono">
                       {row?.tokenBalance ?? "—"}
                     </td>
+                    <td className="py-2 pr-2">
+                      <Badge tone={statusTone(row)}>{statusLabel(row)}</Badge>
+                    </td>
                     <td className="py-2" onClick={(e) => e.stopPropagation()}>
                       <div className="flex flex-wrap gap-1">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={
-                            busy || !contracts || registered || isRoot
-                          }
-                          title={
-                            registered
-                              ? "Already registered"
-                              : "Register under Root (or selected sponsor)"
-                          }
-                          onClick={() =>
-                            void onRegister(u.address, u.walletIndex)
-                          }
-                        >
-                          Register
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          disabled={
-                            busy ||
-                            !contracts ||
-                            (registered &&
-                              row != null &&
-                              row.nextPackage !== 50)
-                          }
-                          title="Register if needed, then activate $50 C1"
-                          onClick={() =>
-                            void onActivate50(u.address, u.walletIndex)
-                          }
-                        >
-                          Activate $50
-                        </Button>
+                        {!registered && !isRoot ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={busy || !contracts}
+                            onClick={() =>
+                              void onRegister(u.address, u.walletIndex)
+                            }
+                          >
+                            Register
+                          </Button>
+                        ) : null}
+                        {showActivate ? (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            disabled={busy || !contracts}
+                            onClick={() =>
+                              void onActivate(u.address, u.walletIndex)
+                            }
+                          >
+                            Activate
+                          </Button>
+                        ) : null}
                         <Button
                           size="sm"
                           disabled={busy || !contracts || !registered}
-                          title="Force-complete current package and activate next"
                           onClick={() =>
                             void onUpgrade(u.address, u.walletIndex)
                           }
@@ -337,18 +337,9 @@ export function UsersPanel() {
                         <Button
                           size="sm"
                           variant="ghost"
-                          disabled={isRoot}
-                          onClick={() => onDelete(u.address)}
+                          onClick={() => setDetailsUser(u.address)}
                         >
-                          Delete
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="danger"
-                          disabled={isRoot}
-                          onClick={() => onResetUser(u.address)}
-                        >
-                          Reset
+                          View Details
                         </Button>
                       </div>
                     </td>
