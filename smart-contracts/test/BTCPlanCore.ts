@@ -1,3 +1,7 @@
+/**
+ * BTCPlanCore integration tests.
+ * Clean file — do not leave git merge conflict markers (<<<<<<< / ======= / >>>>>>>) here.
+ */
 import { expect } from "chai";
 import { network } from "hardhat";
 
