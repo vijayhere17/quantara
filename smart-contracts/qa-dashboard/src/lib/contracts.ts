@@ -371,8 +371,12 @@ export async function activatePackage(
   return { hash: tx.hash as string, receipt: null, amount };
 }
 
-export async function ethBalance(provider: Provider, address: string) {
-  return formatEther(await provider.getBalance(address));
+export async function claimSelfRoi(contracts: Contracts, user: Signer) {
+  const userAddr = await user.getAddress();
+  const roi = contracts.roi.connect(user) as Contract;
+  return sendUserTx(contracts, user, async (nonce) =>
+    roi.claimRoi({ nonce }),
+  );
 }
 
 export async function connectBrowserWallet() {

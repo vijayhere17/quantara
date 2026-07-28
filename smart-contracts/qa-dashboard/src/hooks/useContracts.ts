@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
   activatePackage,
+  claimSelfRoi,
   connectContracts,
   forceCompletePackage,
   fundEth,
@@ -413,4 +414,5 @@ export {
   increaseTime,
   registerUser,
   walletFromIndex,
+  claimSelfRoi,
 };
