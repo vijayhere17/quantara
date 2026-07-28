@@ -12,6 +12,7 @@ import {
   type Contracts,
   walletFromIndex,
 } from "@/lib/contracts";
+import { CHAIN_ID, networkLabel } from "@/lib/constants";
 import { useDashboardStore } from "@/store/dashboardStore";
 import { fmtToken } from "@/lib/format";
 
@@ -33,7 +34,7 @@ export function useBootstrap() {
         setConnecting(false);
         addLog(
           "ok",
-          "Connected to Hardhat node",
+          `Connected to ${networkLabel(CHAIN_ID)}`,
           `Core ${c.addresses.BTCPlanCore}`,
         );
         // Ensure root is tracked
@@ -48,7 +49,7 @@ export function useBootstrap() {
             createdAt: Date.now(),
           });
         }
-        toast.success("Connected to local contracts");
+        toast.success(`Connected · ${networkLabel(CHAIN_ID)}`);
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         if (!cancelled) {

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { BUSINESS_TABS, type DashboardTab } from "@/lib/constants";
+import { BUSINESS_TABS, CHAIN_ID, networkLabel, type DashboardTab } from "@/lib/constants";
 import { useDashboardStore } from "@/store/dashboardStore";
 import { Badge } from "@/components/ui/input";
 import { cn, shortAddr } from "@/lib/utils";
@@ -33,7 +33,7 @@ export function DashboardShell({
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Badge tone={connected ? "ok" : "danger"}>
-              {connected ? "Live Hardhat" : "Disconnected"}
+              {connected ? `Live · ${networkLabel(CHAIN_ID)}` : "Disconnected"}
             </Badge>
             {selectedUser ? (
               <Badge tone="default">User {shortAddr(selectedUser, 3)}</Badge>

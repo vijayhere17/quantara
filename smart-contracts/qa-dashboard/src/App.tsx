@@ -8,6 +8,7 @@ import { IncomePanel } from "@/components/panels/IncomePanel";
 import { ReportsPanel } from "@/components/panels/ReportsPanel";
 import { DeveloperPanel } from "@/components/panels/DeveloperPanel";
 import { UserDetailsModal } from "@/components/users/UserDetailsModal";
+import { CHAIN_ID, networkLabel } from "@/lib/constants";
 import { useBootstrap } from "@/hooks/useContracts";
 import { useDashboardStore } from "@/store/dashboardStore";
 
@@ -43,7 +44,7 @@ export default function App() {
     <>
       <DashboardShell
         connected={Boolean(contracts)}
-        error={connecting ? "Connecting to Hardhat…" : connectionError}
+        error={connecting ? `Connecting to ${networkLabel(CHAIN_ID)}…` : connectionError}
       >
         <div className="animate-fade-up">{panel}</div>
       </DashboardShell>
