@@ -10,6 +10,7 @@ import {
 import { Badge, Select } from "@/components/ui/input";
 import { DistributionPanel } from "@/components/DistributionPanel";
 import { RecyclingFlow } from "@/components/RecyclingFlow";
+import { IncomeRulesCard } from "@/components/IncomeRulesCard";
 import {
   claimSelfRoi,
   getSignerFor,
@@ -372,6 +373,8 @@ export function IncomePanel() {
       {lastDistribution ? (
         <DistributionPanel dist={lastDistribution} showRecycling={false} />
       ) : null}
+
+      {selectedUser ? <IncomeRulesCard userAddress={selectedUser} /> : null}
 
       {!selectedUser ? (
         <Card>
