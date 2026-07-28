@@ -16,7 +16,7 @@ Open: **http://localhost:5173**
 cd smart-contracts
 npx hardhat node
 
-# Terminal 2 — compile, deploy, sync ABIs/addresses, start UI
+# Terminal 2 — compile, deploy, install UI deps, sync ABIs/addresses, start UI
 cd smart-contracts
 npm run qa:dashboard:setup
 npm run qa:dashboard
@@ -30,7 +30,9 @@ npm install
 npx hardhat build
 npx hardhat run scripts/deploy.ts --network localhost
 npm run qa:dashboard:sync
-cd qa-dashboard && npm install && npm run dev
+cd qa-dashboard
+npm install
+npm run dev
 ```
 
 The Vite server prints `http://localhost:5173`. The UI loads `public/deployed-addresses.json` and talks to `http://127.0.0.1:8545` (chainId `31337`).
