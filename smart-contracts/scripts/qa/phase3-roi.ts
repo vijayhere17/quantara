@@ -162,15 +162,13 @@ async function main() {
 
   // dailyBps may recompute after time travel (same formula if fund unchanged)
   const dailyBpsAfter = BigInt(await reward.calculateDailyRoiBps());
-  const expectPendingAfter = shareAfter > 0n
-    ? shareAfter
-    : (principal * dailyBpsAfter * 1n) / 10000n;
   let shareAfter = 0n;
   try {
     shareAfter = BigInt(await reward.getUserDailyRoiShare(subject.address));
   } catch {
     shareAfter = (principal * dailyBpsAfter * 1n) / 10000n;
   }
+  const expectPendingAfter = shareAfter;
 
   check(
     "After +1d / pending ROI > 0",
@@ -179,7 +177,7 @@ async function main() {
   );
   check(
     "After +1d / pending == package share of 5% pool",
-    pendingAfterDay === expectPendingAfter && pendingAfterDay === shareAfter,
+    pendingAfterDay === expectPendingAfter,
     `got=${pendingAfterDay} expect=${expectPendingAfter} share=${shareAfter} bps=${dailyBpsAfter}`,
   );
 
