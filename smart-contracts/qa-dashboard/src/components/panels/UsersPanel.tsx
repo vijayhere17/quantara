@@ -23,6 +23,7 @@ import { RANK_NAMES } from "@/lib/constants";
 import { fmtUsd } from "@/lib/format";
 import { cn, shortAddr } from "@/lib/utils";
 import { useDashboardStore } from "@/store/dashboardStore";
+import { toast } from "sonner";
 
 const BATCHES = [1, 10, 50] as const;
 
@@ -55,10 +56,12 @@ export function UsersPanel() {
   const tick = useDashboardStore((s) => s.refreshTick);
   const lastDistribution = useDashboardStore((s) => s.lastDistribution);
   const setLastDistribution = useDashboardStore((s) => s.setLastDistribution);
+  const resetKeepRoot = useDashboardStore((s) => s.resetKeepRoot);
 
   const [rows, setRows] = useState<Record<string, UserRow>>({});
   const [loadingRows, setLoadingRows] = useState(false);
   const [globalError, setGlobalError] = useState("");
+  const [bulkMsg, setBulkMsg] = useState("");
 
   const refreshRows = useCallback(async () => {
     if (!contracts) return;
@@ -184,21 +187,110 @@ export function UsersPanel() {
     });
   };
 
+  const onActivateAll = async () => {
+    if (!contracts) return;
+    const root = contracts.addresses.RootUser?.toLowerCase() || "";
+    const targets = users.filter((u) => u.address.toLowerCase() !== root);
+    if (!targets.length) {
+      toast.message("Create users first");
+      return;
+    }
+    setBulkMsg("");
+    await run(`Activate All (${targets.length})`, async (c) => {
+      let ok = 0;
+      let skipped = 0;
+      let lastAddr = "";
+      for (const u of targets) {
+        try {
+          const signer = await signerFor(c, u.address, u.walletIndex);
+          let row = await loadUserRow(c, u.address);
+          if (!row.registered) {
+            const sponsor = resolveSponsor(u.address) || c.addresses.RootUser;
+            if (sponsor.toLowerCase() === u.address.toLowerCase()) {
+              skipped += 1;
+              continue;
+            }
+            await registerUser(c, signer, sponsor);
+            row = await loadUserRow(c, u.address);
+          }
+          // Skip if already on an incomplete package (use Upgrade path)
+          if (row.packageAmount > 0 && !row.packageCompleted) {
+            skipped += 1;
+            continue;
+          }
+          const amount = row.nextPackage || 50;
+          if (!amount) {
+            skipped += 1;
+            continue;
+          }
+          const before = await snapshotFunds(c);
+          await activatePackage(c, signer, amount);
+          const dist = await buildActivationDistribution(
+            c,
+            u.address,
+            amount,
+            before,
+          );
+          setLastDistribution(dist);
+          lastAddr = u.address;
+          ok += 1;
+        } catch (e) {
+          addLog(
+            "warn",
+            `Activate All skipped ${shortAddr(u.address)}`,
+            e instanceof Error ? e.message : String(e),
+          );
+          skipped += 1;
+        }
+      }
+      if (lastAddr) {
+        setSelectedUser(lastAddr);
+        setDetailsUser(lastAddr);
+      }
+      const msg = `Activated ${ok} · skipped ${skipped}`;
+      setBulkMsg(msg);
+      addLog("ok", "Activate All finished", msg);
+      return { result: { ok, skipped } };
+    });
+  };
+
+  const onResetKeepRoot = () => {
+    const root = contracts?.addresses.RootUser;
+    if (!root) {
+      toast.error("Root address not loaded — connect first");
+      return;
+    }
+    if (
+      !window.confirm(
+        "Reset dashboard: delete all tracked users except Root, clear last distribution / logs / txs?\n\nOn-chain balances stay until you redeploy (Developer → Reset → hardhat_reset + qa:dashboard:setup).",
+      )
+    ) {
+      return;
+    }
+    const removed = resetKeepRoot(root);
+    setRows({});
+    setBulkMsg("");
+    setGlobalError("");
+    addLog("warn", "Reset keep Root", `Removed ${removed} tracked user(s)`);
+    toast.success(`Reset done — Root only (removed ${removed})`);
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-base font-semibold">Users</h2>
           <p className="text-xs text-muted max-w-2xl">
-            Flow: <span className="text-accent">Create</span> →{" "}
-            <span className="text-accent">Register</span> →{" "}
-            <span className="text-accent">Activate</span> → distribution card
-            appears (ROI 30%, charity, Direct L1–L3) →{" "}
-            <span className="text-accent">View Details</span> for full breakdown.
+            Simple flow: <span className="text-accent">Create</span> →{" "}
+            <span className="text-accent">Activate All</span> (or Activate one
+            by one) → see <span className="text-accent">From → To</span>{" "}
+            distribution + 70/30 recycling. Sponsor defaults to selected user or
+            Root.
           </p>
           <p className="text-xs text-muted mt-1">
             Default sponsor: {shortAddr(resolveSponsor()) || "Root"} ·{" "}
             {loadingRows ? "Loading…" : `${users.length} tracked`}
+            {bulkMsg ? ` · ${bulkMsg}` : ""}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -215,6 +307,24 @@ export function UsersPanel() {
           <Button
             size="sm"
             variant="secondary"
+            disabled={!contracts || busy || users.length < 2}
+            onClick={() => void onActivateAll()}
+            title="Register if needed, then activate next package for every non-Root user"
+          >
+            Activate All
+          </Button>
+          <Button
+            size="sm"
+            variant="danger"
+            disabled={busy}
+            onClick={onResetKeepRoot}
+            title="Clear all tracked users except Root"
+          >
+            Reset (keep Root)
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
             disabled={!contracts || busy}
             onClick={() => void refreshRows()}
           >
@@ -228,6 +338,17 @@ export function UsersPanel() {
           <CardContent className="pt-4 text-sm text-danger">{globalError}</CardContent>
         </Card>
       ) : null}
+
+      <Card className="border-line/80">
+        <CardContent className="pt-4 text-[11px] text-muted leading-relaxed">
+          <strong className="text-ink">Reset income to zero on-chain:</strong>{" "}
+          Reset (keep Root) clears the dashboard list. To wipe contract
+          balances/income too → stop Hardhat →{" "}
+          <code className="text-accent">npx hardhat node</code> →{" "}
+          <code className="text-accent">npm run qa:dashboard:setup</code> →
+          refresh this page.
+        </CardContent>
+      </Card>
 
       <DistributionPanel dist={lastDistribution} />
 

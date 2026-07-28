@@ -268,8 +268,9 @@ export function IncomePanel() {
         <div>
           <h2 className="text-base font-semibold">Income</h2>
           <p className="text-xs text-muted max-w-2xl">
-            Every amount is shown as <strong className="text-ink">BTCB + USD</strong>.
-            Use the guides below to test Direct, Self ROI, Team ROI (upline), and Rank.
+            See <strong className="text-ink">From → To</strong> for the last
+            activation, plus the 70/30 recycle rule. Pick a user to inspect
+            Direct / Self ROI / Team ROI / Rank buckets (BTCB + USD).
           </p>
         </div>
         <div className="w-72">

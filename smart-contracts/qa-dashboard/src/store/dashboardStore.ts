@@ -83,6 +83,8 @@ type DashboardState = {
   exportSession: () => SessionSnapshot;
   importSession: (s: SessionSnapshot) => void;
   resetLocal: () => void;
+  /** Wipe tracked users except Root; clear distribution/logs/txs. Returns removed count. */
+  resetKeepRoot: (rootAddress: string) => number;
 };
 
 export const useDashboardStore = create<DashboardState>()(
@@ -164,10 +166,40 @@ export const useDashboardStore = create<DashboardState>()(
           users: [],
           selectedUser: undefined,
           detailsUser: undefined,
+          lastDistribution: undefined,
           logs: [],
           txs: [],
           refreshTick: get().refreshTick + 1,
         }),
+      resetKeepRoot: (rootAddress: string) => {
+        const before = get().users.length;
+        const root = get().users.find(
+          (u) => u.address.toLowerCase() === rootAddress.toLowerCase(),
+        ) || {
+          id: 0,
+          address: rootAddress,
+          walletIndex: 0,
+          label: "Root",
+          createdAt: Date.now(),
+        };
+        set({
+          users: [
+            {
+              ...root,
+              id: 0,
+              label: root.label || "Root",
+              walletIndex: root.walletIndex ?? 0,
+            },
+          ],
+          selectedUser: root.address,
+          detailsUser: undefined,
+          lastDistribution: undefined,
+          logs: [],
+          txs: [],
+          refreshTick: get().refreshTick + 1,
+        });
+        return Math.max(0, before - 1);
+      },
     }),
     {
       name: "quantara-qa-dashboard",

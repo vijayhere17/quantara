@@ -550,6 +550,8 @@ function ResetSection() {
   const contracts = useContracts();
   const { run } = useTxRunner();
   const resetLocal = useDashboardStore((s) => s.resetLocal);
+  const resetKeepRoot = useDashboardStore((s) => s.resetKeepRoot);
+  const setLastDistribution = useDashboardStore((s) => s.setLastDistribution);
   const addLog = useDashboardStore((s) => s.addLog);
   const busy = useDashboardStore((s) => s.busy);
 
@@ -558,6 +560,23 @@ function ResetSection() {
       return;
     resetLocal();
     addLog("warn", "Local dashboard reset");
+  };
+
+  const onResetKeepRoot = () => {
+    const root = contracts?.addresses.RootUser;
+    if (!root) {
+      window.alert("Connect first — Root address unknown");
+      return;
+    }
+    if (
+      !window.confirm(
+        "Delete all tracked users except Root and clear distribution/logs/txs?",
+      )
+    )
+      return;
+    const n = resetKeepRoot(root);
+    setLastDistribution(undefined);
+    addLog("warn", "Reset keep Root", `Removed ${n} user(s)`);
   };
 
   const onHardhatReset = async () => {
@@ -605,30 +624,40 @@ function ResetSection() {
   };
 
   return (
-    <div className="flex flex-wrap gap-2">
-      <Button variant="danger" disabled={busy} onClick={onResetLocal}>
-        Reset local
-      </Button>
-      <Button
-        disabled={!contracts || busy}
-        onClick={() => void onSnapshot()}
-      >
-        Take snapshot
-      </Button>
-      <Button
-        variant="secondary"
-        disabled={!contracts || busy}
-        onClick={() => void onRevert()}
-      >
-        evm_revert
-      </Button>
-      <Button
-        variant="danger"
-        disabled={!contracts || busy}
-        onClick={() => void onHardhatReset()}
-      >
-        hardhat_reset
-      </Button>
+    <div className="space-y-3">
+      <p className="text-xs text-muted max-w-2xl leading-relaxed">
+        <strong className="text-ink">Reset (keep Root)</strong> clears the QA
+        user list. To zero on-chain income/pools: hardhat_reset (or restart
+        node) → <code className="text-accent">npm run qa:dashboard:setup</code>.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <Button variant="danger" disabled={busy} onClick={onResetKeepRoot}>
+          Reset (keep Root)
+        </Button>
+        <Button variant="danger" disabled={busy} onClick={onResetLocal}>
+          Reset local (all)
+        </Button>
+        <Button
+          disabled={!contracts || busy}
+          onClick={() => void onSnapshot()}
+        >
+          Take snapshot
+        </Button>
+        <Button
+          variant="secondary"
+          disabled={!contracts || busy}
+          onClick={() => void onRevert()}
+        >
+          evm_revert
+        </Button>
+        <Button
+          variant="danger"
+          disabled={!contracts || busy}
+          onClick={() => void onHardhatReset()}
+        >
+          hardhat_reset
+        </Button>
+      </div>
     </div>
   );
 }

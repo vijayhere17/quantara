@@ -219,7 +219,7 @@ export function UserDetailsModal() {
 
           {lastDistribution &&
           lastDistribution.user.toLowerCase() === row.address.toLowerCase() ? (
-            <DistributionPanel dist={lastDistribution} />
+            <DistributionPanel dist={lastDistribution} showRecycling={false} />
           ) : null}
 
           {/* User Information */}
