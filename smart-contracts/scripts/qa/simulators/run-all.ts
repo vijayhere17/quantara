@@ -1,30 +1,54 @@
 /**
  * Phase 5 — run all QA simulators and write PASS/FAIL reports.
  *
+ * Prefer the cross-platform launcher (Hardhat 3 rejects `--` script args):
  *   npm run qa:simulators
- *   npx hardhat run scripts/qa/simulators/run-all.ts
+ *   npm run qa:simulators:package
+ *   node scripts/qa/simulators/launch.mjs PackageSimulator
+ *   node scripts/qa/simulators/launch.mjs ReferralTree --depth 3 --directs 2
  *
- * Env:
- *   QA_TREE_DEPTH=2 QA_TREE_DIRECTS=2
- *   QA_SIM=PackageSimulator   # optional: run a single simulator by name substring
+ * Env fallback (PowerShell):
+ *   $env:QA_SIM="PackageSimulator"; npx hardhat run scripts/qa/simulators/run-all.ts
  */
 import hre from "hardhat";
 import { ALL_SIMULATORS } from "./simulations";
 import { writeReports, type SimulatorReport } from "./lib/report";
 
+function argValue(flag: string): string {
+  const argv = process.argv;
+  const eq = argv.find((a) => a.startsWith(`${flag}=`));
+  if (eq) return eq.slice(flag.length + 1);
+  const idx = argv.indexOf(flag);
+  if (idx >= 0 && idx + 1 < argv.length) return argv[idx + 1];
+  return "";
+}
+
 async function main() {
   const { ethers } = await hre.network.connect();
-  const filter = (process.env.QA_SIM || "").toLowerCase();
+
+  // Prefer CLI flags (Windows-safe). Fall back to env for Unix / PowerShell.
+  const filter = (
+    argValue("--sim") ||
+    process.env.QA_SIM ||
+    ""
+  ).toLowerCase();
+  const depth = argValue("--depth") || process.env.QA_TREE_DEPTH || "";
+  const directs = argValue("--directs") || process.env.QA_TREE_DIRECTS || "";
+  if (depth) process.env.QA_TREE_DEPTH = depth;
+  if (directs) process.env.QA_TREE_DIRECTS = directs;
 
   console.log("\n══════════════════════════════════════════════════");
   console.log("  PHASE 5 — QA Simulator Suite");
+  if (filter) console.log(`  Filter: ${filter}`);
   console.log("══════════════════════════════════════════════════\n");
 
   const reports: SimulatorReport[] = [];
+  let matched = 0;
   for (const sim of ALL_SIMULATORS) {
     if (filter && !sim.name.toLowerCase().includes(filter)) {
       continue;
     }
+    matched += 1;
     console.log(`\n▶ Running ${sim.name}…`);
     try {
       reports.push(await sim.run(ethers));
@@ -46,6 +70,15 @@ async function main() {
         status: "FAIL",
       });
     }
+  }
+
+  if (filter && matched === 0) {
+    console.error(
+      `No simulator matched filter "${filter}". Known names:\n` +
+        ALL_SIMULATORS.map((s) => `  - ${s.name}`).join("\n"),
+    );
+    process.exitCode = 1;
+    return;
   }
 
   const path = writeReports(reports);
