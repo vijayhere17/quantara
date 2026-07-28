@@ -191,6 +191,21 @@ npm run bootstrap:demo
 
 Signup shows **Get Demo BTCB** only when `BLOCKCHAIN_CHAIN_ID=31337` and `APP_ENV=local`.
 
+## Internal QA Dashboard (visual)
+
+SPA at `qa-dashboard/` — tests **real** contracts in the browser (no mocks).
+
+```bash
+# Terminal 1
+npx hardhat node
+
+# Terminal 2
+npm run qa:dashboard:setup   # build + deploy + sync ABIs/addresses
+npm run qa:dashboard         # http://localhost:5173
+```
+
+See `qa-dashboard/README.md` for tabs (Users, Tree, Packages, ROI, Reports, Demo, …).
+
 ## Explorers
 
 - Mainnet: `https://bscscan.com/tx/`

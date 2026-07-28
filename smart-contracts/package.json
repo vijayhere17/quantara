@@ -40,6 +40,11 @@
     "qa:simulators:community": "QA_SIM=CommunityBuilder hardhat run scripts/qa/simulators/run-all.ts",
     "qa:simulators:tier": "QA_SIM=TierBooster hardhat run scripts/qa/simulators/run-all.ts",
     "qa:simulators:recycle": "QA_SIM=IncomeRecycling hardhat run scripts/qa/simulators/run-all.ts",
+    "qa:dashboard:sync": "node qa-dashboard/scripts/sync-artifacts.mjs",
+    "qa:dashboard:install": "npm --prefix qa-dashboard install",
+    "qa:dashboard:setup": "hardhat build && hardhat run scripts/deploy.ts --network localhost && node qa-dashboard/scripts/sync-artifacts.mjs && npm --prefix qa-dashboard install",
+    "qa:dashboard": "npm run qa:dashboard:sync && npm --prefix qa-dashboard install && npm --prefix qa-dashboard run dev",
+    "qa:dashboard:build": "npm run qa:dashboard:sync && npm --prefix qa-dashboard install && npm --prefix qa-dashboard run build",
     "test:flow": "hardhat run scripts/testFlow.ts",
     "test:cap": "hardhat run scripts/testIncomeCap.ts"
   },
