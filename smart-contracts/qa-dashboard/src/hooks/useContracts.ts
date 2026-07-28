@@ -154,92 +154,117 @@ export type UserRow = {
   nextCycle: number;
   gaActive: boolean;
   communityPoints: number;
+  loadError?: string;
 };
+
+async function safeCall<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
+  try {
+    return await fn();
+  } catch {
+    return fallback;
+  }
+}
 
 export async function loadUserRow(
   c: Contracts,
   address: string,
 ): Promise<UserRow> {
-  const registered: boolean = await c.core.isRegistered(address);
-  if (!registered) {
+  const empty: UserRow = {
+    address,
+    registered: false,
+    sponsor: "",
+    packageAmount: 0,
+    packageCycle: 0,
+    joinedAt: 0,
+    isActive: false,
+    packageCompleted: false,
+    rank: 0,
+    directCount: 0,
+    groupVolume: "0",
+    personalVolume: "0",
+    roiEarned: "0",
+    workingEarned: "0",
+    totalEarned: "0",
+    tokenBalance: "0",
+    pendingRoi: "0",
+    nextPackage: 50,
+    nextCycle: 1,
+    gaActive: false,
+    communityPoints: 0,
+  };
+
+  let registered = false;
+  try {
+    registered = Boolean(await c.core.isRegistered(address));
+  } catch (e) {
     return {
-      address,
-      registered: false,
-      sponsor: "",
-      packageAmount: 0,
-      packageCycle: 0,
-      joinedAt: 0,
-      isActive: false,
-      packageCompleted: false,
-      rank: 0,
-      directCount: 0,
-      groupVolume: "0",
-      personalVolume: "0",
-      roiEarned: "0",
-      workingEarned: "0",
-      totalEarned: "0",
-      tokenBalance: fmtToken(await c.token.balanceOf(address)),
-      pendingRoi: "0",
-      nextPackage: 50,
-      nextCycle: 1,
-      gaActive: false,
-      communityPoints: 0,
+      ...empty,
+      loadError: `Cannot read BTCPlanCore (${e instanceof Error ? e.message : String(e)}). Run: npm run deploy && npm run qa:dashboard:sync then refresh.`,
     };
   }
 
-  const u = await c.core.users(address);
-  const [nextPkg, nextCycle] = await c.core.getNextEligiblePackage(address);
-  const income = await c.income.incomes(address);
-  const rank = await c.rank.userRanks(address);
-  const directs = await c.rank.directCount(address);
-  const gv = await c.rank.groupVolume(address);
-  const pv = await c.rank.personalVolume(address);
-  let pending = 0n;
-  try {
-    pending = await c.roi.getPendingRoi(address);
-  } catch {
-    pending = 0n;
-  }
-  let ga = false;
-  try {
-    ga = await c.booster.isBoosterActive(address);
-  } catch {
-    ga = false;
-  }
-  let points = 0n;
-  try {
-    points = await c.community.userPoints(address);
-  } catch {
-    points = 0n;
+  const tokenBalance = fmtToken(
+    await safeCall(() => c.token.balanceOf(address), 0n),
+  );
+
+  if (!registered) {
+    return { ...empty, tokenBalance };
   }
 
-  const working =
-    BigInt(income.contributionEarned ?? income[2] ?? 0) +
-    BigInt(income.boosterEarned ?? income[3] ?? 0) +
-    BigInt(income.rankEarned ?? income[4] ?? 0) +
-    BigInt(income.sameRankEarned ?? income[5] ?? 0) +
-    BigInt(income.communityEarned ?? income[6] ?? 0);
+  const u = await safeCall(() => c.core.users(address), null);
+  if (!u) {
+    return {
+      ...empty,
+      registered: true,
+      tokenBalance,
+      loadError: "users() failed — redeploy/sync addresses",
+    };
+  }
+
+  const next = await safeCall(
+    () => c.core.getNextEligiblePackage(address),
+    [50n, 1n] as [bigint, bigint],
+  );
+  const income = await safeCall(() => c.income.incomes(address), null);
+  const rank = await safeCall(() => c.rank.userRanks(address), 0n);
+  const directs = await safeCall(() => c.rank.directCount(address), 0n);
+  const gv = await safeCall(() => c.rank.groupVolume(address), 0n);
+  const pv = await safeCall(() => c.rank.personalVolume(address), 0n);
+  const pending = await safeCall(() => c.roi.getPendingRoi(address), 0n);
+  const ga = await safeCall(() => c.booster.isBoosterActive(address), false);
+  const points = await safeCall(() => c.community.userPoints(address), 0n);
+
+  const working = income
+    ? BigInt(income.contributionEarned ?? income[2] ?? 0) +
+      BigInt(income.boosterEarned ?? income[3] ?? 0) +
+      BigInt(income.rankEarned ?? income[4] ?? 0) +
+      BigInt(income.sameRankEarned ?? income[5] ?? 0) +
+      BigInt(income.communityEarned ?? income[6] ?? 0)
+    : 0n;
+
+  // Volume is stored as USD package units (not 18-decimal wei)
+  const fmtVol = (v: bigint) => Number(v).toLocaleString();
 
   return {
     address,
     registered: true,
-    sponsor: String(u.sponsor ?? u[1]),
-    packageAmount: Number(u.packageAmount ?? u[2]),
-    packageCycle: Number(u.packageCycle ?? u[4]),
-    joinedAt: Number(u.joinedAt ?? u[5]),
+    sponsor: String(u.sponsor ?? u[1] ?? ""),
+    packageAmount: Number(u.packageAmount ?? u[2] ?? 0),
+    packageCycle: Number(u.packageCycle ?? u[4] ?? 0),
+    joinedAt: Number(u.joinedAt ?? u[5] ?? 0),
     isActive: Boolean(u.isActive ?? u[6]),
     packageCompleted: Boolean(u.packageCompleted ?? u[7]),
     rank: Number(rank),
     directCount: Number(directs),
-    groupVolume: fmtToken(gv),
-    personalVolume: fmtToken(pv),
-    roiEarned: fmtToken(income.roiEarned ?? income[1]),
+    groupVolume: fmtVol(gv),
+    personalVolume: fmtVol(pv),
+    roiEarned: fmtToken(income?.roiEarned ?? income?.[1] ?? 0n),
     workingEarned: fmtToken(working),
-    totalEarned: fmtToken(income.totalEarned ?? income[7]),
-    tokenBalance: fmtToken(await c.token.balanceOf(address)),
+    totalEarned: fmtToken(income?.totalEarned ?? income?.[7] ?? 0n),
+    tokenBalance,
     pendingRoi: fmtToken(pending),
-    nextPackage: Number(nextPkg),
-    nextCycle: Number(nextCycle),
+    nextPackage: Number(next[0]),
+    nextCycle: Number(next[1]),
     gaActive: Boolean(ga),
     communityPoints: Number(points),
   };

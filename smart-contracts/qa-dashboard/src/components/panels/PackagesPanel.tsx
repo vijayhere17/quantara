@@ -18,9 +18,15 @@ import {
   walletFromIndex,
 } from "@/hooks/useContracts";
 import { PACKAGE_LADDER } from "@/lib/constants";
+import {
+  buildActivationDistribution,
+  snapshotFunds,
+} from "@/lib/distribution";
 import { fmtUsd } from "@/lib/format";
 import { shortAddr } from "@/lib/utils";
 import { useDashboardStore } from "@/store/dashboardStore";
+import { DistributionPanel } from "@/components/DistributionPanel";
+import { Badge } from "@/components/ui/input";
 
 export function PackagesPanel() {
   const contracts = useContracts();
@@ -31,6 +37,9 @@ export function PackagesPanel() {
   const busy = useDashboardStore((s) => s.busy);
   const tick = useDashboardStore((s) => s.refreshTick);
   const addLog = useDashboardStore((s) => s.addLog);
+  const lastDistribution = useDashboardStore((s) => s.lastDistribution);
+  const setLastDistribution = useDashboardStore((s) => s.setLastDistribution);
+  const setDetailsUser = useDashboardStore((s) => s.setDetailsUser);
 
   const [nextPkg, setNextPkg] = useState<number | null>(null);
   const [nextCycle, setNextCycle] = useState<number | null>(null);
@@ -85,7 +94,13 @@ export function PackagesPanel() {
     }
     await run(label || `Activate ${fmtUsd(amount)}`, async (c) => {
       const signer = await signerForSelected(c);
-      return activatePackage(c, signer, amount);
+      const before = await snapshotFunds(c);
+      const out = await activatePackage(c, signer, amount);
+      setLastDistribution(
+        await buildActivationDistribution(c, selectedUser, amount, before),
+      );
+      setDetailsUser(selectedUser);
+      return out;
     });
   };
 
@@ -102,7 +117,13 @@ export function PackagesPanel() {
       const amount = Number(next);
       if (!amount) throw new Error("No next package");
       const signer = await signerForSelected(c);
-      return activatePackage(c, signer, amount);
+      const before = await snapshotFunds(c);
+      const out = await activatePackage(c, signer, amount);
+      setLastDistribution(
+        await buildActivationDistribution(c, selectedUser, amount, before),
+      );
+      setDetailsUser(selectedUser);
+      return out;
     });
   };
 
@@ -172,6 +193,8 @@ export function PackagesPanel() {
           </Select>
         </div>
       </div>
+
+      <DistributionPanel dist={lastDistribution} />
 
       {!selectedUser ? (
         <Card>

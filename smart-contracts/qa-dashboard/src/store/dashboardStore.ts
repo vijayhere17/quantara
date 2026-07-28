@@ -56,6 +56,7 @@ type DashboardState = {
   users: TrackedUser[];
   logs: AppLog[];
   txs: TxRecord[];
+  lastDistribution?: import("@/lib/distribution").ActivationDistribution;
   busy: boolean;
   busyLabel?: string;
   demoRunning: boolean;
@@ -74,6 +75,9 @@ type DashboardState = {
   clearLogs: () => void;
   addTx: (tx: TxRecord) => void;
   clearTxs: () => void;
+  setLastDistribution: (
+    d?: import("@/lib/distribution").ActivationDistribution,
+  ) => void;
   setBusy: (busy: boolean, label?: string) => void;
   setDemoRunning: (v: boolean) => void;
   exportSession: () => SessionSnapshot;
@@ -142,6 +146,7 @@ export const useDashboardStore = create<DashboardState>()(
       addTx: (tx) =>
         set((s) => ({ txs: [tx, ...s.txs].slice(0, 300) })),
       clearTxs: () => set({ txs: [] }),
+      setLastDistribution: (lastDistribution) => set({ lastDistribution }),
       setBusy: (busy, busyLabel) => set({ busy, busyLabel }),
       setDemoRunning: (demoRunning) => set({ demoRunning }),
       exportSession: () => ({

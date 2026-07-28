@@ -7,9 +7,10 @@ import {
   type UserRow,
 } from "@/hooks/useContracts";
 import { PACKAGE_LADDER, RANK_NAMES } from "@/lib/constants";
-import { fmtToken, fmtUsd, toWei } from "@/lib/format";
+import { fmtToken, fmtUsd } from "@/lib/format";
 import { shortAddr } from "@/lib/utils";
 import { useDashboardStore } from "@/store/dashboardStore";
+import { DistributionPanel } from "@/components/DistributionPanel";
 
 type IncomeBreakdown = {
   roiEarned: string;
@@ -65,6 +66,7 @@ export function UserDetailsModal() {
   const users = useDashboardStore((s) => s.users);
   const txs = useDashboardStore((s) => s.txs);
   const tick = useDashboardStore((s) => s.refreshTick);
+  const lastDistribution = useDashboardStore((s) => s.lastDistribution);
   const contracts = useContracts();
 
   const [row, setRow] = useState<UserRow | null>(null);
@@ -110,17 +112,12 @@ export function UserDetailsModal() {
         setIncome(null);
       }
 
-      const sample =
-        r.packageAmount > 0
-          ? String(r.packageAmount)
-          : breakdown?.principal && breakdown.principal !== "0"
-            ? breakdown.principal.replace(/,/g, "")
-            : "100";
       try {
-        const amt = toWei(sample);
+        const sampleUsd = r.packageAmount > 0 ? r.packageAmount : 50;
+        const amt = await contracts.core.getPackageBTCBAmount(BigInt(sampleUsd));
         const p = await contracts.treasury.previewRecycling(amt);
         setRecycle({
-          gross: sample,
+          gross: fmtToken(amt),
           userPayout: fmtToken(p.userPayout ?? p[0]),
           toRoiPool: fmtToken(p.toRoiPool ?? p[1]),
           toReserve: fmtToken(p.toReserve ?? p[2]),
@@ -129,6 +126,34 @@ export function UserDetailsModal() {
       } catch {
         setRecycle(null);
       }
+    } catch (e) {
+      setRow({
+        address: detailsUser,
+        registered: false,
+        sponsor: "",
+        packageAmount: 0,
+        packageCycle: 0,
+        joinedAt: 0,
+        isActive: false,
+        packageCompleted: false,
+        rank: 0,
+        directCount: 0,
+        groupVolume: "0",
+        personalVolume: "0",
+        roiEarned: "0",
+        workingEarned: "0",
+        totalEarned: "0",
+        tokenBalance: "0",
+        pendingRoi: "0",
+        nextPackage: 50,
+        nextCycle: 1,
+        gaActive: false,
+        communityPoints: 0,
+        loadError:
+          e instanceof Error
+            ? e.message
+            : "Failed to load user — redeploy/sync and refresh",
+      });
     } finally {
       setLoading(false);
     }
@@ -183,19 +208,38 @@ export function UserDetailsModal() {
       {loading && !row ? (
         <p className="text-sm text-muted">Loading…</p>
       ) : !row ? (
-        <p className="text-sm text-muted">No user data.</p>
+        <p className="text-sm text-muted">No user selected.</p>
       ) : (
         <div className="space-y-6">
+          {row.loadError ? (
+            <p className="rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-xs text-danger">
+              {row.loadError}
+            </p>
+          ) : null}
+
+          {lastDistribution &&
+          lastDistribution.user.toLowerCase() === row.address.toLowerCase() ? (
+            <DistributionPanel dist={lastDistribution} />
+          ) : null}
+
           {/* User Information */}
           <section>
             <h3 className="text-sm font-semibold text-ink mb-2">
               User Information
             </h3>
             <dl className="grid gap-2 text-xs sm:grid-cols-2">
+              <InfoRow label="Status" value={row.registered ? (row.packageAmount > 0 ? "Active" : "Registered") : "Wallet only"} />
               <InfoRow label="Wallet" value={shortAddr(row.address, 6)} mono />
               <InfoRow
                 label="Sponsor"
-                value={row.sponsor ? shortAddr(row.sponsor, 4) : "—"}
+                value={
+                  row.sponsor &&
+                  row.sponsor !== "0x0000000000000000000000000000000000000000"
+                    ? shortAddr(row.sponsor, 4)
+                    : row.registered
+                      ? "Root / none"
+                      : "—"
+                }
                 mono
               />
               <InfoRow
@@ -203,6 +247,18 @@ export function UserDetailsModal() {
                 value={
                   row.packageAmount > 0 ? fmtUsd(row.packageAmount) : "None"
                 }
+              />
+              <InfoRow
+                label="Progress"
+                value={
+                  row.packageAmount > 0
+                    ? `${row.packageCycle} / 2${row.packageCompleted ? " complete" : ""}`
+                    : "—"
+                }
+              />
+              <InfoRow
+                label="Next"
+                value={`${fmtUsd(row.nextPackage)} C${row.nextCycle}`}
               />
               <InfoRow
                 label="Rank"
@@ -213,7 +269,7 @@ export function UserDetailsModal() {
               <InfoRow label="Directs" value={String(row.directCount)} />
               <InfoRow
                 label="GA"
-                value={row.gaActive ? "Active" : "Inactive"}
+                value={row.gaActive ? "Active (L1 10%)" : "Inactive (L1 5%)"}
               />
             </dl>
           </section>

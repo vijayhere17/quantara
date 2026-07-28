@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/input";
+import { DistributionPanel } from "@/components/DistributionPanel";
 import {
   activatePackage,
   createUsersBatch,
@@ -14,6 +15,10 @@ import {
   walletFromIndex,
   type UserRow,
 } from "@/hooks/useContracts";
+import {
+  buildActivationDistribution,
+  snapshotFunds,
+} from "@/lib/distribution";
 import { RANK_NAMES } from "@/lib/constants";
 import { fmtUsd } from "@/lib/format";
 import { cn, shortAddr } from "@/lib/utils";
@@ -22,14 +27,17 @@ import { useDashboardStore } from "@/store/dashboardStore";
 const BATCHES = [1, 10, 50] as const;
 
 function statusLabel(row?: UserRow) {
-  if (!row) return "—";
+  if (!row) return "Loading…";
+  if (row.loadError) return "Error";
   if (!row.registered) return "Wallet only";
   if (row.packageAmount > 0) return "Active";
   return "Registered";
 }
 
-function statusTone(row?: UserRow): "default" | "ok" | "warn" | "accent" {
-  if (!row || !row.registered) return "warn";
+function statusTone(row?: UserRow): "default" | "ok" | "warn" | "accent" | "danger" {
+  if (!row) return "default";
+  if (row.loadError) return "danger";
+  if (!row.registered) return "warn";
   if (row.packageAmount > 0) return "ok";
   return "accent";
 }
@@ -45,21 +53,23 @@ export function UsersPanel() {
   const addLog = useDashboardStore((s) => s.addLog);
   const busy = useDashboardStore((s) => s.busy);
   const tick = useDashboardStore((s) => s.refreshTick);
+  const lastDistribution = useDashboardStore((s) => s.lastDistribution);
+  const setLastDistribution = useDashboardStore((s) => s.setLastDistribution);
 
   const [rows, setRows] = useState<Record<string, UserRow>>({});
   const [loadingRows, setLoadingRows] = useState(false);
+  const [globalError, setGlobalError] = useState("");
 
   const refreshRows = useCallback(async () => {
     if (!contracts) return;
     setLoadingRows(true);
+    setGlobalError("");
     try {
       const next: Record<string, UserRow> = {};
       for (const u of users) {
-        try {
-          next[u.address.toLowerCase()] = await loadUserRow(contracts, u.address);
-        } catch {
-          /* skip */
-        }
+        const row = await loadUserRow(contracts, u.address);
+        next[u.address.toLowerCase()] = row;
+        if (row.loadError) setGlobalError(row.loadError);
       }
       setRows(next);
     } finally {
@@ -76,7 +86,6 @@ export function UsersPanel() {
     return Math.max(...users.map((u) => u.id), 0) + 1;
   };
 
-  /** Sponsor for a new/target user — never self. */
   const resolveSponsor = (forAddress?: string) => {
     const root = contracts?.addresses.RootUser || "";
     if (
@@ -103,9 +112,7 @@ export function UsersPanel() {
         undefined,
         { autoRegister: false },
       );
-      if (created.length) {
-        setSelectedUser(created[created.length - 1]);
-      }
+      if (created.length) setSelectedUser(created[created.length - 1]);
       return { result: created };
     });
   };
@@ -125,9 +132,7 @@ export function UsersPanel() {
       const signer = await signerFor(c, address, walletIndex);
       const sponsor = resolveSponsor(address) || c.addresses.RootUser;
       const out = await registerUser(c, signer, sponsor);
-      if (out.already) {
-        addLog("warn", "Already registered on-chain", address);
-      }
+      if (out.already) addLog("warn", "Already registered on-chain", address);
       return out;
     });
   };
@@ -143,7 +148,17 @@ export function UsersPanel() {
         row = await loadUserRow(c, address);
       }
       const amount = row.nextPackage || 50;
-      return activatePackage(c, signer, amount);
+      const before = await snapshotFunds(c);
+      const out = await activatePackage(c, signer, amount);
+      const dist = await buildActivationDistribution(
+        c,
+        address,
+        amount,
+        before,
+      );
+      setLastDistribution(dist);
+      setDetailsUser(address);
+      return out;
     });
   };
 
@@ -159,7 +174,13 @@ export function UsersPanel() {
       const amount = Number(nextPkg);
       if (!amount) throw new Error("No next package");
       const signer = await signerFor(c, address, walletIndex);
-      return activatePackage(c, signer, amount);
+      const before = await snapshotFunds(c);
+      const out = await activatePackage(c, signer, amount);
+      setLastDistribution(
+        await buildActivationDistribution(c, address, amount, before),
+      );
+      setDetailsUser(address);
+      return out;
     });
   };
 
@@ -168,11 +189,12 @@ export function UsersPanel() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-base font-semibold">Users</h2>
-          <p className="text-xs text-muted max-w-xl">
-            Testing flow:{" "}
-            <span className="text-accent">1. Create</span> (wallet only) →{" "}
-            <span className="text-accent">2. Register</span> (sponsor never self)
-            → <span className="text-accent">3. Activate</span> package.
+          <p className="text-xs text-muted max-w-2xl">
+            Flow: <span className="text-accent">Create</span> →{" "}
+            <span className="text-accent">Register</span> →{" "}
+            <span className="text-accent">Activate</span> → distribution card
+            appears (ROI 30%, charity, Direct L1–L3) →{" "}
+            <span className="text-accent">View Details</span> for full breakdown.
           </p>
           <p className="text-xs text-muted mt-1">
             Default sponsor: {shortAddr(resolveSponsor()) || "Root"} ·{" "}
@@ -200,6 +222,14 @@ export function UsersPanel() {
           </Button>
         </div>
       </div>
+
+      {globalError ? (
+        <Card className="border-danger/50">
+          <CardContent className="pt-4 text-sm text-danger">{globalError}</CardContent>
+        </Card>
+      ) : null}
+
+      <DistributionPanel dist={lastDistribution} />
 
       <Card>
         <CardHeader>
@@ -232,12 +262,6 @@ export function UsersPanel() {
                 const isRoot =
                   u.address.toLowerCase() ===
                   contracts?.addresses.RootUser?.toLowerCase();
-                const showActivate =
-                  !isRoot &&
-                  (!registered ||
-                    row?.nextPackage === 50 ||
-                    !hasPackage ||
-                    (row?.packageAmount ?? 0) === 0);
 
                 return (
                   <tr
@@ -258,15 +282,21 @@ export function UsersPanel() {
                     </td>
                     <td className="py-2 pr-2 font-mono">
                       {registered
-                        ? shortAddr(row?.sponsor || u.sponsor)
+                        ? row?.sponsor &&
+                          row.sponsor !==
+                            "0x0000000000000000000000000000000000000000"
+                          ? shortAddr(row.sponsor)
+                          : "Root / none"
                         : shortAddr(u.sponsor || resolveSponsor(u.address))}
                     </td>
                     <td className="py-2 pr-2">
-                      {registered
-                        ? hasPackage
-                          ? fmtUsd(row!.packageAmount)
-                          : "None"
-                        : "—"}
+                      {!row
+                        ? "…"
+                        : registered
+                          ? hasPackage
+                            ? fmtUsd(row.packageAmount)
+                            : "None"
+                          : "—"}
                     </td>
                     <td className="py-2 pr-2">
                       {registered && hasPackage ? (
@@ -279,22 +309,32 @@ export function UsersPanel() {
                             Next {fmtUsd(row!.nextPackage)} C{row!.nextCycle}
                           </div>
                         </>
+                      ) : registered ? (
+                        <>
+                          <div>0 / 2</div>
+                          <div className="text-muted">
+                            Next {fmtUsd(row?.nextPackage ?? 50)} C
+                            {row?.nextCycle ?? 1}
+                          </div>
+                        </>
                       ) : (
                         "—"
                       )}
                     </td>
                     <td className="py-2 pr-2">
-                      {RANK_NAMES[row?.rank ?? 0] ?? "—"}
+                      {row ? RANK_NAMES[row.rank] ?? row.rank : "…"}
                     </td>
-                    <td className="py-2 pr-2">{row?.directCount ?? "—"}</td>
-                    <td className="py-2 pr-2 font-mono">
-                      {row?.personalVolume ?? "—"}
-                    </td>
-                    <td className="py-2 pr-2 font-mono">
-                      {row?.totalEarned ?? "—"}
+                    <td className="py-2 pr-2">
+                      {row ? row.directCount : "…"}
                     </td>
                     <td className="py-2 pr-2 font-mono">
-                      {row?.tokenBalance ?? "—"}
+                      {row ? row.personalVolume : "…"}
+                    </td>
+                    <td className="py-2 pr-2 font-mono">
+                      {row ? row.totalEarned : "…"}
+                    </td>
+                    <td className="py-2 pr-2 font-mono">
+                      {row ? row.tokenBalance : "…"}
                     </td>
                     <td className="py-2 pr-2">
                       <Badge tone={statusTone(row)}>{statusLabel(row)}</Badge>
@@ -313,11 +353,17 @@ export function UsersPanel() {
                             Register
                           </Button>
                         ) : null}
-                        {showActivate ? (
+                        {!isRoot ? (
                           <Button
                             size="sm"
                             variant="secondary"
-                            disabled={busy || !contracts}
+                            disabled={
+                              busy ||
+                              !contracts ||
+                              (registered &&
+                                hasPackage &&
+                                !row?.packageCompleted)
+                            }
                             onClick={() =>
                               void onActivate(u.address, u.walletIndex)
                             }
