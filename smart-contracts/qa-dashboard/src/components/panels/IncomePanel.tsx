@@ -1,15 +1,15 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
   StatCard,
 } from "@/components/ui/card";
 import { Badge, Select } from "@/components/ui/input";
 import { DistributionPanel } from "@/components/DistributionPanel";
+import { RecyclingFlow } from "@/components/RecyclingFlow";
 import {
   claimSelfRoi,
   getSignerFor,
@@ -25,19 +25,44 @@ import {
   loadIncomeLedger,
   type IncomeEntry,
 } from "@/lib/incomeLedger";
+import { loadRankProgress, type RankProgress } from "@/lib/rankProgress";
+import { snapshotFunds } from "@/lib/distribution";
 import { RANK_NAMES } from "@/lib/constants";
 import { shortAddr } from "@/lib/utils";
 import { useDashboardStore } from "@/store/dashboardStore";
 import { toast } from "sonner";
 
-type IncomeTab = "direct" | "self" | "rank" | "team" | "other";
+type IncomeTab = "direct" | "self" | "rank" | "all";
 
 type Bucket = {
   key: string;
   label: string;
   dual: DualAmount;
-  note?: string;
 };
+
+type CompanyFunds = {
+  roi: DualAmount;
+  working: DualAmount;
+  charity: DualAmount;
+  reserve: DualAmount;
+  community: DualAmount;
+};
+
+function ledgerFilter(tab: IncomeTab, e: IncomeEntry): boolean {
+  if (tab === "all") return true;
+  const t = e.type.toLowerCase();
+  if (tab === "direct") return t.includes("direct") || t.includes("contribution");
+  if (tab === "self")
+    return t.includes("self roi") || t.startsWith("self ");
+  if (tab === "rank")
+    return (
+      t.includes("rank") ||
+      t.includes("team") ||
+      t.includes("tier") ||
+      t.includes("same")
+    );
+  return true;
+}
 
 export function IncomePanel() {
   const contracts = useContracts();
@@ -53,77 +78,104 @@ export function IncomePanel() {
   const [tab, setTab] = useState<IncomeTab>("direct");
   const [buckets, setBuckets] = useState<Bucket[]>([]);
   const [pendingRoi, setPendingRoi] = useState<DualAmount | null>(null);
-  const [rank, setRank] = useState(0);
-  const [l1Bps, setL1Bps] = useState(500);
+  const [netPreview, setNetPreview] = useState<DualAmount | null>(null);
+  const [grossTotal, setGrossTotal] = useState<DualAmount | null>(null);
   const [levels, setLevels] = useState<
     { level: number; dual: DualAmount; pct: string }[]
   >([]);
   const [ledger, setLedger] = useState<IncomeEntry[]>([]);
+  const [rankInfo, setRankInfo] = useState<RankProgress | null>(null);
+  const [funds, setFunds] = useState<CompanyFunds | null>(null);
   const [teamMsg, setTeamMsg] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showQaRanks, setShowQaRanks] = useState(false);
 
   const tracked = users.find(
     (u) => u.address.toLowerCase() === selectedUser?.toLowerCase(),
   );
 
   const refresh = useCallback(async () => {
-    if (!contracts || !selectedUser) {
+    if (!contracts) {
+      setFunds(null);
+      return;
+    }
+    try {
+      const snap = await snapshotFunds(contracts);
+      setFunds({
+        roi: await dualFromContracts(contracts, snap.roiPool),
+        working: await dualFromContracts(contracts, snap.working),
+        charity: await dualFromContracts(contracts, snap.charity),
+        reserve: await dualFromContracts(contracts, snap.reserve),
+        community: await dualFromContracts(contracts, snap.community),
+      });
+    } catch {
+      setFunds(null);
+    }
+
+    if (!selectedUser) {
       setBuckets([]);
       setPendingRoi(null);
       setLevels([]);
       setLedger([]);
+      setRankInfo(null);
+      setNetPreview(null);
+      setGrossTotal(null);
       return;
     }
+
     setLoading(true);
     try {
       const inc = await contracts.income.incomes(selectedUser);
-      const entries: { key: string; label: string; wei: bigint; note?: string }[] =
-        [
-          {
-            key: "roi",
-            label: "Self ROI (gross tracked)",
-            wei: BigInt(inc.roiEarned ?? inc[1] ?? 0),
-            note: "Claimed Self ROI before recycle accounting",
-          },
-          {
-            key: "contribution",
-            label: "Direct / Contribution (gross)",
-            wei: BigInt(inc.contributionEarned ?? inc[2] ?? 0),
-            note: "L1–L3 from downline activations",
-          },
-          {
-            key: "rank",
-            label: "Rank Income (gross)",
-            wei: BigInt(inc.rankEarned ?? inc[4] ?? 0),
-            note: "Differential % when downline claims Self ROI",
-          },
-          {
-            key: "samerank",
-            label: "Tier Booster / Same Rank (gross)",
-            wei: BigInt(inc.sameRankEarned ?? inc[5] ?? 0),
-            note: "10% of direct’s Self ROI when same rank",
-          },
-          {
-            key: "community",
-            label: "Community Builder (gross)",
-            wei: BigInt(inc.communityEarned ?? inc[6] ?? 0),
-          },
-          {
-            key: "booster",
-            label: "Other booster (gross)",
-            wei: BigInt(inc.boosterEarned ?? inc[3] ?? 0),
-          },
-        ];
+      const entries: { key: string; label: string; wei: bigint }[] = [
+        {
+          key: "contribution",
+          label: "Direct",
+          wei: BigInt(inc.contributionEarned ?? inc[2] ?? 0),
+        },
+        {
+          key: "roi",
+          label: "Self ROI",
+          wei: BigInt(inc.roiEarned ?? inc[1] ?? 0),
+        },
+        {
+          key: "rank",
+          label: "Rank / Team ROI",
+          wei: BigInt(inc.rankEarned ?? inc[4] ?? 0),
+        },
+        {
+          key: "samerank",
+          label: "Tier Booster",
+          wei: BigInt(inc.sameRankEarned ?? inc[5] ?? 0),
+        },
+        {
+          key: "community",
+          label: "Community",
+          wei: BigInt(inc.communityEarned ?? inc[6] ?? 0),
+        },
+      ];
       const next: Bucket[] = [];
+      let grossWei = 0n;
       for (const e of entries) {
+        grossWei += e.wei;
         next.push({
           key: e.key,
           label: e.label,
           dual: await dualFromContracts(contracts, e.wei),
-          note: e.note,
         });
       }
       setBuckets(next);
+      setGrossTotal(await dualFromContracts(contracts, grossWei));
+      try {
+        const p = await contracts.treasury.previewRecycling(grossWei);
+        setNetPreview(
+          await dualFromContracts(
+            contracts,
+            BigInt(p.userPayout ?? p[0] ?? 0),
+          ),
+        );
+      } catch {
+        setNetPreview(null);
+      }
 
       let pending = 0n;
       try {
@@ -133,15 +185,13 @@ export function IncomePanel() {
       }
       setPendingRoi(await dualFromContracts(contracts, pending));
 
-      const r = await loadUserRow(contracts, selectedUser);
-      setRank(r.rank);
-      try {
-        setL1Bps(Number(await contracts.contribution.getLevel1Bps(selectedUser)));
-      } catch {
-        setL1Bps(500);
-      }
-
       const lv: { level: number; dual: DualAmount; pct: string }[] = [];
+      let l1Bps = 500;
+      try {
+        l1Bps = Number(await contracts.contribution.getLevel1Bps(selectedUser));
+      } catch {
+        /* */
+      }
       for (const level of [1, 2, 3]) {
         let wei = 0n;
         try {
@@ -151,22 +201,16 @@ export function IncomePanel() {
         } catch {
           wei = 0n;
         }
-        const pct = level === 1 ? `${l1Bps / 100}%` : level === 2 ? "3%" : "2%";
         lv.push({
           level,
           dual: await dualFromContracts(contracts, wei),
-          pct: level === 1 ? `${Number(await contracts.contribution.getLevel1Bps(selectedUser).catch(() => 500n)) / 100}%` : pct,
+          pct:
+            level === 1 ? `${l1Bps / 100}%` : level === 2 ? "3%" : "2%",
         });
-      }
-      // fix L1 pct display
-      try {
-        const bps = Number(await contracts.contribution.getLevel1Bps(selectedUser));
-        lv[0].pct = `${bps / 100}%`;
-      } catch {
-        /* */
       }
       setLevels(lv);
 
+      setRankInfo(await loadRankProgress(contracts, selectedUser));
       try {
         setLedger(await loadIncomeLedger(contracts, selectedUser));
       } catch {
@@ -181,6 +225,11 @@ export function IncomePanel() {
     void refresh();
   }, [refresh]);
 
+  const filteredLedger = useMemo(
+    () => ledger.filter((e) => ledgerFilter(tab, e)),
+    [ledger, tab],
+  );
+
   const signerFor = async (c: NonNullable<typeof contracts>) => {
     if (!selectedUser) throw new Error("Select a user");
     if (tracked?.walletIndex != null) {
@@ -190,7 +239,7 @@ export function IncomePanel() {
   };
 
   const onPlusOneDay = async () => {
-    await run("+1 Day (time travel)", async (c) => {
+    await run("+1 Day", async (c) => {
       await increaseTime(c.provider, 86400);
       return { result: true };
     });
@@ -208,17 +257,17 @@ export function IncomePanel() {
   const onGenerateTeamRoi = async () => {
     if (!selectedUser || !contracts) return;
     setTeamMsg("");
-    await run(`Generate Team ROI for ${shortAddr(selectedUser)}`, async (c) => {
-      const row = await loadUserRow(c, selectedUser);
-      if (row.rank < 1) {
-        const tx = await c.rank.setRank(selectedUser, 1);
-        await tx.wait();
-        setTeamMsg("Set rank to Seed automatically.");
+    await run(`Team ROI ${shortAddr(selectedUser)}`, async (c) => {
+      const progress = await loadRankProgress(c, selectedUser);
+      if (progress.rank < 1) {
+        throw new Error(
+          `Need Seed first (natural): 2 directs · max leg ≥250 · GV ≥500. Now: directs ${progress.directs}, maxLeg ${progress.maxLegVolume}, GV ${progress.groupVolume}. Or use QA Force Seed below.`,
+        );
       }
       const downline = await findClaimableDownline(c, selectedUser, users);
       if (!downline) {
         throw new Error(
-          "No activated downline found under this user. Create a child → Register → Activate first.",
+          "No activated downline. Create child → Activate, then retry.",
         );
       }
       const beforeInc = await c.income.incomes(selectedUser);
@@ -235,17 +284,26 @@ export function IncomePanel() {
       const dual = await dualFromContracts(c, delta);
       const msg =
         delta > 0n
-          ? `Team ROI PASS: Rank Income +${dual.label} from downline ${shortAddr(downline.address, 4)} claiming Self ROI`
-          : `Downline ${shortAddr(downline.address, 4)} claimed ROI, but Rank Income delta is 0 — check Seed+ rank on upline and that ROI was payable.`;
+          ? `+${dual.label} Rank/Team ROI from ${shortAddr(downline.address, 4)} Self ROI claim`
+          : `Downline claimed ROI but Rank delta 0 — check rank ≥ Seed and ROI paid.`;
       setTeamMsg(msg);
       toast.message(msg);
       return { hash: claim.hash as string, result: dual };
     });
   };
 
+  const onUpdateRank = async () => {
+    if (!selectedUser) return;
+    await run(`updateRank ${shortAddr(selectedUser)}`, async (c) => {
+      const tx = await c.rank.updateRank(selectedUser);
+      await tx.wait();
+      return { hash: tx.hash as string };
+    });
+  };
+
   const onSetRank = async (rankId: number) => {
     if (!selectedUser) return;
-    await run(`Set Rank ${RANK_NAMES[rankId]}`, async (c) => {
+    await run(`QA Force ${RANK_NAMES[rankId]}`, async (c) => {
       const tx = await c.rank.setRank(selectedUser, rankId);
       await tx.wait();
       return { hash: tx.hash as string };
@@ -253,11 +311,10 @@ export function IncomePanel() {
   };
 
   const tabs: { id: IncomeTab; label: string }[] = [
-    { id: "direct", label: "Direct Income" },
+    { id: "direct", label: "Direct" },
     { id: "self", label: "Self ROI" },
-    { id: "team", label: "Team ROI path" },
-    { id: "rank", label: "Rank Income" },
-    { id: "other", label: "All buckets" },
+    { id: "rank", label: "Rank / Team" },
+    { id: "all", label: "All" },
   ];
 
   const bucket = (key: string) => buckets.find((b) => b.key === key);
@@ -267,15 +324,14 @@ export function IncomePanel() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-base font-semibold">Income</h2>
-          <p className="text-xs text-muted max-w-2xl">
-            See <strong className="text-ink">From → To</strong> for the last
-            activation, plus the 70/30 recycle rule. Pick a user to inspect
-            Direct / Self ROI / Team ROI / Rank buckets (BTCB + USD).
+          <p className="text-xs text-muted max-w-xl">
+            Select a user → see company funds, rank progress, gross → 70% net,
+            and entries for the income type you pick.
           </p>
         </div>
         <div className="w-72">
           <label className="text-[11px] uppercase tracking-wide text-muted">
-            Inspect user
+            Selected user
           </label>
           <Select
             className="mt-1"
@@ -293,18 +349,157 @@ export function IncomePanel() {
         </div>
       </div>
 
-      <DistributionPanel dist={lastDistribution} />
+      {/* Company balances */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Company balances (now)</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-5">
+            <StatCard label="ROI Pool" value={funds?.roi.label ?? "—"} />
+            <StatCard label="Working" value={funds?.working.label ?? "—"} tone="accent" />
+            <StatCard label="Charity" value={funds?.charity.label ?? "—"} />
+            <StatCard label="Reserve" value={funds?.reserve.label ?? "—"} />
+            <StatCard label="Community" value={funds?.community.label ?? "—"} />
+          </div>
+          <p className="mt-2 text-[11px] text-muted">
+            On activate: 30% → ROI pool · ~3.5% charity · rest (~66.5%) working
+            (pays Direct L1–L3). Every payout then recycles 70/25/3/2.
+          </p>
+        </CardContent>
+      </Card>
+
+      {lastDistribution ? (
+        <DistributionPanel dist={lastDistribution} showRecycling={false} />
+      ) : null}
 
       {!selectedUser ? (
         <Card>
-          <CardContent className="pt-4 text-sm text-muted">
-            Select a user (usually the <strong>sponsor</strong> to see Direct
-            Income after a downline activates).
+          <CardContent className="pt-4 space-y-3">
+            <p className="text-sm text-muted">
+              Select a user above (sponsor for Direct, or any activated user for
+              Self ROI).
+            </p>
+            <RecyclingFlow contracts={contracts} exampleUsd={100} />
           </CardContent>
         </Card>
       ) : (
         <>
-          <div className="flex flex-wrap gap-1">
+          {/* Selected user snapshot */}
+          <Card className="border-accent/30">
+            <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-2">
+              <div>
+                <CardTitle className="flex flex-wrap items-center gap-2">
+                  {tracked?.label || shortAddr(selectedUser, 4)}
+                  <Badge tone={rankInfo?.forcedRank ? "warn" : "ok"}>
+                    {rankInfo?.rankName ?? "…"}
+                    {rankInfo?.rank ? ` · ${rankInfo.rewardPct}` : ""}
+                  </Badge>
+                  {rankInfo?.forcedRank ? (
+                    <Badge tone="danger">QA forced — not earned</Badge>
+                  ) : null}
+                </CardTitle>
+                <p className="mt-1 font-mono text-[11px] text-muted">
+                  {shortAddr(selectedUser, 6)}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-1">
+                <Button size="sm" variant="secondary" disabled={busy} onClick={() => void refresh()}>
+                  Refresh
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setDetailsUser(selectedUser)}>
+                  Details
+                </Button>
+                <Button size="sm" variant="outline" disabled={busy} onClick={() => void onUpdateRank()}>
+                  Recompute rank
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3 text-xs">
+              {loading ? <p className="text-muted">Loading…</p> : null}
+
+              <div className="grid gap-2 sm:grid-cols-4">
+                <StatCard
+                  label="Gross earned"
+                  value={grossTotal?.label ?? "—"}
+                  tone="accent"
+                />
+                <StatCard
+                  label="Net if paid now (70%)"
+                  value={netPreview?.label ?? "—"}
+                  tone="ok"
+                  hint="After 30% recycle"
+                />
+                <StatCard
+                  label="Pending Self ROI"
+                  value={pendingRoi?.label ?? "—"}
+                />
+                <StatCard
+                  label="Directs / GV / Max leg"
+                  value={`${rankInfo?.directs ?? 0} · ${rankInfo?.groupVolume ?? 0} · ${rankInfo?.maxLegVolume ?? 0}`}
+                />
+              </div>
+
+              {/* Rank progress */}
+              <div className="rounded-lg border border-line bg-surface px-3 py-2">
+                <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-medium text-ink">
+                    Next: {rankInfo?.nextRankName ?? "Seed"} — requirements
+                  </span>
+                  {rankInfo?.seedQualified ? (
+                    <Badge tone="ok">Seed rules OK</Badge>
+                  ) : (
+                    <Badge tone="warn">Seed not earned yet</Badge>
+                  )}
+                </div>
+                <div className="grid gap-1 sm:grid-cols-2 lg:grid-cols-4">
+                  {(rankInfo?.needs ?? []).map((n) => (
+                    <div
+                      key={n.label}
+                      className={`rounded border px-2 py-1.5 ${
+                        n.ok
+                          ? "border-ok/40 bg-ok/5"
+                          : "border-warn/40 bg-warn/5"
+                      }`}
+                    >
+                      <div className="text-muted">{n.label}</div>
+                      <div className="font-mono text-ink">
+                        {n.current} / {n.required}{" "}
+                        {n.ok ? "✓" : "✗"}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {rankInfo?.legs.length ? (
+                  <div className="mt-2 text-muted">
+                    Legs:{" "}
+                    {rankInfo.legs
+                      .slice(0, 6)
+                      .map(
+                        (l) =>
+                          `${shortAddr(l.address, 3)}=${l.volume}`,
+                      )
+                      .join(" · ")}
+                  </div>
+                ) : (
+                  <p className="mt-2 text-muted">
+                    Seed needs 2 directs, strongest leg ≥250, total GV ≥500
+                    (others ≥250). Two $50 packages → GV 100 — not Seed.
+                  </p>
+                )}
+              </div>
+
+              {/* Per-type totals */}
+              <div className="grid gap-2 sm:grid-cols-5">
+                {buckets.map((b) => (
+                  <StatCard key={b.key} label={b.label} value={b.dual.label} />
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Type tabs + actions */}
+          <div className="flex flex-wrap items-center gap-1">
             {tabs.map((t) => (
               <button
                 key={t.id}
@@ -319,355 +514,160 @@ export function IncomePanel() {
                 {t.label}
               </button>
             ))}
-            <Button size="sm" variant="secondary" disabled={busy} onClick={() => void refresh()}>
-              Refresh
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => setDetailsUser(selectedUser)}
+            <span className="mx-1 h-4 w-px bg-line" />
+            {tab === "self" || tab === "rank" ? (
+              <>
+                <Button size="sm" disabled={busy} onClick={() => void onPlusOneDay()}>
+                  +1 Day
+                </Button>
+                {tab === "self" ? (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={busy}
+                    onClick={() => void onClaimRoi()}
+                  >
+                    Claim Self ROI
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={busy}
+                    onClick={() => void onGenerateTeamRoi()}
+                  >
+                    Generate Team ROI
+                  </Button>
+                )}
+              </>
+            ) : null}
+            <button
+              type="button"
+              className="ml-auto text-[11px] text-muted underline"
+              onClick={() => setShowQaRanks((v) => !v)}
             >
-              View Details
-            </Button>
+              {showQaRanks ? "Hide" : "QA force rank"}
+            </button>
           </div>
 
-          {loading ? (
-            <p className="text-xs text-muted">Loading income…</p>
-          ) : null}
-
-          {tab === "direct" ? (
-            <div className="space-y-3">
-              <Card>
-                <CardHeader>
-                  <CardTitle>How to test Direct Income</CardTitle>
-                  <CardDescription>
-                    L1 {l1Bps / 100}% · L2 3% · L3 2% of downline package (BTCB + $)
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="text-xs text-muted space-y-2 leading-relaxed">
-                  <ol className="list-decimal pl-4 space-y-1 text-ink">
-                    <li>Select / create <strong>Sponsor</strong> (this user).</li>
-                    <li>Create a child under sponsor → Register → Activate $50.</li>
-                    <li>Keep sponsor selected here — L1 bucket should rise.</li>
-                    <li>
-                      After activation, the green distribution card shows Direct
-                      L1/L2/L3 in <strong>BTCB and $</strong> with net after 70/30 recycle.
-                    </li>
-                  </ol>
-                </CardContent>
-              </Card>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <StatCard
-                  label="Contribution total"
-                  value={bucket("contribution")?.dual.token ?? "0"}
-                  hint={bucket("contribution")?.dual.usd}
-                  tone="accent"
-                />
-                {levels.map((lv) => (
-                  <StatCard
-                    key={lv.level}
-                    label={`L${lv.level} bucket (${lv.pct})`}
-                    value={`${lv.dual.token} BTCB`}
-                    hint={lv.dual.usd}
-                    tone={lv.dual.wei > 0n ? "ok" : "default"}
-                  />
+          {showQaRanks ? (
+            <Card className="border-warn/40">
+              <CardContent className="pt-3 flex flex-wrap gap-2 text-xs">
+                <p className="w-full text-warn">
+                  Owner setRank bypasses volume rules — only for QA. Natural Seed
+                  needs GV 500 + max leg 250.
+                </p>
+                {[1, 2, 3, 4, 5].map((id) => (
+                  <Button
+                    key={id}
+                    size="sm"
+                    variant="outline"
+                    disabled={busy}
+                    onClick={() => void onSetRank(id)}
+                  >
+                    Force {RANK_NAMES[id]}
+                  </Button>
                 ))}
-              </div>
-              <Card>
-                <CardContent className="pt-4 overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead className="text-muted border-b border-line">
-                      <tr>
-                        <th className="py-2 pr-2">Level</th>
-                        <th className="py-2 pr-2">%</th>
-                        <th className="py-2 pr-2">BTCB (gross bucket)</th>
-                        <th className="py-2">USD</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {levels.map((lv) => (
-                        <tr key={lv.level} className="border-b border-line/50">
-                          <td className="py-2 pr-2">L{lv.level}</td>
-                          <td className="py-2 pr-2">{lv.pct}</td>
-                          <td className="py-2 pr-2 font-mono">{lv.dual.token}</td>
-                          <td className="py-2 font-mono text-accent">{lv.dual.usd}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </CardContent>
-              </Card>
-            </div>
-          ) : null}
-
-          {tab === "self" ? (
-            <div className="space-y-3">
-              <Card>
-                <CardHeader>
-                  <CardTitle>How to test Self ROI</CardTitle>
-                  <CardDescription>
-                    Daily ROI from the global pool (max ~1%/day), stops at 3× principal
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="text-xs space-y-3">
-                  <ol className="list-decimal pl-4 space-y-1 text-ink">
-                    <li>User must have an active package (Activate first).</li>
-                    <li>Click <strong>+1 Day</strong> then <strong>Claim Self ROI</strong>.</li>
-                    <li>
-                      Pending and claimed amounts show in BTCB + $. Net wallet credit
-                      is ~70% after recycling.
-                    </li>
-                  </ol>
-                  <div className="flex flex-wrap gap-2">
-                    <Button size="sm" disabled={busy} onClick={() => void onPlusOneDay()}>
-                      +1 Day
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      disabled={busy}
-                      onClick={() => void onClaimRoi()}
-                    >
-                      Claim Self ROI
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <StatCard
-                  label="Pending Self ROI"
-                  value={pendingRoi ? `${pendingRoi.token} BTCB` : "0"}
-                  hint={pendingRoi?.usd}
-                  tone="accent"
-                />
-                <StatCard
-                  label="Self ROI earned (gross)"
-                  value={bucket("roi") ? `${bucket("roi")!.dual.token} BTCB` : "0"}
-                  hint={bucket("roi")?.dual.usd}
-                  tone="ok"
-                />
-              </div>
-            </div>
-          ) : null}
-
-          {tab === "team" ? (
-            <div className="space-y-3">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Team ROI (= Rank Income)</CardTitle>
-                  <CardDescription>
-                    Root at Seed is not enough by itself. Team ROI pays only when a
-                    downline <strong>claims Self ROI</strong>. Then Seed earns 10%
-                    of that ROI (differential), shown as Rank Income.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="text-xs text-ink space-y-3 leading-relaxed">
-                  <p className="text-muted">
-                    Your tree already has downlines. Use the button below to
-                    auto: ensure Seed rank → +1 day on a downline → Claim their
-                    Self ROI → refresh Rank Income on this user.
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      size="sm"
-                      disabled={busy || !selectedUser}
-                      onClick={() => void onGenerateTeamRoi()}
-                    >
-                      Generate Team ROI now
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={busy}
-                      onClick={() => void onSetRank(1)}
-                    >
-                      Ensure Seed rank
-                    </Button>
-                  </div>
-                  {teamMsg ? (
-                    <p className="rounded-md border border-accent/40 bg-accent/10 px-3 py-2 text-ink">
-                      {teamMsg}
-                    </p>
-                  ) : (
-                    <p className="text-muted">
-                      Current rank:{" "}
-                      <Badge tone="accent">{RANK_NAMES[rank] ?? "None"}</Badge>
-                      {rank < 1
-                        ? " — set Seed first or click Generate (auto-sets Seed)."
-                        : " — ready. Click Generate Team ROI now."}
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
-              <StatCard
-                label="Rank Income on this user (Team ROI total)"
-                value={bucket("rank") ? `${bucket("rank")!.dual.token} BTCB` : "0"}
-                hint={bucket("rank")?.dual.usd}
-                tone={
-                  bucket("rank") && bucket("rank")!.dual.wei > 0n ? "ok" : "warn"
-                }
-              />
-            </div>
-          ) : null}
-
-          {tab === "rank" ? (
-            <div className="space-y-3">
-              <Card>
-                <CardHeader>
-                  <CardTitle>How to test Rank Income</CardTitle>
-                  <CardDescription>
-                    Differential rank % of downline Self ROI (Seed 10% … Genesis 45%)
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="text-xs space-y-3">
-                  <ol className="list-decimal pl-4 space-y-1 text-ink">
-                    <li>Select the <strong>upline</strong> who should earn rank income.</li>
-                    <li>Force a rank (QA): Seed / Sprout / …</li>
-                    <li>
-                      Select a <strong>direct/downline</strong> with active package →
-                      +1 Day → Claim Self ROI.
-                    </li>
-                    <li>
-                      Return to upline — Rank Income (BTCB + $) increases by
-                      differential BPS × ROI amount, then ~70% net after recycle.
-                    </li>
-                  </ol>
-                  <div className="flex flex-wrap gap-2">
-                    {[1, 2, 3, 4, 5].map((id) => (
-                      <Button
-                        key={id}
-                        size="sm"
-                        variant="outline"
-                        disabled={busy || !selectedUser}
-                        onClick={() => void onSetRank(id)}
-                      >
-                        Set {RANK_NAMES[id]}
-                      </Button>
-                    ))}
-                  </div>
-                  <p className="text-muted">
-                    Current rank:{" "}
-                    <Badge tone="ok">{RANK_NAMES[rank] ?? "None"}</Badge>
-                  </p>
-                </CardContent>
-              </Card>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <StatCard
-                  label="Rank Income"
-                  value={bucket("rank") ? `${bucket("rank")!.dual.token} BTCB` : "0"}
-                  hint={bucket("rank")?.dual.usd}
-                />
-                <StatCard
-                  label="Tier Booster (same rank)"
-                  value={
-                    bucket("samerank")
-                      ? `${bucket("samerank")!.dual.token} BTCB`
-                      : "0"
-                  }
-                  hint={bucket("samerank")?.dual.usd}
-                />
-              </div>
-            </div>
-          ) : null}
-
-          {tab === "other" ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>All income buckets (BTCB · USD)</CardTitle>
-              </CardHeader>
-              <CardContent className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="text-muted border-b border-line">
-                    <tr>
-                      <th className="py-2 pr-2">Type</th>
-                      <th className="py-2 pr-2">BTCB</th>
-                      <th className="py-2 pr-2">USD</th>
-                      <th className="py-2">Note</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {buckets.map((b) => (
-                      <tr key={b.key} className="border-b border-line/50">
-                        <td className="py-2 pr-2">{b.label}</td>
-                        <td className="py-2 pr-2 font-mono">{b.dual.token}</td>
-                        <td className="py-2 pr-2 font-mono text-accent">
-                          {b.dual.usd}
-                        </td>
-                        <td className="py-2 text-muted">{b.note || "—"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
               </CardContent>
             </Card>
           ) : null}
 
-          {/* Source ledger — always visible when a user is selected */}
+          {teamMsg ? (
+            <p className="rounded-md border border-accent/40 bg-accent/10 px-3 py-2 text-xs">
+              {teamMsg}
+            </p>
+          ) : null}
+
+          {/* Direct L1–L3 when Direct tab */}
+          {tab === "direct" ? (
+            <div className="grid gap-2 sm:grid-cols-4">
+              <StatCard
+                label="Direct total"
+                value={bucket("contribution")?.dual.label ?? "—"}
+                tone="accent"
+              />
+              {levels.map((lv) => (
+                <StatCard
+                  key={lv.level}
+                  label={`L${lv.level} (${lv.pct})`}
+                  value={lv.dual.label}
+                  tone={lv.dual.wei > 0n ? "ok" : "default"}
+                />
+              ))}
+            </div>
+          ) : null}
+
+          {tab === "self" ? (
+            <div className="grid gap-2 sm:grid-cols-2">
+              <StatCard label="Pending" value={pendingRoi?.label ?? "—"} tone="accent" />
+              <StatCard label="Claimed Self ROI (gross)" value={bucket("roi")?.dual.label ?? "—"} tone="ok" />
+            </div>
+          ) : null}
+
+          {tab === "rank" ? (
+            <div className="grid gap-2 sm:grid-cols-2">
+              <StatCard
+                label="Rank / Team ROI (gross)"
+                value={bucket("rank")?.dual.label ?? "—"}
+                tone="ok"
+              />
+              <StatCard
+                label="Tier Booster"
+                value={bucket("samerank")?.dual.label ?? "—"}
+              />
+            </div>
+          ) : null}
+
+          {/* Filtered entries */}
           <Card>
             <CardHeader>
-              <CardTitle>Income entries — where it came from</CardTitle>
-              <CardDescription>
-                Each row shows type, from whom, BTCB + $, and why it was paid
-              </CardDescription>
+              <CardTitle>
+                Entries — {tabs.find((t) => t.id === tab)?.label}
+                <span className="ml-2 font-normal text-muted">
+                  ({filteredLedger.length})
+                </span>
+              </CardTitle>
             </CardHeader>
             <CardContent className="overflow-x-auto">
-              <table className="w-full min-w-[900px] text-left text-xs">
+              <table className="w-full min-w-[720px] text-left text-xs">
                 <thead className="text-muted border-b border-line">
                   <tr>
                     <th className="py-2 pr-2">When</th>
                     <th className="py-2 pr-2">Type</th>
                     <th className="py-2 pr-2">From</th>
-                    <th className="py-2 pr-2">Gross BTCB</th>
-                    <th className="py-2 pr-2">Gross $</th>
-                    <th className="py-2 pr-2">Net BTCB</th>
-                    <th className="py-2 pr-2">Net $</th>
+                    <th className="py-2 pr-2">Gross</th>
+                    <th className="py-2 pr-2">Net 70%</th>
                     <th className="py-2">Why</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {ledger.map((e) => (
+                  {filteredLedger.map((e) => (
                     <tr key={e.id} className="border-b border-line/50 align-top">
                       <td className="py-2 pr-2 text-muted whitespace-nowrap">
                         {e.at
                           ? new Date(e.at).toLocaleString()
-                          : `block ${e.block}`}
+                          : `b${e.block}`}
                       </td>
                       <td className="py-2 pr-2">
-                        <Badge
-                          tone={
-                            e.type.includes("Rank")
-                              ? "accent"
-                              : e.type.includes("Direct")
-                                ? "ok"
-                                : "default"
-                          }
-                        >
-                          {e.type}
-                        </Badge>
+                        <Badge tone="accent">{e.type}</Badge>
                       </td>
                       <td className="py-2 pr-2 font-mono">
                         {e.from ? shortAddr(e.from, 4) : "—"}
-                        {e.level ? ` · L${e.level}` : ""}
+                        {e.level ? ` L${e.level}` : ""}
                       </td>
                       <td className="py-2 pr-2 font-mono">
-                        {e.gross?.token ?? "—"}
+                        {e.gross?.label ?? "—"}
                       </td>
-                      <td className="py-2 pr-2 font-mono text-accent">
-                        {e.gross?.usd ?? "—"}
-                      </td>
-                      <td className="py-2 pr-2 font-mono">{e.net?.token ?? "—"}</td>
-                      <td className="py-2 pr-2 font-mono text-accent">
-                        {e.net?.usd ?? "—"}
+                      <td className="py-2 pr-2 font-mono text-ok">
+                        {e.net?.label ?? "—"}
                       </td>
                       <td className="py-2 text-muted max-w-xs">{e.reason}</td>
                     </tr>
                   ))}
-                  {!ledger.length ? (
+                  {!filteredLedger.length ? (
                     <tr>
-                      <td colSpan={8} className="py-8 text-center text-muted">
-                        No income events yet for this user. Activate a downline
-                        (Direct) or click <strong>Generate Team ROI now</strong>{" "}
-                        (Rank / Team ROI).
+                      <td colSpan={6} className="py-6 text-center text-muted">
+                        No {tabs.find((t) => t.id === tab)?.label} entries yet.
                       </td>
                     </tr>
                   ) : null}
@@ -675,6 +675,8 @@ export function IncomePanel() {
               </table>
             </CardContent>
           </Card>
+
+          <RecyclingFlow contracts={contracts} exampleUsd={100} />
         </>
       )}
     </div>

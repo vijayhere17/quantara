@@ -366,7 +366,7 @@ export function UsersPanel() {
                 <th className="py-2 pr-2">Package Progress</th>
                 <th className="py-2 pr-2">Rank</th>
                 <th className="py-2 pr-2">Directs</th>
-                <th className="py-2 pr-2">BV</th>
+                <th className="py-2 pr-2">GV / Max leg</th>
                 <th className="py-2 pr-2">Total Income</th>
                 <th className="py-2 pr-2">Withdrawable</th>
                 <th className="py-2 pr-2">Status</th>
@@ -443,13 +443,31 @@ export function UsersPanel() {
                       )}
                     </td>
                     <td className="py-2 pr-2">
-                      {row ? RANK_NAMES[row.rank] ?? row.rank : "…"}
+                      {row ? (
+                        <div>
+                          <div>{RANK_NAMES[row.rank] ?? row.rank}</div>
+                          {row.forcedRank ? (
+                            <Badge tone="warn">QA forced</Badge>
+                          ) : row.rank >= 1 ? (
+                            <span className="text-[10px] text-ok">earned</span>
+                          ) : null}
+                        </div>
+                      ) : (
+                        "…"
+                      )}
                     </td>
                     <td className="py-2 pr-2">
                       {row ? row.directCount : "…"}
                     </td>
-                    <td className="py-2 pr-2 font-mono">
-                      {row ? row.personalVolume : "…"}
+                    <td className="py-2 pr-2 font-mono text-[11px]">
+                      {row
+                        ? `${row.groupVolumeNum} / ${row.maxLegVolume}`
+                        : "…"}
+                      {row && row.rank < 1 ? (
+                        <div className="text-[10px] text-muted">
+                          need 500 / 250
+                        </div>
+                      ) : null}
                     </td>
                     <td className="py-2 pr-2 font-mono">
                       {row ? row.totalEarned : "…"}

@@ -155,6 +155,11 @@ export type UserRow = {
   nextCycle: number;
   gaActive: boolean;
   communityPoints: number;
+  maxLegVolume: number;
+  groupVolumeNum: number;
+  seedQualified: boolean;
+  /** Rank ≥ Seed but Seed checks fail */
+  forcedRank: boolean;
   loadError?: string;
 };
 
@@ -192,6 +197,10 @@ export async function loadUserRow(
     nextCycle: 1,
     gaActive: false,
     communityPoints: 0,
+    maxLegVolume: 0,
+    groupVolumeNum: 0,
+    seedQualified: false,
+    forcedRank: false,
   };
 
   let registered = false;
@@ -231,6 +240,11 @@ export async function loadUserRow(
   const directs = await safeCall(() => c.rank.directCount(address), 0n);
   const gv = await safeCall(() => c.rank.groupVolume(address), 0n);
   const pv = await safeCall(() => c.rank.personalVolume(address), 0n);
+  const maxLeg = await safeCall(() => c.rank.maxLegVolume(address), 0n);
+  const seedQualified = await safeCall(
+    () => c.rank.checkSeedQualification(address),
+    false,
+  );
   const pending = await safeCall(() => c.roi.getPendingRoi(address), 0n);
   const ga = await safeCall(() => c.booster.isBoosterActive(address), false);
   const points = await safeCall(() => c.community.userPoints(address), 0n);
@@ -245,6 +259,9 @@ export async function loadUserRow(
 
   // Volume is stored as USD package units (not 18-decimal wei)
   const fmtVol = (v: bigint) => Number(v).toLocaleString();
+  const rankNum = Number(rank);
+  const gvNum = Number(gv);
+  const maxLegNum = Number(maxLeg);
 
   return {
     address,
@@ -255,7 +272,7 @@ export async function loadUserRow(
     joinedAt: Number(u.joinedAt ?? u[5] ?? 0),
     isActive: Boolean(u.isActive ?? u[6]),
     packageCompleted: Boolean(u.packageCompleted ?? u[7]),
-    rank: Number(rank),
+    rank: rankNum,
     directCount: Number(directs),
     groupVolume: fmtVol(gv),
     personalVolume: fmtVol(pv),
@@ -268,6 +285,10 @@ export async function loadUserRow(
     nextCycle: Number(next[1]),
     gaActive: Boolean(ga),
     communityPoints: Number(points),
+    maxLegVolume: maxLegNum,
+    groupVolumeNum: gvNum,
+    seedQualified: Boolean(seedQualified),
+    forcedRank: rankNum >= 1 && !seedQualified,
   };
 }
 

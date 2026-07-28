@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { StatCard } from "@/components/ui/card";
 import { useContracts, useOverviewStats } from "@/hooks/useContracts";
 import type { DashboardTab } from "@/lib/constants";
@@ -18,59 +18,39 @@ const CARDS: CardDef[] = [
   { key: "activated", label: "Activated Users", tab: "users", tone: "ok" },
   {
     key: "roiPool",
-    label: "Current ROI Pool",
+    label: "ROI Pool",
     tab: "packages",
-    hint: "Interdependent fund",
+    hint: "30% of activations",
   },
+  { key: "working", label: "Working Fund", tab: "packages", hint: "~66.5% pays Direct" },
   { key: "charity", label: "Charity Fund", tab: "packages" },
   { key: "reserve", label: "Reserve Fund", tab: "packages" },
   {
     key: "community",
-    label: "Community Builder Pool",
+    label: "Community Builder",
     tab: "income",
   },
-  { key: "working", label: "Working Fund", tab: "packages" },
   {
     key: "totalSelfRoi",
-    label: "Total Self ROI Paid",
+    label: "Self ROI Paid",
     tab: "income",
     tone: "ok",
   },
   {
     key: "totalContribution",
-    label: "Total Direct Income Paid",
+    label: "Direct Income Paid",
     tab: "income",
-    hint: "From tracked contribution earned",
   },
   {
     key: "totalRank",
-    label: "Total Rank Income Paid",
+    label: "Rank Income Paid",
     tab: "income",
-  },
-  {
-    key: "totalContributionReward",
-    label: "Total Contribution Reward Paid",
-    tab: "income",
-    hint: "Tracked contribution totals",
-  },
-  {
-    key: "withdrawable",
-    label: "Total Withdrawable",
-    tab: "users",
-    hint: "Treasury working fund (proxy)",
-  },
-  {
-    key: "todayTxs",
-    label: "Today's Transactions",
-    tab: "developer",
-    tone: "accent",
   },
 ];
 
 export function OverviewPanel() {
   const { stats, loading } = useOverviewStats();
   const setTab = useDashboardStore((s) => s.setTab);
-  const txs = useDashboardStore((s) => s.txs);
   const users = useDashboardStore((s) => s.users);
   const contracts = useContracts();
   const tick = useDashboardStore((s) => s.refreshTick);
@@ -98,19 +78,9 @@ export function OverviewPanel() {
     };
   }, [contracts, users, tick]);
 
-  const todayTxs = useMemo(() => {
-    const start = new Date();
-    start.setHours(0, 0, 0, 0);
-    const t0 = start.getTime();
-    return txs.filter((tx) => tx.timestamp >= t0).length;
-  }, [txs]);
-
   const values: Record<string, string> = {
     ...stats,
     registered: String(registered),
-    totalContributionReward: stats.totalContribution ?? "—",
-    withdrawable: stats.working ?? "—",
-    todayTxs: String(todayTxs),
   };
 
   return (
@@ -119,7 +89,7 @@ export function OverviewPanel() {
         <div>
           <h2 className="text-base font-semibold text-ink">Overview</h2>
           <p className="text-xs text-muted">
-            Click a card to open the related test page.
+            Company funds + paid totals. Click a card to open the related page.
           </p>
         </div>
         {loading ? (

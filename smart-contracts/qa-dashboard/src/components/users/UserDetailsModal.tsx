@@ -149,6 +149,10 @@ export function UserDetailsModal() {
         nextCycle: 1,
         gaActive: false,
         communityPoints: 0,
+        maxLegVolume: 0,
+        groupVolumeNum: 0,
+        seedQualified: false,
+        forcedRank: false,
         loadError:
           e instanceof Error
             ? e.message
@@ -262,11 +266,27 @@ export function UserDetailsModal() {
               />
               <InfoRow
                 label="Rank"
-                value={RANK_NAMES[row.rank] ?? String(row.rank)}
+                value={
+                  row.forcedRank
+                    ? `${RANK_NAMES[row.rank] ?? row.rank} (QA forced — not earned)`
+                    : `${RANK_NAMES[row.rank] ?? row.rank}${row.seedQualified ? " · earned" : ""}`
+                }
               />
               <InfoRow label="BV (personal)" value={row.personalVolume} mono />
-              <InfoRow label="GV (group)" value={row.groupVolume} mono />
+              <InfoRow
+                label="GV / Max leg"
+                value={`${row.groupVolume} / ${row.maxLegVolume}`}
+                mono
+              />
               <InfoRow label="Directs" value={String(row.directCount)} />
+              <InfoRow
+                label="Seed rules"
+                value={
+                  row.seedQualified
+                    ? "OK (2 directs · max leg ≥250 · GV ≥500)"
+                    : `Need: directs ${row.directCount}/2 · maxLeg ${row.maxLegVolume}/250 · GV ${row.groupVolumeNum}/500`
+                }
+              />
               <InfoRow
                 label="GA"
                 value={row.gaActive ? "Active (L1 10%)" : "Inactive (L1 5%)"}
