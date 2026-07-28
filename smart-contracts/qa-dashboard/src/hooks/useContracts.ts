@@ -4,6 +4,7 @@ import {
   activatePackage,
   connectContracts,
   forceCompletePackage,
+  fundEth,
   getSignerFor,
   increaseTime,
   registerUser,
@@ -352,23 +353,19 @@ export async function createUsersBatch(
     createdAt: number;
   }) => void,
   onProgress?: (i: number) => void,
+  options?: { autoRegister?: boolean },
 ) {
+  const autoRegister = options?.autoRegister === true;
   const created: string[] = [];
   for (let i = 0; i < count; i++) {
     const idx = startIndex + i;
     const wallet = walletFromIndex(idx, c.provider);
-    // Fund gas
-    const bal = await c.provider.getBalance(wallet.address);
-    if (bal < 10n ** 17n) {
-      const tx = await c.deployer.sendTransaction({
-        to: wallet.address,
-        value: 10n ** 18n,
-      });
-      await tx.wait();
-    }
-    const already = await c.core.isRegistered(wallet.address);
-    if (!already) {
-      await registerUser(c, wallet, sponsor);
+    await fundEth(c, wallet.address);
+    if (autoRegister) {
+      const already = await c.core.isRegistered(wallet.address);
+      if (!already) {
+        await registerUser(c, wallet, sponsor);
+      }
     }
     upsert({
       id: idx,
@@ -383,4 +380,12 @@ export async function createUsersBatch(
   return created;
 }
 
-export { activatePackage, forceCompletePackage, getSignerFor, increaseTime, registerUser, walletFromIndex };
+export {
+  activatePackage,
+  forceCompletePackage,
+  fundEth,
+  getSignerFor,
+  increaseTime,
+  registerUser,
+  walletFromIndex,
+};

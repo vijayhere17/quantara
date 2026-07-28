@@ -8,7 +8,7 @@ import {
   CardTitle,
   StatCard,
 } from "@/components/ui/card";
-import { Badge } from "@/components/ui/input";
+import { Badge, Select } from "@/components/ui/input";
 import {
   activatePackage,
   forceCompletePackage,
@@ -34,6 +34,7 @@ export function PackagesPanel() {
   const contracts = useContracts();
   const { run } = useTxRunner();
   const selectedUser = useDashboardStore((s) => s.selectedUser);
+  const setSelectedUser = useDashboardStore((s) => s.setSelectedUser);
   const users = useDashboardStore((s) => s.users);
   const busy = useDashboardStore((s) => s.busy);
   const tick = useDashboardStore((s) => s.refreshTick);
@@ -42,6 +43,9 @@ export function PackagesPanel() {
   const [nextPkg, setNextPkg] = useState<number | null>(null);
   const [nextCycle, setNextCycle] = useState<number | null>(null);
   const [currentPkg, setCurrentPkg] = useState(0);
+  const [currentCycle, setCurrentCycle] = useState(0);
+  const [completed, setCompleted] = useState(false);
+  const [registered, setRegistered] = useState(false);
   const [lastHash, setLastHash] = useState<string>("");
   const [treasury, setTreasury] = useState<TreasurySnippet | null>(null);
 
@@ -70,11 +74,17 @@ export function PackagesPanel() {
       setNextPkg(null);
       setNextCycle(null);
       setCurrentPkg(0);
+      setCurrentCycle(0);
+      setCompleted(false);
+      setRegistered(false);
       return;
     }
     try {
       const row = await loadUserRow(contracts, selectedUser);
+      setRegistered(row.registered);
       setCurrentPkg(row.packageAmount);
+      setCurrentCycle(row.packageCycle);
+      setCompleted(row.packageCompleted);
       setNextPkg(row.nextPackage);
       setNextCycle(row.nextCycle);
     } catch {
@@ -100,17 +110,13 @@ export function PackagesPanel() {
       addLog("warn", "Select a user first");
       return;
     }
-    const result = await run(
-      label || `Activate ${fmtUsd(amount)}`,
-      async (c) => {
-        const signer = await signerForSelected(c);
-        const out = await activatePackage(c, signer, amount);
-        setLastHash(out.hash);
-        await refreshTreasury();
-        return out;
-      },
-    );
-    void result;
+    await run(label || `Activate ${fmtUsd(amount)}`, async (c) => {
+      const signer = await signerForSelected(c);
+      const out = await activatePackage(c, signer, amount);
+      setLastHash(out.hash);
+      await refreshTreasury();
+      return out;
+    });
   };
 
   const doForceComplete = async () => {
@@ -127,27 +133,54 @@ export function PackagesPanel() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="text-base font-semibold">Packages</h2>
-        <p className="text-xs text-muted">
-          Ladder {PACKAGE_LADDER.join(" → ")} · two cycles then next · after
-          $10k C2 unlimited $10k
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="text-base font-semibold">Packages</h2>
+          <p className="text-xs text-muted">
+            Ladder {PACKAGE_LADDER.join(" → ")} · two cycles then next · after
+            $10k C2 unlimited $10k
+          </p>
+        </div>
+        <div className="w-72">
+          <label className="text-[11px] uppercase tracking-wide text-muted">
+            Active user
+          </label>
+          <Select
+            className="mt-1"
+            value={selectedUser || ""}
+            onChange={(e) => setSelectedUser(e.target.value || undefined)}
+          >
+            <option value="">Select user…</option>
+            {users.map((u) => (
+              <option key={u.address} value={u.address}>
+                #{u.id} {shortAddr(u.address, 4)}
+                {u.label ? ` (${u.label})` : ""}
+              </option>
+            ))}
+          </Select>
+        </div>
       </div>
 
       {!selectedUser ? (
         <Card>
           <CardContent className="pt-4 text-sm text-muted">
-            Select a user from the Users tab to manage packages.
+            Select a user above (or from the Users tab). Register them first,
+            then activate the highlighted next package.
           </CardContent>
         </Card>
       ) : (
         <>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <StatCard label="Selected" value={shortAddr(selectedUser, 4)} />
             <StatCard
-              label="Current package"
-              value={currentPkg ? fmtUsd(currentPkg) : "—"}
+              label="Status"
+              value={
+                !registered
+                  ? "Not registered"
+                  : currentPkg
+                    ? `${fmtUsd(currentPkg)} C${currentCycle}${completed ? " done" : ""}`
+                    : "Registered · no package"
+              }
+              tone={registered ? "ok" : "warn"}
             />
             <StatCard
               label="Next eligible"
@@ -158,6 +191,7 @@ export function PackagesPanel() {
               }
               tone="accent"
             />
+            <StatCard label="Selected" value={shortAddr(selectedUser, 4)} />
             <StatCard
               label="Last tx"
               value={lastHash ? shortAddr(lastHash, 6) : "—"}
@@ -165,11 +199,21 @@ export function PackagesPanel() {
             />
           </div>
 
+          {!registered ? (
+            <Card>
+              <CardContent className="pt-4 text-sm text-warn">
+                This wallet is not registered on-chain. Go to Users → Register,
+                then come back and click the highlighted package button.
+              </CardContent>
+            </Card>
+          ) : null}
+
           <Card>
             <CardHeader>
               <CardTitle>Activate / Top-up</CardTitle>
               <CardDescription>
-                Mint + approve + activatePackage for each ladder step
+                Only the next eligible amount will succeed (highlighted). Use
+                Force Complete to unlock the next cycle/package in QA.
               </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-wrap gap-2">
@@ -177,7 +221,7 @@ export function PackagesPanel() {
                 <Button
                   key={amt}
                   size="sm"
-                  disabled={busy || !contracts}
+                  disabled={busy || !contracts || !registered}
                   variant={nextPkg === amt ? "default" : "secondary"}
                   onClick={() => void doActivate(amt)}
                 >
@@ -192,7 +236,9 @@ export function PackagesPanel() {
               <Button
                 size="sm"
                 variant="outline"
-                disabled={busy || !contracts}
+                disabled={
+                  busy || !contracts || !registered || nextPkg !== 10000
+                }
                 onClick={() => void doActivate(10000, "Unlimited $10000")}
               >
                 Unlimited $10000
@@ -200,7 +246,7 @@ export function PackagesPanel() {
               <Button
                 size="sm"
                 variant="danger"
-                disabled={busy || !contracts}
+                disabled={busy || !contracts || !registered || !currentPkg}
                 onClick={() => void doForceComplete()}
               >
                 Force Complete Package
@@ -211,7 +257,7 @@ export function PackagesPanel() {
           <Card>
             <CardHeader>
               <CardTitle>Treasury snippet</CardTitle>
-              <CardDescription>Refreshed after each tx</CardDescription>
+              <CardDescription>Refreshes after each tx</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

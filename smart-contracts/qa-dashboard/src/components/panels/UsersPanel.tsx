@@ -63,53 +63,88 @@ export function UsersPanel() {
     return Math.max(...users.map((u) => u.id), 0) + 1;
   };
 
-  const sponsorAddr = () =>
-    selectedUser || contracts?.addresses.RootUser || "";
+  /** Sponsor for a new/target user — never self. */
+  const resolveSponsor = (forAddress?: string) => {
+    const root = contracts?.addresses.RootUser || "";
+    if (
+      selectedUser &&
+      (!forAddress || selectedUser.toLowerCase() !== forAddress.toLowerCase())
+    ) {
+      // Prefer selected only if they are already registered on-chain
+      const sel = rows[selectedUser.toLowerCase()];
+      if (sel?.registered || selectedUser.toLowerCase() === root.toLowerCase()) {
+        return selectedUser;
+      }
+    }
+    return root;
+  };
 
   const onCreate = async (count: number) => {
     await run(`Create ${count} user(s)`, async (c) => {
-      const sponsor = selectedUser || c.addresses.RootUser;
+      const sponsor = resolveSponsor();
       const created = await createUsersBatch(
         c,
         count,
         nextStartIndex(),
         sponsor,
         upsertUser,
+        undefined,
+        { autoRegister: false },
       );
+      if (created.length) {
+        setSelectedUser(created[created.length - 1]);
+      }
       return { result: created };
     });
   };
 
+  const signerFor = async (
+    c: NonNullable<typeof contracts>,
+    address: string,
+    walletIndex?: number,
+  ) => {
+    if (walletIndex != null) return walletFromIndex(walletIndex, c.provider);
+    return getSignerFor(c, address);
+  };
+
   const onRegister = async (address: string, walletIndex?: number) => {
+    setSelectedUser(address);
     await run(`Register ${shortAddr(address)}`, async (c) => {
-      const signer =
-        walletIndex != null
-          ? walletFromIndex(walletIndex, c.provider)
-          : await getSignerFor(c, address);
-      const sponsor = sponsorAddr() || c.addresses.RootUser;
-      return registerUser(c, signer, sponsor);
+      const signer = await signerFor(c, address, walletIndex);
+      const sponsor = resolveSponsor(address) || c.addresses.RootUser;
+      const out = await registerUser(c, signer, sponsor);
+      if (out.already) {
+        addLog("warn", "Already registered on-chain", address);
+      }
+      return out;
     });
   };
 
   const onActivate50 = async (address: string, walletIndex?: number) => {
+    setSelectedUser(address);
     await run(`Activate $50 ${shortAddr(address)}`, async (c) => {
-      const signer =
-        walletIndex != null
-          ? walletFromIndex(walletIndex, c.provider)
-          : await getSignerFor(c, address);
+      const signer = await signerFor(c, address, walletIndex);
+      const registered = await c.core.isRegistered(address);
+      if (!registered) {
+        const sponsor = resolveSponsor(address) || c.addresses.RootUser;
+        await registerUser(c, signer, sponsor);
+      }
       return activatePackage(c, signer, 50);
     });
   };
 
   const onUpgrade = async (address: string, walletIndex?: number) => {
+    setSelectedUser(address);
     await run(`Upgrade ${shortAddr(address)}`, async (c) => {
-      await forceCompletePackage(c, address);
+      const row = await loadUserRow(c, address);
+      if (!row.registered) throw new Error("Register first");
+      if (row.packageAmount > 0 && !row.packageCompleted) {
+        await forceCompletePackage(c, address);
+      }
       const [nextPkg] = await c.core.getNextEligiblePackage(address);
       const amount = Number(nextPkg);
-      const signer =
-        walletIndex != null
-          ? walletFromIndex(walletIndex, c.provider)
-          : await getSignerFor(c, address);
+      if (!amount) throw new Error("No next package");
+      const signer = await signerFor(c, address, walletIndex);
       return activatePackage(c, signer, amount);
     });
   };
@@ -124,7 +159,7 @@ export function UsersPanel() {
     addLog(
       "warn",
       "Reset user (local only)",
-      `${address} — on-chain state unchanged; redeploy or evm_revert to clear chain`,
+      `${address} — on-chain state unchanged; redeploy to clear chain`,
     );
   };
 
@@ -133,9 +168,16 @@ export function UsersPanel() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-base font-semibold">Users</h2>
-          <p className="text-xs text-muted">
-            Sponsor: {shortAddr(sponsorAddr()) || "Root"} ·{" "}
-            {loadingRows ? "Loading rows…" : `${users.length} tracked`}
+          <p className="text-xs text-muted max-w-xl">
+            Flow: <span className="text-accent">Create</span> (wallet only) →{" "}
+            <span className="text-accent">Register</span> (sponsor = Root unless
+            another registered user is selected) →{" "}
+            <span className="text-accent">Activate $50</span> → check Packages /
+            Overview.
+          </p>
+          <p className="text-xs text-muted mt-1">
+            Default sponsor: {shortAddr(resolveSponsor()) || "Root"} ·{" "}
+            {loadingRows ? "Loading…" : `${users.length} tracked`}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -170,14 +212,13 @@ export function UsersPanel() {
               <tr>
                 <th className="py-2 pr-2">ID</th>
                 <th className="py-2 pr-2">Wallet</th>
+                <th className="py-2 pr-2">Status</th>
                 <th className="py-2 pr-2">Sponsor</th>
                 <th className="py-2 pr-2">Package</th>
+                <th className="py-2 pr-2">Next</th>
                 <th className="py-2 pr-2">Rank</th>
                 <th className="py-2 pr-2">Directs</th>
-                <th className="py-2 pr-2">GV</th>
                 <th className="py-2 pr-2">Self ROI</th>
-                <th className="py-2 pr-2">Working</th>
-                <th className="py-2 pr-2">Total</th>
                 <th className="py-2 pr-2">Balance</th>
                 <th className="py-2">Actions</th>
               </tr>
@@ -187,6 +228,12 @@ export function UsersPanel() {
                 const row = rows[u.address.toLowerCase()];
                 const selected =
                   selectedUser?.toLowerCase() === u.address.toLowerCase();
+                const registered = Boolean(row?.registered);
+                const hasPackage = (row?.packageAmount ?? 0) > 0;
+                const isRoot =
+                  u.address.toLowerCase() ===
+                  contracts?.addresses.RootUser?.toLowerCase();
+
                 return (
                   <tr
                     key={u.address}
@@ -199,30 +246,45 @@ export function UsersPanel() {
                     <td className="py-2 pr-2 font-mono">{u.id}</td>
                     <td className="py-2 pr-2 font-mono">
                       {shortAddr(u.address, 3)}
-                      {u.label ? (
+                      {u.label || isRoot ? (
                         <Badge className="ml-1" tone="accent">
-                          {u.label}
+                          {u.label || "Root"}
                         </Badge>
                       ) : null}
                     </td>
+                    <td className="py-2 pr-2">
+                      {!row ? (
+                        <Badge>—</Badge>
+                      ) : registered ? (
+                        <Badge tone="ok">Registered</Badge>
+                      ) : (
+                        <Badge tone="warn">Wallet only</Badge>
+                      )}
+                    </td>
                     <td className="py-2 pr-2 font-mono">
-                      {shortAddr(row?.sponsor || u.sponsor)}
+                      {registered
+                        ? shortAddr(row?.sponsor || u.sponsor)
+                        : shortAddr(u.sponsor || resolveSponsor(u.address))}
                     </td>
                     <td className="py-2 pr-2">
-                      {row?.registered
-                        ? `${fmtUsd(row.packageAmount)} C${row.packageCycle}`
+                      {registered
+                        ? hasPackage
+                          ? `${fmtUsd(row!.packageAmount)} C${row!.packageCycle}${
+                              row!.packageCompleted ? " ✓" : ""
+                            }`
+                          : "None"
+                        : "—"}
+                    </td>
+                    <td className="py-2 pr-2 font-mono">
+                      {registered
+                        ? `${fmtUsd(row!.nextPackage)} C${row!.nextCycle}`
                         : "—"}
                     </td>
                     <td className="py-2 pr-2">
-                      {RANK_NAMES[row?.rank ?? 0] ?? row?.rank ?? "—"}
+                      {RANK_NAMES[row?.rank ?? 0] ?? "—"}
                     </td>
                     <td className="py-2 pr-2">{row?.directCount ?? "—"}</td>
-                    <td className="py-2 pr-2 font-mono">{row?.groupVolume ?? "—"}</td>
                     <td className="py-2 pr-2 font-mono">{row?.roiEarned ?? "—"}</td>
-                    <td className="py-2 pr-2 font-mono">
-                      {row?.workingEarned ?? "—"}
-                    </td>
-                    <td className="py-2 pr-2 font-mono">{row?.totalEarned ?? "—"}</td>
                     <td className="py-2 pr-2 font-mono">
                       {row?.tokenBalance ?? "—"}
                     </td>
@@ -231,7 +293,14 @@ export function UsersPanel() {
                         <Button
                           size="sm"
                           variant="outline"
-                          disabled={busy || !contracts}
+                          disabled={
+                            busy || !contracts || registered || isRoot
+                          }
+                          title={
+                            registered
+                              ? "Already registered"
+                              : "Register under Root (or selected sponsor)"
+                          }
                           onClick={() =>
                             void onRegister(u.address, u.walletIndex)
                           }
@@ -241,7 +310,14 @@ export function UsersPanel() {
                         <Button
                           size="sm"
                           variant="secondary"
-                          disabled={busy || !contracts}
+                          disabled={
+                            busy ||
+                            !contracts ||
+                            (registered &&
+                              row != null &&
+                              row.nextPackage !== 50)
+                          }
+                          title="Register if needed, then activate $50 C1"
                           onClick={() =>
                             void onActivate50(u.address, u.walletIndex)
                           }
@@ -250,7 +326,8 @@ export function UsersPanel() {
                         </Button>
                         <Button
                           size="sm"
-                          disabled={busy || !contracts}
+                          disabled={busy || !contracts || !registered}
+                          title="Force-complete current package and activate next"
                           onClick={() =>
                             void onUpgrade(u.address, u.walletIndex)
                           }
@@ -260,6 +337,7 @@ export function UsersPanel() {
                         <Button
                           size="sm"
                           variant="ghost"
+                          disabled={isRoot}
                           onClick={() => onDelete(u.address)}
                         >
                           Delete
@@ -267,6 +345,7 @@ export function UsersPanel() {
                         <Button
                           size="sm"
                           variant="danger"
+                          disabled={isRoot}
                           onClick={() => onResetUser(u.address)}
                         >
                           Reset
@@ -278,8 +357,8 @@ export function UsersPanel() {
               })}
               {!users.length ? (
                 <tr>
-                  <td colSpan={12} className="py-8 text-center text-muted">
-                    No tracked users. Create a batch or connect to load Root.
+                  <td colSpan={11} className="py-8 text-center text-muted">
+                    No tracked users. Click Create 1 to start.
                   </td>
                 </tr>
               ) : null}
