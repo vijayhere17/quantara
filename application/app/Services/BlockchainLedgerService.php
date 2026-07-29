@@ -86,25 +86,22 @@ class BlockchainLedgerService
             return null;
         }
 
-        // One activation can emit multiple ContributionRewardPaid logs (L1/L2/L3)
-        // with the same tx_hash. Deduplicate ONLY on (tx_hash, log_index).
-        if (Schema::hasTable('blockchain_income_events')) {
-            $dup = BlockchainIncomeEvent::where('tx_hash', $txHash)
-                ->where('log_index', $logIndex)
-                ->first();
-
-            if ($dup !== null) {
-                return null;
-            }
+        $coinRate = function_exists('getcoinrate') ? (float) getcoinrate() : 60000.0;
+        if ($coinRate < 1000.0) {
+            $coinRate = 60000.0;
         }
+        $coinAmount = $amount / $coinRate;
 
-        // Skip if this exact log was already mirrored into ewallet_logs
+        // If this log was already mirrored with a dust/zero USD amount (bad BTC
+        // rate → formatdecimal(..., 4) stored "0.0000"), repair it in place.
+        // Dedup used to return early and left Contribution Reward stuck at 0.0000.
         if (Schema::hasTable('ewallet_logs')) {
             $dupLog = EarningWallet::where('member_id', $userId)
                 ->where('description', 'like', '%' . $txHash . '%')
                 ->where('description', 'like', '%log:' . $logIndex . '%')
                 ->first();
             if ($dupLog !== null) {
+                $repaired = $this->repairZeroAmountLog($dupLog, $amount, $coinRate, $coinAmount);
                 $this->markIncomeEvent(
                     $userId,
                     $wallet,
@@ -115,9 +112,13 @@ class BlockchainLedgerService
                     $blockNumber,
                     true
                 );
-                return null;
+                return $repaired;
             }
         }
+
+        // blockchain_income_events is updated via updateOrCreate below.
+        // Do not early-return on an existing event row — that previously skipped
+        // repair of ewallet_logs rows stuck at amount=0.0000.
 
         $desc = $description;
         if (!str_contains(strtolower($desc), $txHash)) {
@@ -135,8 +136,8 @@ class BlockchainLedgerService
             $earningTypeInt,
             $desc,
             $amount,
-            0,
-            0,
+            $coinRate,
+            $coinAmount,
             date('Y-m-d H:i:s')
         );
 
@@ -152,6 +153,50 @@ class BlockchainLedgerService
         );
 
         return $log instanceof EarningWallet ? $log : null;
+    }
+
+    /**
+     * Repair ewallet_logs rows whose USD amount was rounded to 0.0000 by
+     * formatdecimal after a bad BTC/USD conversion (rate ≈ 1).
+     */
+    protected function repairZeroAmountLog(
+        EarningWallet $log,
+        float $amount,
+        float $coinRate,
+        float $coinAmount
+    ): ?EarningWallet {
+        $current = (float) ($log->amount ?? 0);
+        if ($current >= 0.00005 || $amount < 0.00005) {
+            return null;
+        }
+
+        $prev = $current;
+        $log->gross_amount = formatdecimal($amount, 4);
+        $log->amount = formatdecimal($amount, 4);
+        $log->coin_rate = formatdecimal($coinRate, 8);
+        $log->coin_amount = formatdecimal($coinAmount, 8);
+        $log->save();
+
+        $delta = $amount - $prev;
+        if ($delta > 0 && (int) ($log->txn_type ?? 0) === 1) {
+            $member = User::find($log->member_id);
+            if ($member !== null) {
+                $member->total_earning = ((float) ($member->total_earning ?? 0)) + $delta;
+                if ((int) ($log->earning_type ?? 0) <= 2) {
+                    $member->total_return = ((float) ($member->total_return ?? 0)) + $delta;
+                }
+                $member->save();
+            }
+        }
+
+        Log::info('Repaired zeroed ewallet_logs amount from on-chain mirror', [
+            'id' => $log->id,
+            'from' => $prev,
+            'to' => $amount,
+            'tx' => $log->description,
+        ]);
+
+        return $log;
     }
 
     protected function markIncomeEvent(
