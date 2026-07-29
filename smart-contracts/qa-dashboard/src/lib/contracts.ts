@@ -9,8 +9,10 @@ import {
   type Signer,
   type TransactionRequest,
   formatEther,
+  toQuantity,
 } from "ethers";
 import { CHAIN_ID, DEPLOYER_PK, RPC_URL } from "./constants";
+import { mapPool } from "./asyncPool";
 
 import BTCPlanCoreAbi from "@/abis/BTCPlanCore.json";
 import TreasuryManagerAbi from "@/abis/TreasuryManager.json";
@@ -250,6 +252,13 @@ export async function fundEth(
 ) {
   const bal = await contracts.provider.getBalance(to);
   if (bal >= 10n ** 17n) return;
+  if (isLocalHardhat(contracts)) {
+    await contracts.provider.send("hardhat_setBalance", [
+      to,
+      toQuantity(amountWei),
+    ]);
+    return;
+  }
   await sendDeployerTx(contracts, async (nonce) => {
     const tx = await contracts.deployer.sendTransaction({
       to,
@@ -258,6 +267,32 @@ export async function fundEth(
     } satisfies TransactionRequest);
     return tx;
   });
+}
+
+/** Instant on Hardhat; bounded parallel txs on testnet/mainnet. */
+export async function fundEthBatch(
+  contracts: Contracts,
+  addresses: string[],
+  amountWei: bigint = 10n ** 18n,
+) {
+  if (!addresses.length) return;
+  if (isLocalHardhat(contracts)) {
+    await Promise.all(
+      addresses.map((to) =>
+        contracts.provider.send("hardhat_setBalance", [
+          to,
+          toQuantity(amountWei),
+        ]),
+      ),
+    );
+    return;
+  }
+  const { mapPool } = await import("@/lib/asyncPool");
+  await mapPool(addresses, 4, (to) => fundEth(contracts, to, amountWei));
+}
+
+function isLocalHardhat(contracts: Contracts): boolean {
+  return contracts.addresses.chainId === 31337 || CHAIN_ID === 31337;
 }
 
 export async function forceCompletePackage(

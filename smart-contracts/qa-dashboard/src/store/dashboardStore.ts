@@ -70,6 +70,7 @@ type DashboardState = {
   setDetailsUser: (addr?: string) => void;
   setUsers: (users: TrackedUser[]) => void;
   upsertUser: (user: TrackedUser) => void;
+  upsertUsers: (users: TrackedUser[]) => void;
   removeUser: (address: string) => void;
   addLog: (level: LogLevel, message: string, detail?: string) => void;
   clearLogs: () => void;
@@ -116,6 +117,18 @@ export const useDashboardStore = create<DashboardState>()(
             (u) => u.address.toLowerCase() !== user.address.toLowerCase(),
           );
           return { users: [...rest, user].sort((a, b) => a.id - b.id) };
+        }),
+      upsertUsers: (incoming) =>
+        set((s) => {
+          const byAddr = new Map(
+            s.users.map((u) => [u.address.toLowerCase(), u] as const),
+          );
+          for (const user of incoming) {
+            byAddr.set(user.address.toLowerCase(), user);
+          }
+          return {
+            users: [...byAddr.values()].sort((a, b) => a.id - b.id),
+          };
         }),
       removeUser: (address) =>
         set((s) => ({

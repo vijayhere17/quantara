@@ -26,7 +26,7 @@ import { cn, shortAddr } from "@/lib/utils";
 import { useDashboardStore } from "@/store/dashboardStore";
 import { toast } from "sonner";
 
-const BATCHES = [1, 10, 50] as const;
+const BATCHES = [1, 10, 50, 100] as const;
 const PAGE_SIZE = 25;
 
 function statusLabel(row?: UserRow) {
@@ -53,6 +53,7 @@ export function UsersPanel() {
   const setSelectedUser = useDashboardStore((s) => s.setSelectedUser);
   const setDetailsUser = useDashboardStore((s) => s.setDetailsUser);
   const upsertUser = useDashboardStore((s) => s.upsertUser);
+  const upsertUsers = useDashboardStore((s) => s.upsertUsers);
   const addLog = useDashboardStore((s) => s.addLog);
   const busy = useDashboardStore((s) => s.busy);
   const tick = useDashboardStore((s) => s.refreshTick);
@@ -135,7 +136,7 @@ export function UsersPanel() {
         sponsor,
         upsertUser,
         undefined,
-        { autoRegister: false },
+        { autoRegister: false, upsertUsers },
       );
       if (created.length) setSelectedUser(created[created.length - 1]);
       return { result: created };

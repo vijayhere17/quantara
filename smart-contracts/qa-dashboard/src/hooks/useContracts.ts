@@ -6,6 +6,7 @@ import {
   connectContracts,
   forceCompletePackage,
   fundEth,
+  fundEthBatch,
   getSignerFor,
   increaseTime,
   registerUser,
@@ -13,7 +14,7 @@ import {
   walletFromIndex,
 } from "@/lib/contracts";
 import { CHAIN_ID, networkLabel } from "@/lib/constants";
-import { useDashboardStore } from "@/store/dashboardStore";
+import { useDashboardStore, type TrackedUser } from "@/store/dashboardStore";
 import { fmtToken } from "@/lib/format";
 import { mapPool } from "@/lib/asyncPool";
 
@@ -436,31 +437,57 @@ export async function createUsersBatch(
     createdAt: number;
   }) => void,
   onProgress?: (i: number) => void,
-  options?: { autoRegister?: boolean },
+  options?: { autoRegister?: boolean; upsertUsers?: (users: TrackedUser[]) => void },
 ) {
   const autoRegister = options?.autoRegister === true;
-  const created: string[] = [];
+  const batchUpsert = options?.upsertUsers;
+  const now = Date.now();
+  const entries: TrackedUser[] = [];
+
   for (let i = 0; i < count; i++) {
     const idx = startIndex + i;
     const wallet = walletFromIndex(idx, c.provider);
-    await fundEth(c, wallet.address);
-    if (autoRegister) {
-      const already = await c.core.isRegistered(wallet.address);
-      if (!already) {
-        await registerUser(c, wallet, sponsor);
-      }
-    }
-    upsert({
+    entries.push({
       id: idx,
       address: wallet.address,
       walletIndex: idx,
       sponsor,
-      createdAt: Date.now(),
+      createdAt: now,
     });
-    created.push(wallet.address);
-    onProgress?.(i + 1);
   }
-  return created;
+
+  await fundEthBatch(
+    c,
+    entries.map((e) => e.address),
+  );
+  onProgress?.(Math.max(1, Math.floor(count * 0.5)));
+
+  if (autoRegister) {
+    await mapPool(entries, 8, async (entry) => {
+      const wallet = walletFromIndex(entry.walletIndex!, c.provider);
+      const already = await c.core.isRegistered(wallet.address);
+      if (!already) {
+        await registerUser(c, wallet, sponsor);
+      }
+    });
+  }
+
+  if (batchUpsert) {
+    batchUpsert(entries);
+  } else {
+    for (const entry of entries) {
+      upsert({
+        id: entry.id,
+        address: entry.address,
+        walletIndex: entry.walletIndex!,
+        sponsor: entry.sponsor!,
+        createdAt: entry.createdAt,
+      });
+    }
+  }
+
+  onProgress?.(count);
+  return entries.map((e) => e.address);
 }
 
 export {
