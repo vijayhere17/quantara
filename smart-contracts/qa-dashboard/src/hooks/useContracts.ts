@@ -15,6 +15,7 @@ import {
 import { CHAIN_ID, networkLabel } from "@/lib/constants";
 import { useDashboardStore } from "@/store/dashboardStore";
 import { fmtToken } from "@/lib/format";
+import { mapPool } from "@/lib/asyncPool";
 
 export function useBootstrap() {
   const setContracts = useDashboardStore((s) => s.setContracts);
@@ -236,19 +237,29 @@ export async function loadUserRow(
     () => c.core.getNextEligiblePackage(address),
     [50n, 1n] as [bigint, bigint],
   );
-  const income = await safeCall(() => c.income.incomes(address), null);
-  const rank = await safeCall(() => c.rank.userRanks(address), 0n);
-  const directs = await safeCall(() => c.rank.directCount(address), 0n);
-  const gv = await safeCall(() => c.rank.groupVolume(address), 0n);
-  const pv = await safeCall(() => c.rank.personalVolume(address), 0n);
-  const maxLeg = await safeCall(() => c.rank.maxLegVolume(address), 0n);
-  const seedQualified = await safeCall(
-    () => c.rank.checkSeedQualification(address),
-    false,
-  );
-  const pending = await safeCall(() => c.roi.getPendingRoi(address), 0n);
-  const ga = await safeCall(() => c.booster.isBoosterActive(address), false);
-  const points = await safeCall(() => c.community.userPoints(address), 0n);
+  const [
+    income,
+    rank,
+    directs,
+    gv,
+    pv,
+    maxLeg,
+    seedQualified,
+    pending,
+    ga,
+    points,
+  ] = await Promise.all([
+    safeCall(() => c.income.incomes(address), null),
+    safeCall(() => c.rank.userRanks(address), 0n),
+    safeCall(() => c.rank.directCount(address), 0n),
+    safeCall(() => c.rank.groupVolume(address), 0n),
+    safeCall(() => c.rank.personalVolume(address), 0n),
+    safeCall(() => c.rank.maxLegVolume(address), 0n),
+    safeCall(() => c.rank.checkSeedQualification(address), false),
+    safeCall(() => c.roi.getPendingRoi(address), 0n),
+    safeCall(() => c.booster.isBoosterActive(address), false),
+    safeCall(() => c.community.userPoints(address), 0n),
+  ]);
 
   const working = income
     ? BigInt(income.contributionEarned ?? income[2] ?? 0) +
@@ -293,6 +304,20 @@ export async function loadUserRow(
   };
 }
 
+const USER_ROW_CONCURRENCY = 8;
+
+/** Load many user rows in parallel (bounded concurrency). */
+export async function loadUserRows(
+  c: Contracts,
+  addresses: string[],
+): Promise<Record<string, UserRow>> {
+  const pairs = await mapPool(addresses, USER_ROW_CONCURRENCY, async (addr) => {
+    const row = await loadUserRow(c, addr);
+    return [addr.toLowerCase(), row] as const;
+  });
+  return Object.fromEntries(pairs);
+}
+
 export function useOverviewStats() {
   const c = useContracts();
   const tick = useDashboardStore((s) => s.refreshTick);
@@ -306,21 +331,43 @@ export function useOverviewStats() {
     (async () => {
       setLoading(true);
       try {
-        let activated = 0;
-        let packages = 0;
-        let ga = 0;
-        for (const u of tracked) {
+        const summaries = await mapPool(tracked, USER_ROW_CONCURRENCY, async (u) => {
+          const zero = {
+            activated: 0,
+            packages: 0,
+            ga: 0,
+            contribution: 0n,
+            rank: 0n,
+          };
           try {
             const reg = await c.core.isRegistered(u.address);
-            if (!reg) continue;
-            const user = await c.core.users(u.address);
-            if (user.isActive ?? user[6]) activated += 1;
-            if (Number(user.packageAmount ?? user[2]) > 0) packages += 1;
-            if (await c.booster.isBoosterActive(u.address)) ga += 1;
+            if (!reg) return zero;
+            const [user, gaActive, inc] = await Promise.all([
+              c.core.users(u.address),
+              c.booster.isBoosterActive(u.address),
+              c.income.incomes(u.address).catch(() => null),
+            ]);
+            return {
+              activated: user.isActive ?? user[6] ? 1 : 0,
+              packages: Number(user.packageAmount ?? user[2]) > 0 ? 1 : 0,
+              ga: gaActive ? 1 : 0,
+              contribution: inc
+                ? BigInt(inc.contributionEarned ?? inc[2] ?? 0)
+                : 0n,
+              rank: inc ? BigInt(inc.rankEarned ?? inc[4] ?? 0) : 0n,
+            };
           } catch {
-            /* skip */
+            return zero;
           }
-        }
+        });
+        const activated = summaries.reduce((s, x) => s + x.activated, 0);
+        const packages = summaries.reduce((s, x) => s + x.packages, 0);
+        const ga = summaries.reduce((s, x) => s + x.ga, 0);
+        const totalContribution = summaries.reduce(
+          (s, x) => s + x.contribution,
+          0n,
+        );
+        const totalRank = summaries.reduce((s, x) => s + x.rank, 0n);
 
         const [
           roiPool,
@@ -343,18 +390,6 @@ export function useOverviewStats() {
           c.treasury.totalCommunityPaid(),
           c.roi.getActiveRoiUserCount(),
         ]);
-
-        let totalContribution = 0n;
-        let totalRank = 0n;
-        for (const u of tracked) {
-          try {
-            const inc = await c.income.incomes(u.address);
-            totalContribution += BigInt(inc.contributionEarned ?? inc[2] ?? 0);
-            totalRank += BigInt(inc.rankEarned ?? inc[4] ?? 0);
-          } catch {
-            /* */
-          }
-        }
 
         if (cancelled) return;
         setStats({

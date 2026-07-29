@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select } from "@/components/ui/input";
 import {
   createUsersBatch,
-  loadUserRow,
+  loadUserRows,
   useContracts,
   useTxRunner,
   type UserRow,
@@ -42,14 +42,10 @@ export function TreePanel() {
       setRows({});
       return;
     }
-    const next: Record<string, UserRow> = {};
-    for (const u of users) {
-      try {
-        next[u.address.toLowerCase()] = await loadUserRow(contracts, u.address);
-      } catch {
-        /* */
-      }
-    }
+    const next = await loadUserRows(
+      contracts,
+      users.map((u) => u.address),
+    );
     setRows(next);
   }, [contracts, users, tick]);
 

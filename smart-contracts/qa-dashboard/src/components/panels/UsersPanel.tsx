@@ -9,6 +9,7 @@ import {
   forceCompletePackage,
   getSignerFor,
   loadUserRow,
+  loadUserRows,
   registerUser,
   useContracts,
   useTxRunner,
@@ -26,6 +27,7 @@ import { useDashboardStore } from "@/store/dashboardStore";
 import { toast } from "sonner";
 
 const BATCHES = [1, 10, 50] as const;
+const PAGE_SIZE = 25;
 
 function statusLabel(row?: UserRow) {
   if (!row) return "Loading…";
@@ -62,23 +64,43 @@ export function UsersPanel() {
   const [loadingRows, setLoadingRows] = useState(false);
   const [globalError, setGlobalError] = useState("");
   const [bulkMsg, setBulkMsg] = useState("");
+  const [page, setPage] = useState(0);
+
+  const pageCount = Math.max(1, Math.ceil(users.length / PAGE_SIZE));
+  const safePage = Math.min(page, pageCount - 1);
+  const pageStart = safePage * PAGE_SIZE;
+  const pageUsers = users.slice(pageStart, pageStart + PAGE_SIZE);
+
+  useEffect(() => {
+    if (safePage !== page) setPage(safePage);
+  }, [safePage, page]);
 
   const refreshRows = useCallback(async () => {
     if (!contracts) return;
     setLoadingRows(true);
     setGlobalError("");
     try {
-      const next: Record<string, UserRow> = {};
-      for (const u of users) {
-        const row = await loadUserRow(contracts, u.address);
-        next[u.address.toLowerCase()] = row;
-        if (row.loadError) setGlobalError(row.loadError);
+      const toLoad = [...pageUsers];
+      if (
+        selectedUser &&
+        !toLoad.some((u) => u.address.toLowerCase() === selectedUser.toLowerCase())
+      ) {
+        const sel = users.find(
+          (u) => u.address.toLowerCase() === selectedUser.toLowerCase(),
+        );
+        if (sel) toLoad.push(sel);
       }
-      setRows(next);
+      const loaded = await loadUserRows(
+        contracts,
+        toLoad.map((u) => u.address),
+      );
+      setRows((prev) => ({ ...prev, ...loaded }));
+      const err = Object.values(loaded).find((r) => r.loadError)?.loadError;
+      if (err) setGlobalError(err);
     } finally {
       setLoadingRows(false);
     }
-  }, [contracts, users, tick]);
+  }, [contracts, pageUsers, selectedUser, users, tick]);
 
   useEffect(() => {
     void refreshRows();
@@ -289,7 +311,9 @@ export function UsersPanel() {
           </p>
           <p className="text-xs text-muted mt-1">
             Default sponsor: {shortAddr(resolveSponsor()) || "Root"} ·{" "}
-            {loadingRows ? "Loading…" : `${users.length} tracked`}
+            {loadingRows
+              ? "Loading page…"
+              : `${users.length} tracked · page ${safePage + 1}/${pageCount}`}
             {bulkMsg ? ` · ${bulkMsg}` : ""}
           </p>
         </div>
@@ -353,8 +377,32 @@ export function UsersPanel() {
       <DistributionPanel dist={lastDistribution} />
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
           <CardTitle>Tracked users</CardTitle>
+          {users.length > PAGE_SIZE ? (
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-muted">
+                {pageStart + 1}–{Math.min(pageStart + PAGE_SIZE, users.length)}{" "}
+                of {users.length}
+              </span>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={safePage <= 0 || loadingRows}
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+              >
+                Prev
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={safePage >= pageCount - 1 || loadingRows}
+                onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+              >
+                Next
+              </Button>
+            </div>
+          ) : null}
         </CardHeader>
         <CardContent className="overflow-x-auto">
           <table className="w-full min-w-[1200px] text-left text-xs">
@@ -374,7 +422,7 @@ export function UsersPanel() {
               </tr>
             </thead>
             <tbody>
-              {users.map((u) => {
+              {pageUsers.map((u) => {
                 const row = rows[u.address.toLowerCase()];
                 const selected =
                   selectedUser?.toLowerCase() === u.address.toLowerCase();
