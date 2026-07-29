@@ -24,12 +24,22 @@ import {
  * Always writes deployed-addresses.json and prints ownership verification.
  */
 async function main() {
-  const connection = await hre.network.connect();
+  // Hardhat 3: prefer create()/getOrCreate() over deprecated connect().
+  // One NetworkConnection for the whole deploy so signers + provider stay aligned.
+  const connection =
+    typeof hre.network.getOrCreate === "function"
+      ? await hre.network.getOrCreate(
+          (hre as { network?: { name?: string } }).network?.name ||
+            process.env.HARDHAT_NETWORK ||
+            "default",
+        )
+      : await hre.network.connect();
   const { ethers } = connection;
   const [deployer] = await ethers.getSigners();
   const network = await ethers.provider.getNetwork();
   const chainId = Number(network.chainId);
   const networkName =
+    connection.networkName ||
     (hre as { network?: { name?: string } }).network?.name ||
     process.env.HARDHAT_NETWORK ||
     "unknown";
@@ -332,22 +342,45 @@ async function main() {
   // ------------------------------------------------------------------
   // Genesis / root bootstrap
   // ------------------------------------------------------------------
+  // IMPORTANT (Hardhat 3 HTTP + BSC): after tx.wait(), eth_call with the
+  // default blockTag "latest" can hit an RPC peer that has not yet applied
+  // the mined block (load-balanced / eventually-consistent endpoints).
+  // That returns the zero User struct even though register() succeeded.
+  // Always verify post-state at receipt.blockNumber (or poll until it matches).
   const rootUser = await core.users(deployer.address);
+  let rootReadBlock: number | "latest" = "latest";
+
   if (!rootUser.isActive) {
     console.log("Bootstrapping root user (register address(0))...");
     const tx = await core.register(ethers.ZeroAddress);
-    await tx.wait();
-    console.log("Root registered:", deployer.address);
+    const receipt = await tx.wait();
+    if (receipt === null || receipt.status !== 1) {
+      throw new Error(
+        `Root register tx failed or dropped (hash=${tx.hash}, status=${receipt?.status})`,
+      );
+    }
+    rootReadBlock = receipt.blockNumber;
+    console.log(
+      "Root registered:",
+      deployer.address,
+      "block:",
+      rootReadBlock,
+      "tx:",
+      tx.hash,
+    );
   } else {
     console.log("Root already registered:", deployer.address);
   }
 
-  const rootAfter = await core.users(deployer.address);
+  const rootAfter = await core.users(deployer.address, {
+    blockTag: rootReadBlock,
+  });
   if (!rootAfter.isActive) {
     throw new Error(
-      "Root bootstrap failed — users[deployer].isActive is still false",
+      `Root bootstrap failed at blockTag=${rootReadBlock} — users[deployer].isActive is still false (tx mined but read is inconsistent; check RPC)`,
     );
   }
+  console.log("Root verified isActive=true at blockTag=", rootReadBlock);
 
   const explorerBase =
     chainId === 56
