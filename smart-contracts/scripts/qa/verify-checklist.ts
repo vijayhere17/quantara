@@ -249,11 +249,12 @@ async function main() {
   let txOk = true;
   const txNotes: string[] = [];
   const sampleTxs: string[] = [];
-  if (wallets.activateTxs?.length) {
+
+  // Prefer live PackageActivated events (handoff may be stale after redeploy)
+  if (activated.length) {
+    sampleTxs.push(...activated.slice(-4).map((e) => e.txHash));
+  } else if (wallets.activateTxs?.length) {
     sampleTxs.push(...wallets.activateTxs);
-  } else if (activated.length) {
-    // last 3 activations
-    sampleTxs.push(...activated.slice(-3).map((e) => e.txHash));
   }
   const envTx = (process.env.VERIFY_TX || "").trim();
   if (envTx) sampleTxs.unshift(envTx);
@@ -265,13 +266,18 @@ async function main() {
   }
   for (const tx of uniqueTxs) {
     const info = await printTransaction(ethers, c, tx);
+    if (info.status === null) {
+      txOk = false;
+      txNotes.push(`${tx.slice(0, 10)}… not found (stale handoff? redeploy + qa:phase2)`);
+      continue;
+    }
     if (info.status !== 1) {
       txOk = false;
       txNotes.push(`${tx.slice(0, 10)}… status≠1`);
     }
     const hasPkg = info.events.some((e) => e.startsWith("PackageActivated"));
     if (!hasPkg && !envTx) {
-      // activate txs should include PackageActivated
+      txOk = false;
       txNotes.push(`${tx.slice(0, 10)}… missing PackageActivated`);
     }
   }
