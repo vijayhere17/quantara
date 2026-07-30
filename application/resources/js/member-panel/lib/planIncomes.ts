@@ -29,6 +29,11 @@ export function formatIncomeAmount(value: string | number | null | undefined, de
   return n.toFixed(decimals);
 }
 
+/** Shorter currency display for dashboard summary cards */
+export function formatDashboardCurrency(value: string | number | null | undefined): string {
+  return `$${formatIncomeAmount(value, 4)}`;
+}
+
 export function incomeSharePercent(
   value: string | number | null | undefined,
   total: string | number | null | undefined,

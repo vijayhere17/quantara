@@ -19,6 +19,7 @@ import {
 } from '../../lib/ecologyRanks';
 import {
   filterPlanIncomes,
+  formatDashboardCurrency,
   formatIncomeAmount,
   incomeSharePercent,
   type PlanIncomeType,
@@ -92,13 +93,13 @@ export function DashboardPage({ data }: DashboardPageProps) {
           icon={CircleDollarSign}
           label="Total Income"
           value={
-            <span className="tabular-nums">{formatIncomeAmount(data.income.total)}</span>
+            <span className="tabular-nums">{formatDashboardCurrency(data.income.total)}</span>
           }
           footer={
             <p className="text-[11px] text-q-muted">
               Today{' '}
               <span className="font-semibold text-emerald-400">
-                +{formatIncomeAmount(data.income.today)}
+                +{formatDashboardCurrency(data.income.today)}
               </span>
             </p>
           }
@@ -108,7 +109,9 @@ export function DashboardPage({ data }: DashboardPageProps) {
           variant="amber"
           icon={Award}
           label="My Rank"
-          value={rankLabel}
+          value={
+            <span className="text-base sm:text-lg">{rankLabel}</span>
+          }
           footer={
             nextRankLabel && rankLabel !== 'Genesis' ? (
               <p className="text-[11px] text-q-muted">
@@ -130,7 +133,11 @@ export function DashboardPage({ data }: DashboardPageProps) {
           headerRight={
             <ChevronRight className="h-4 w-4 text-q-muted" />
           }
-          value={data.packagePair?.current?.label ?? '—'}
+          value={
+            <span className="line-clamp-2 text-base leading-snug sm:text-lg">
+              {data.packagePair?.current?.label ?? '—'}
+            </span>
+          }
           footer={
             <>
               {data.packagePair?.current?.amount ? (

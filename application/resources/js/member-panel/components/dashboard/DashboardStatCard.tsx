@@ -49,13 +49,13 @@ export function DashboardStatCard({
       <p className="mt-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-q-muted">
         {label}
       </p>
-      <div className="mt-1 text-lg font-bold leading-tight text-white sm:text-xl">{value}</div>
+      <div className="mt-1 text-base font-bold leading-tight text-white sm:text-lg">{value}</div>
       {footer ? <div className="mt-2">{footer}</div> : null}
       <span className="q-stat-flare" aria-hidden />
     </>
   );
 
-  const cls = `${variantClass[variant]} block p-4 ${className}`;
+  const cls = `${variantClass[variant]} q-dash-stat-card q-dash-stat-card--${variant} block p-4 transition-all duration-300 ${className}`;
 
   if (href) {
     return (

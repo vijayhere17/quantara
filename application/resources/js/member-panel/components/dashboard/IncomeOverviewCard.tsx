@@ -35,8 +35,8 @@ export function IncomeOverviewCard({
         </p>
       </div>
 
-      <p className="text-[15px] font-bold leading-none tabular-nums text-white sm:text-base">
-        ${formatIncomeAmount(value)}
+      <p className="text-sm font-bold leading-none tabular-nums text-white sm:text-[15px]">
+        ${formatIncomeAmount(value, 4)}
       </p>
 
       <div className={`q-income-bar q-income-bar--${variant}`} aria-hidden>

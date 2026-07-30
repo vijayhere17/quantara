@@ -149,6 +149,51 @@
     animation: q-income-slide-in 0.55s ease-out both;
   }
 
+  /* Top dashboard stat cards — same gradient + hover as income overview */
+  .q-dash-stat-card {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .q-dash-stat-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0.38;
+    transition: opacity 0.35s ease;
+  }
+
+  .q-dash-stat-card > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  .q-dash-stat-card:hover {
+    transform: translateY(-2px);
+  }
+
+  .q-dash-stat-card:hover::before {
+    opacity: 0.55;
+  }
+
+  .q-dash-stat-card--emerald::before {
+    background: linear-gradient(90deg, rgba(52, 211, 153, 0.26) 0%, rgba(52, 211, 153, 0.05) 45%, transparent 75%);
+  }
+
+  .q-dash-stat-card--amber::before {
+    background: linear-gradient(90deg, rgba(251, 191, 36, 0.26) 0%, rgba(251, 191, 36, 0.05) 45%, transparent 75%);
+  }
+
+  .q-dash-stat-card--cyan::before {
+    background: linear-gradient(90deg, rgba(0, 181, 255, 0.28) 0%, rgba(0, 181, 255, 0.06) 45%, transparent 75%);
+  }
+
+  .q-dash-stat-card--purple::before {
+    background: linear-gradient(90deg, rgba(139, 92, 246, 0.26) 0%, rgba(139, 92, 246, 0.05) 45%, transparent 75%);
+  }
+
   .q-income-card::before {
     content: '';
     position: absolute;
@@ -228,10 +273,12 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .q-income-card {
+    .q-income-card,
+    .q-dash-stat-card {
       animation: none;
     }
-    .q-income-card:hover {
+    .q-income-card:hover,
+    .q-dash-stat-card:hover {
       transform: none;
     }
     .q-income-bar__fill {
