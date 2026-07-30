@@ -34,38 +34,40 @@ export function CapWarningBanner({
   return (
     <div
       role="status"
-      className="q-glass-card flex items-start gap-3 border-amber-400/25 bg-amber-500/[0.06] p-3.5 sm:p-4"
+      className="relative overflow-hidden rounded-2xl border border-rose-500/30 bg-gradient-to-r from-[#3a1528] via-[#2a1222] to-[#1f1018] p-3.5 shadow-[0_8px_24px_rgba(0,0,0,0.35)] sm:p-4"
     >
-      <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-amber-400/30 bg-amber-400/10 text-amber-300">
-        <AlertTriangle className="h-4 w-4" />
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium leading-snug text-white">
-          You are close to your earning cap ({threshold}% reached). Upgrade to the next package to
-          continue maximizing your income.
-        </p>
-        <a
-          href={upgradeHref}
-          className="mt-2 inline-flex text-xs font-semibold text-q-cyan hover:underline"
+      <div className="flex items-start gap-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-rose-500/20 text-rose-300 ring-1 ring-rose-400/30">
+          <AlertTriangle className="h-4 w-4" />
+        </span>
+        <div className="min-w-0 flex-1 pr-8">
+          <p className="text-sm font-medium leading-snug text-white">
+            You are close to capping! Top up with the next package to maximize your income.
+          </p>
+          <p className="mt-1 text-[11px] text-rose-200/70">{threshold}% of earning cap reached</p>
+          <a
+            href={upgradeHref}
+            className="mt-2.5 inline-flex rounded-full border border-rose-300/40 bg-rose-500/10 px-3.5 py-1.5 text-xs font-semibold text-rose-100 transition-colors hover:bg-rose-500/20"
+          >
+            Top Up Now
+          </a>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            setDismissed(true);
+            try {
+              sessionStorage.setItem(storageKey, '1');
+            } catch {
+              /* ignore */
+            }
+          }}
+          className="absolute right-3 top-3 rounded-lg p-1 text-rose-200/60 transition-colors hover:bg-white/5 hover:text-white"
+          aria-label="Dismiss notification"
         >
-          Upgrade package →
-        </a>
+          <X className="h-4 w-4" />
+        </button>
       </div>
-      <button
-        type="button"
-        onClick={() => {
-          setDismissed(true);
-          try {
-            sessionStorage.setItem(storageKey, '1');
-          } catch {
-            /* ignore */
-          }
-        }}
-        className="shrink-0 rounded-lg p-1.5 text-q-muted transition-colors hover:bg-white/[0.06] hover:text-white"
-        aria-label="Dismiss notification"
-      >
-        <X className="h-4 w-4" />
-      </button>
     </div>
   );
 }
