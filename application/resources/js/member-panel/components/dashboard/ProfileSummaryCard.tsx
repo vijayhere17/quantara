@@ -31,7 +31,7 @@ export function ProfileSummaryCard({ user, rankLabel }: ProfileSummaryCardProps)
         </li>
         <li className="flex items-center justify-between gap-3 py-3.5">
           <span className="text-sm text-q-muted">Current Rank</span>
-          <Badge tone="teal">{rankLabel === 'Q0' ? 'Not Ranked Yet' : rankLabel}</Badge>
+          <Badge tone="teal">{rankLabel}</Badge>
         </li>
         <li className="flex items-center justify-between gap-3 py-3.5 last:pb-0">
           <span className="text-sm text-q-muted">Current Package</span>

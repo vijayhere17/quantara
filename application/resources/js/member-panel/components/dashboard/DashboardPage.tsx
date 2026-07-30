@@ -13,7 +13,10 @@ import {
   Zap,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import type { DashboardBoot } from '../../types';
+import {
+  formatEcologyRank,
+  nextEcologyRank,
+} from '../../lib/ecologyRanks';
 import {
   filterPlanIncomes,
   formatIncomeAmount,
@@ -45,8 +48,10 @@ const incomeMeta: Record<PlanIncomeType, IncomeMeta> = {
 
 export function DashboardPage({ data }: DashboardPageProps) {
   const walletAddress = data.user.obscuredAddress || data.user.username;
-  const rankLabel =
-    data.rank.current && data.rank.current !== 'Q0' ? data.rank.current : 'Not Ranked';
+  const rankLabel = formatEcologyRank(data.rank.current);
+  const nextRankLabel = data.rank.next
+    ? formatEcologyRank(data.rank.next)
+    : nextEcologyRank(data.rank.current);
   const planIncomes = filterPlanIncomes(data.rewards);
 
   return (
@@ -117,10 +122,10 @@ export function DashboardPage({ data }: DashboardPageProps) {
           label="My Rank"
           value={rankLabel}
           footer={
-            data.rank.next ? (
+            nextRankLabel && rankLabel !== 'Genesis' ? (
               <p className="text-[11px] text-q-muted">
                 Next:{' '}
-                <span className="font-semibold text-amber-300">{data.rank.next}</span>
+                <span className="font-semibold text-amber-300">{nextRankLabel}</span>
               </p>
             ) : null
           }

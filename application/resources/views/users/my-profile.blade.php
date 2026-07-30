@@ -1,8 +1,30 @@
 @php
     use Illuminate\Support\Facades\Auth;
+    use App\Models\SalaryMaster;
 
     $base = rtrim(URL::to('/'), '/');
     $user = $user ?? Auth::user();
+
+    $currentRankRow = ($user->salary_id ?? 0) ? SalaryMaster::find($user->salary_id) : null;
+    $allSalary = SalaryMaster::orderBy('id')->get();
+    $nextRankRow = null;
+    if ($currentRankRow && $allSalary->isNotEmpty()) {
+        $foundCurrent = false;
+        foreach ($allSalary as $tier) {
+            if ($foundCurrent) {
+                $nextRankRow = $tier;
+                break;
+            }
+            if ((int) $tier->id === (int) $currentRankRow->id) {
+                $foundCurrent = true;
+            }
+        }
+    } elseif (!$currentRankRow && $allSalary->isNotEmpty()) {
+        $nextRankRow = $allSalary->first();
+    }
+
+    $currentRankRaw = optional($currentRankRow)->rank ?? 'Q0';
+    $nextRankRaw = optional($nextRankRow)->rank;
 
     $displayName = trim(($user->firstname ?? '') . ' ' . ($user->lastname ?? ''));
     if ($displayName === '') {
@@ -60,8 +82,10 @@
             'username' => $user->username ?? '',
             'referralCode' => obscureAddress($user->username ?? ''),
             'referralLink' => $base . '/sign-up?ref=' . ($user->username ?? ''),
-            'rank' => 'Not Ranked Yet',
-            'nextRank' => 'Sales Manager',
+            'rank' => formatEcologyRank($currentRankRaw),
+            'nextRank' => $nextRankRaw
+                ? formatEcologyRank($nextRankRaw)
+                : (nextEcologyRank($currentRankRaw) ?? '—'),
             'packageName' => optional($user->kit)->name ?? 'Not Active',
             'packageAmount' => optional($user->kit)->amount,
             'packageStatus' => optional($user->kit)->name ? 'Active' : 'Inactive',

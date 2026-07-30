@@ -95,13 +95,13 @@ class MemberPanelBootService
             $wallet = (string) ($row->username ?? '');
             $short = function_exists('obscureAddress') ? obscureAddress($wallet) : $wallet;
             $salaryId = (int) ($row->salary_id ?? 0);
-            $rankLabel = $rankMap[$salaryId] ?? 'Q0';
+            $rankRaw = $rankMap[$salaryId] ?? 'Q0';
             $amount = (float) ($row->package_amount ?: $row->package_id ?: $row->self_investment ?: 0);
             $package = $amount > 0 ? $this->resolveKitName($amount) : '—';
 
             $out[] = [
                 'address' => $short,
-                'rank' => $rankLabel,
+                'rank' => function_exists('formatEcologyRank') ? formatEcologyRank($rankRaw) : $rankRaw,
                 'package' => $package,
                 'status' => ((int) ($row->kit_id ?? 0) > 0) ? 'active' : 'inactive',
                 'registeredDate' => $this->formatDate($row->created_at),

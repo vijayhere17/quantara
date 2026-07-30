@@ -1,3 +1,4 @@
+import { formatEcologyRank, nextEcologyRank } from '../../lib/ecologyRanks';
 import { Badge } from '../ui/Badge';
 import { Card } from '../ui/Card';
 import { ProgressBar } from '../ui/ProgressBar';
@@ -8,17 +9,22 @@ type RankProgressProps = {
 };
 
 export function RankProgress({ rank }: RankProgressProps) {
+  const currentLabel = formatEcologyRank(rank.current);
+  const nextLabel = rank.next
+    ? formatEcologyRank(rank.next)
+    : nextEcologyRank(rank.current);
+
   return (
     <Card className="p-5 sm:p-6">
       <div className="mb-4 flex items-center justify-between gap-3">
         <h3 className="text-lg font-semibold text-white">Rank Progress</h3>
-        <Badge tone="cyan">{rank.current}</Badge>
+        <Badge tone="cyan">{currentLabel}</Badge>
       </div>
 
-      {rank.next ? (
+      {nextLabel ? (
         <>
           <p className="mb-4 text-sm text-q-muted">
-            Next Rank: <span className="font-semibold text-white">{rank.next}</span>
+            Next Rank: <span className="font-semibold text-white">{nextLabel}</span>
           </p>
 
           <ProgressBar value={rank.progress} className="mb-3" />

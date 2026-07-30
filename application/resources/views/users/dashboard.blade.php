@@ -112,8 +112,10 @@
         ],
         'packagePair' => $packagePair,
         'rank' => [
-            'current' => optional($object->current_rank)->rank ?? 'Q0',
-            'next' => optional($gt_next_rank)->rank,
+            'current' => formatEcologyRank(optional($object->current_rank)->rank ?? 'Q0'),
+            'next' => $gt_next_rank
+                ? formatEcologyRank($gt_next_rank->rank)
+                : nextEcologyRank(optional($object->current_rank)->rank ?? 'Q0'),
             'progress' => $gt_rank_pct,
             'teamVolume' => $gt_team_business,
             'required' => optional($gt_next_rank)->business,
