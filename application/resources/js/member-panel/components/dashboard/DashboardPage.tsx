@@ -20,7 +20,6 @@ import {
 import {
   filterPlanIncomes,
   formatDashboardCurrency,
-  formatIncomeAmount,
   incomeSharePercent,
   type PlanIncomeType,
 } from '../../lib/planIncomes';
