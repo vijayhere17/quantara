@@ -119,7 +119,7 @@ export function RegistrationSuccessPage({ data, details }: RegistrationSuccessPa
     <div className="relative">
       <Confetti />
       <div className="mb-6 flex justify-center">
-        <Logo href={data.links.home} size="md" imgClassName="max-w-[180px]" />
+        <Logo href={data.links.home} size="lg" imgClassName="h-12 max-w-[220px]" />
       </div>
 
       <SuccessCard

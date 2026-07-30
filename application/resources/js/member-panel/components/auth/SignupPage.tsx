@@ -246,7 +246,7 @@ export function SignupPage({ data }: SignupPageProps) {
         className="auth-glass-card mx-auto !h-auto w-full min-w-0 overflow-hidden rounded-[24px] border border-white/[0.1] bg-[#0a1528]/75 p-5 shadow-[0_0_0_1px_rgba(0,181,255,0.1),0_24px_64px_rgba(0,0,0,0.45)] backdrop-blur-2xl sm:p-6 xl:p-5 2xl:p-7"
       >
         <div className="mb-4 flex flex-col items-center text-center">
-          <Logo href={data.links.home} size="md" imgClassName="h-9 max-w-[150px]" className="mb-3 xl:hidden" />
+          <Logo href={data.links.home} size="lg" imgClassName="h-12 max-w-[200px] sm:h-14 sm:max-w-[220px]" className="mb-4 xl:hidden" />
           <h1 className="font-display text-xl font-bold tracking-tight text-white sm:text-2xl">
             Create your account
           </h1>
