@@ -63,20 +63,6 @@ export function DashboardPage({ data }: DashboardPageProps) {
         walletKey={data.user.username || 'member'}
       />
 
-      {/* Wallet identity */}
-      <section className="flex items-center gap-3 px-0.5">
-        <span className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-q-gradient-br p-[2px] shadow-glow-cyan">
-          <span className="flex h-full w-full items-center justify-center rounded-full bg-[#12182a] text-sm font-bold text-q-cyan">
-            Q
-          </span>
-          <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-[#0a0b14] bg-emerald-400" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-medium uppercase tracking-wide text-q-muted">Wallet ID</p>
-          <p className="truncate font-mono text-sm font-semibold text-white">{walletAddress}</p>
-        </div>
-      </section>
-
       {/* My Wallet */}
       <section className="q-wallet-card relative overflow-hidden rounded-2xl p-4 sm:p-5">
         <div className="pointer-events-none absolute -right-8 -top-10 h-32 w-32 rounded-full bg-q-cyan/20 blur-3xl" aria-hidden />
@@ -178,14 +164,15 @@ export function DashboardPage({ data }: DashboardPageProps) {
       <section>
         <h2 className="mb-2.5 px-0.5 text-sm font-semibold text-white">Income Overview</h2>
         <div className="grid grid-cols-2 gap-3">
-          {planIncomes.map((reward) => {
+          {planIncomes.map((reward, index) => {
             const label = reward.label as PlanIncomeType;
             const meta = incomeMeta[label];
             const Icon = meta.icon;
             return (
               <div
                 key={reward.label}
-                className={`q-stat-card q-stat-card--${meta.variant} flex items-center gap-3 p-3.5`}
+                className={`q-income-card q-income-card--${meta.variant} q-stat-card q-stat-card--${meta.variant} flex items-center gap-3 p-3.5`}
+                style={{ animationDelay: `${index * 70}ms` }}
               >
                 <span className={`q-stat-icon q-stat-icon--${meta.variant}`}>
                   <Icon className="h-4 w-4" strokeWidth={1.75} />

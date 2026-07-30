@@ -1,7 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import type { MemberShellData } from '../../types';
 import { AuroraBackground } from './AuroraBackground';
-import { BottomNav, BottomNavSpacer } from './BottomNav';
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
 
@@ -23,9 +22,7 @@ export function MemberLayout({ data, children }: MemberLayoutProps) {
         <Header data={data} onToggleSidebar={() => setSidebarOpen((v) => !v)} />
         <main className="animate-fade-in px-3.5 py-4 sm:px-5 sm:py-5 lg:px-7 lg:py-6">
           {children}
-          <BottomNavSpacer />
         </main>
-        <BottomNav data={data} currentPath={data.currentPath} />
         <footer className="hidden border-t border-white/[0.05] px-4 py-4 text-center text-[11px] text-q-muted lg:block">
           © {new Date().getFullYear()} Quantara
         </footer>

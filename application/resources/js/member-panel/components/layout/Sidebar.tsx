@@ -135,8 +135,19 @@ export function Sidebar({ data, open, onClose }: SidebarProps) {
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div className="flex h-[88px] items-center border-b border-white/[0.05] px-6">
-          <Logo href={data.links.dashboard} size="md" imgClassName="max-w-[160px]" />
+        <div className="flex min-h-[104px] items-center justify-center border-b border-white/[0.05] px-5 py-4 lg:h-[88px] lg:justify-start lg:px-6">
+          <Logo
+            href={data.links.dashboard}
+            size="xl"
+            className="lg:hidden"
+            imgClassName="max-h-[72px] max-w-[min(240px,78vw)]"
+          />
+          <Logo
+            href={data.links.dashboard}
+            size="md"
+            className="hidden lg:inline-flex"
+            imgClassName="max-w-[160px]"
+          />
         </div>
 
         <div className="q-sidebar-scroll flex-1 overflow-y-auto px-3 pb-8 pt-5">

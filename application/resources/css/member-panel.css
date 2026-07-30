@@ -140,6 +140,102 @@
     @apply q-stat-card flex items-center gap-3 p-3.5;
   }
 
+  /* Income overview cards — left-to-right gradient + entrance animation */
+  .q-income-card {
+    transition:
+      transform 0.35s ease,
+      box-shadow 0.35s ease,
+      border-color 0.35s ease;
+    animation: q-income-slide-in 0.55s ease-out both;
+  }
+
+  .q-income-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0.42;
+    transition: opacity 0.35s ease;
+  }
+
+  .q-income-card > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  .q-income-card:hover {
+    transform: translateY(-3px);
+  }
+
+  .q-income-card:hover::before {
+    opacity: 0.62;
+  }
+
+  .q-income-card--emerald::before {
+    background: linear-gradient(90deg, rgba(52, 211, 153, 0.28) 0%, rgba(52, 211, 153, 0.06) 42%, transparent 72%);
+  }
+
+  .q-income-card--amber::before {
+    background: linear-gradient(90deg, rgba(251, 191, 36, 0.28) 0%, rgba(251, 191, 36, 0.06) 42%, transparent 72%);
+  }
+
+  .q-income-card--cyan::before {
+    background: linear-gradient(90deg, rgba(0, 181, 255, 0.3) 0%, rgba(0, 181, 255, 0.07) 42%, transparent 72%);
+  }
+
+  .q-income-card--purple::before {
+    background: linear-gradient(90deg, rgba(139, 92, 246, 0.28) 0%, rgba(139, 92, 246, 0.06) 42%, transparent 72%);
+  }
+
+  .q-income-card--emerald:hover {
+    box-shadow:
+      0 12px 36px rgba(0, 0, 0, 0.38),
+      0 0 32px rgba(52, 211, 153, 0.12),
+      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+
+  .q-income-card--amber:hover {
+    box-shadow:
+      0 12px 36px rgba(0, 0, 0, 0.38),
+      0 0 32px rgba(251, 191, 36, 0.12),
+      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+
+  .q-income-card--cyan:hover {
+    box-shadow:
+      0 12px 36px rgba(0, 0, 0, 0.38),
+      0 0 32px rgba(0, 181, 255, 0.14),
+      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+
+  .q-income-card--purple:hover {
+    box-shadow:
+      0 12px 36px rgba(0, 0, 0, 0.38),
+      0 0 32px rgba(139, 92, 246, 0.12),
+      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+
+  @keyframes q-income-slide-in {
+    0% {
+      opacity: 0;
+      transform: translateX(-14px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .q-income-card {
+      animation: none;
+    }
+    .q-income-card:hover {
+      transform: none;
+    }
+  }
+
   .q-wallet-card {
     border: 1px solid rgba(0, 181, 255, 0.22);
     background: linear-gradient(
