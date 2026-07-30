@@ -20,11 +20,13 @@ import {
 import {
   filterPlanIncomes,
   formatIncomeAmount,
+  incomeSharePercent,
   type PlanIncomeType,
 } from '../../lib/planIncomes';
 import { PageContainer } from '../ui/PageContainer';
 import { CapWarningBanner } from './CapWarningBanner';
 import { DashboardStatCard, type StatCardVariant } from './DashboardStatCard';
+import { IncomeOverviewCard } from './IncomeOverviewCard';
 import { SemiCircleMeter } from './SemiCircleMeter';
 
 type DashboardPageProps = {
@@ -167,26 +169,16 @@ export function DashboardPage({ data }: DashboardPageProps) {
           {planIncomes.map((reward, index) => {
             const label = reward.label as PlanIncomeType;
             const meta = incomeMeta[label];
-            const Icon = meta.icon;
             return (
-              <div
+              <IncomeOverviewCard
                 key={reward.label}
-                className={`q-income-card q-income-card--${meta.variant} q-stat-card q-stat-card--${meta.variant} flex items-center gap-3 p-3.5`}
-                style={{ animationDelay: `${index * 70}ms` }}
-              >
-                <span className={`q-stat-icon q-stat-icon--${meta.variant}`}>
-                  <Icon className="h-4 w-4" strokeWidth={1.75} />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-q-muted">
-                    {meta.short}
-                  </p>
-                  <p className="truncate text-base font-bold tabular-nums text-white">
-                    {formatIncomeAmount(reward.value)}
-                  </p>
-                </div>
-                <span className="q-stat-flare" aria-hidden />
-              </div>
+                label={meta.short}
+                value={reward.value}
+                sharePct={incomeSharePercent(reward.value, data.income.total)}
+                icon={meta.icon}
+                variant={meta.variant}
+                animationDelay={index * 70}
+              />
             );
           })}
         </div>

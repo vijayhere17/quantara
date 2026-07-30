@@ -20,8 +20,23 @@ export function filterPlanIncomes<T extends { label: string }>(rewards: T[]): T[
   });
 }
 
-export function formatIncomeAmount(value: string | number, decimals = 5): string {
+export function formatIncomeAmount(value: string | number | null | undefined, decimals = 5): string {
+  if (value === null || value === undefined || value === '') {
+    return (0).toFixed(decimals);
+  }
   const n = Number(String(value).replace(/,/g, ''));
-  if (!Number.isFinite(n)) return String(value);
+  if (!Number.isFinite(n)) return '0.00000';
   return n.toFixed(decimals);
+}
+
+export function incomeSharePercent(
+  value: string | number | null | undefined,
+  total: string | number | null | undefined,
+): number {
+  const amount = Number(String(value ?? 0).replace(/,/g, ''));
+  const sum = Number(String(total ?? 0).replace(/,/g, ''));
+  if (!Number.isFinite(amount) || !Number.isFinite(sum) || sum <= 0) {
+    return 0;
+  }
+  return Math.min(100, Math.round((amount / sum) * 1000) / 10);
 }

@@ -234,6 +234,41 @@
     .q-income-card:hover {
       transform: none;
     }
+    .q-income-bar__fill {
+      transition: none;
+    }
+  }
+
+  .q-income-bar {
+    position: relative;
+    z-index: 1;
+    height: 4px;
+    overflow: hidden;
+    border-radius: 9999px;
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .q-income-bar__fill {
+    display: block;
+    height: 100%;
+    border-radius: 9999px;
+    transition: width 0.65s ease-out;
+  }
+
+  .q-income-bar__fill--emerald {
+    background: linear-gradient(90deg, #34d399, rgba(52, 211, 153, 0.35));
+  }
+
+  .q-income-bar__fill--amber {
+    background: linear-gradient(90deg, #fbbf24, rgba(251, 191, 36, 0.35));
+  }
+
+  .q-income-bar__fill--cyan {
+    background: linear-gradient(90deg, #00b5ff, rgba(0, 181, 255, 0.35));
+  }
+
+  .q-income-bar__fill--purple {
+    background: linear-gradient(90deg, #a78bfa, rgba(139, 92, 246, 0.35));
   }
 
   .q-wallet-card {
