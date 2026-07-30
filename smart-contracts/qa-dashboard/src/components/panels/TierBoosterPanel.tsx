@@ -111,7 +111,8 @@ export function TierBoosterPanel() {
       <div>
         <h2 className="text-base font-semibold">Tier Booster (Same Rank)</h2>
         <p className="text-xs text-muted">
-          10% of Self ROI when sponsor and direct share the same rank
+          10% of every income (Self ROI, Direct, Rank, Community, …) when sponsor
+          and direct share the same rank
         </p>
       </div>
 

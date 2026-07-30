@@ -67,7 +67,7 @@ export function IncomeRulesCard({ userAddress }: { userAddress: string }) {
         const uPct = progress.rank;
         const dPct = dRank;
         if (uPct > 0 && dPct > 0 && uPct === dPct) {
-          setTierNote("Same rank → you earn 10% of direct's Self ROI (Tier Booster)");
+          setTierNote("Same rank → you earn 10% of direct's income (Tier Booster)");
           setDiffNote("Same rank → no rank gap; Tier Booster applies instead");
         } else if (uPct > dPct && dPct > 0) {
           const gap =
@@ -140,7 +140,8 @@ export function IncomeRulesCard({ userAddress }: { userAddress: string }) {
             <p className="text-muted leading-relaxed">
               If you and your <strong className="text-ink">direct</strong> have the{" "}
               <strong className="text-ink">same rank</strong>, you get{" "}
-              <strong className="text-ink">10%</strong> of their Self ROI (not rank gap).
+              <strong className="text-ink">10%</strong> of every income they earn
+              (Self ROI, Direct, Rank, Community, …) — instantly.
             </p>
             <p className="text-ink pt-1">{tierNote}</p>
           </div>

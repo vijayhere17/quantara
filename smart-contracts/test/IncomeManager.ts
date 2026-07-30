@@ -30,6 +30,7 @@ describe("IncomeManager", function () {
     await reward.setIncomeManager(await income.getAddress());
     await income.setCoreContract(await planCore.getAddress());
     await income.setRankReward(await rank.getAddress());
+    await rank.setIncomeManager(await income.getAddress());
     await income.setAuthorizedContract(owner.address, true);
     await income.setAuthorizedContract(await planCore.getAddress(), true);
     await income.setAuthorizedContract(await reward.getAddress(), true);

@@ -211,6 +211,14 @@ contract IncomeManager is IIncomeManager {
 
         _notifyCapsIfNeeded(user, income, isRoi, isWorking);
 
+        if (
+            incomeType != IncomeType.SameRank &&
+            acceptedAmount > 0 &&
+            address(rankReward) != address(0)
+        ) {
+            rankReward.notifyIncomeForTierBooster(user, acceptedAmount);
+        }
+
         return acceptedAmount;
     }
 

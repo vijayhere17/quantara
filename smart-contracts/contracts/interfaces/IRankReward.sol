@@ -9,16 +9,24 @@ interface IRankReward {
     function processRoiIncome(address user, uint256 roiAmount) external;
 
     /**
-     * @notice Tier Booster: 10% of Self ROI when direct sponsor shares the same rank.
-     * @param user Earner who just received Self ROI.
-     * @param selfRoiAmount Accepted Self ROI amount for `user`.
+     * @notice Tier Booster: 10% of any accepted income when direct sponsor shares the same rank.
+     * @param user Earner who just received income (ROI, Contribution, Rank, Community, etc.).
+     * @param incomeAmount Accepted gross income amount for `user`.
+     */
+    function notifyIncomeForTierBooster(
+        address user,
+        uint256 incomeAmount
+    ) external;
+
+    /**
+     * @notice Legacy entry — reward contract only. Prefer IncomeManager hook.
      */
     function processSameRankIncome(
         address user,
         uint256 selfRoiAmount
     ) external;
 
-    /// @notice Explicit Tier Booster entrypoint (Self ROI only).
+    /// @notice Legacy entry — reward contract only. Prefer IncomeManager hook.
     function processTierBooster(address user, uint256 selfRoiAmount) external;
 
     /**

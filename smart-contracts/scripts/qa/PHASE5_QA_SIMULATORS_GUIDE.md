@@ -27,7 +27,7 @@ Writes:
 | `npm run qa:simulators:ga` | Growth Accelerator 50:50 + L1 10% |
 | `npm run qa:simulators:rank` | Auto rank (Seed+) |
 | `npm run qa:simulators:community` | Community Builder points + claim |
-| `npm run qa:simulators:tier` | Tier Booster (Self ROI only) |
+| `npm run qa:simulators:tier` | Tier Booster (10% of all income when same rank) |
 | `npm run qa:simulators:recycle` | Income recycling 70/25/3/2 |
 
 Or via the Node launcher (works on Windows + Unix; Hardhat 3 rejects `--` script args):

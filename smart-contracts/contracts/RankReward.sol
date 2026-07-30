@@ -14,11 +14,14 @@ import {ITreasuryManager} from "./interfaces/ITreasuryManager.sol";
  * When a downline claims Self ROI, each ranked upline earns only the **gap** between
  * their rank % and the highest rank % already "used" below them (including the
  * claimant's own rank). Example: upline Sprout 15%, downline Seed 10% → upline gets 5%
- * of that Self ROI slice. Tier Booster is separate (same rank → 10% of Self ROI).
+ * of that Self ROI slice.
+ *
+ * Tier Booster:
  * -----------------------------------------
- * When a direct referral earns Self ROI and holds the exact same non-None rank as their
- * direct sponsor, the sponsor receives 10% of that Self ROI slice only.
- * Not applied to Contribution, Rank, Community, or other working incomes.
+ * When a user earns any accepted income (ROI, Contribution, Rank, Community, …)
+ * and their direct sponsor holds the exact same non-None rank, the sponsor
+ * receives 10% of that income slice instantly.
+ * Not applied to Tier Booster (SameRank) payouts — avoids recursion.
  * Tier Booster income itself does NOT re-trigger Tier Booster.
  *
  * Same Rank achievement bonus (one-time):
@@ -74,7 +77,7 @@ contract RankReward {
     mapping(address => bool) public sameRankReporters;
 
     uint256 public constant SAME_RANK_REWARD_BPS = 1000; // 10%
-    /// @notice Alias for Tier Booster BPS (10% of Self ROI).
+    /// @notice Alias for Tier Booster BPS (10% of any earned income slice).
     uint256 public constant TIER_BOOSTER_BPS = 1000;
 
     /// @dev one-time achievement: user reached sponsor's rank → paid already
@@ -90,7 +93,7 @@ contract RankReward {
     event SponsorSet(address indexed user, address indexed sponsor);
     event RankUpdated(address indexed user, Rank oldRank, Rank newRank);
     event RankIncomePaid(address indexed beneficiary, address indexed fromUser, uint256 amount);
-    /// @notice Tier Booster payout (10% of direct's Self ROI when same rank).
+    /// @notice Tier Booster payout (10% of direct's income when same rank).
     event SameRankIncomePaid(address indexed beneficiary, address indexed fromUser, uint256 amount);
     event TierBoosterPaid(address indexed beneficiary, address indexed fromUser, uint256 amount);
     event SameRankAchievementPaid(
@@ -234,21 +237,32 @@ contract RankReward {
     }
 
     /**
-     * @notice Tier Booster: pays 10% of a direct's Self ROI when ranks match.
-     * @dev Only InterdependentReward may call. `selfRoiAmount` must be the accepted Self ROI slice.
+     * @notice Tier Booster: pays 10% of any accepted income when direct ranks match.
+     * @dev Called from IncomeManager after every non-SameRank recordIncome.
+     */
+    function notifyIncomeForTierBooster(
+        address user,
+        uint256 incomeAmount
+    ) external {
+        require(msg.sender == address(incomeManager), "Only income manager");
+        _processTierBooster(user, incomeAmount);
+    }
+
+    /**
+     * @notice Legacy Tier Booster entrypoint (reward contract callers / tests).
      */
     function processSameRankIncome(
         address user,
-        uint256 selfRoiAmount
+        uint256 incomeAmount
     ) external {
         require(msg.sender == rewardContract, "Only reward contract");
-        _processTierBooster(user, selfRoiAmount);
+        _processTierBooster(user, incomeAmount);
     }
 
-    /// @notice Explicit Tier Booster entrypoint (same as processSameRankIncome).
-    function processTierBooster(address user, uint256 selfRoiAmount) external {
+    /// @notice Legacy alias — reward contract only.
+    function processTierBooster(address user, uint256 incomeAmount) external {
         require(msg.sender == rewardContract, "Only reward contract");
-        _processTierBooster(user, selfRoiAmount);
+        _processTierBooster(user, incomeAmount);
     }
 
     function recordPackageVolume(address user, uint256 volume) external {
@@ -603,15 +617,15 @@ contract RankReward {
         if (paid > 0) {
             rankIncome[beneficiary] += paid;
             emit RankIncomePaid(beneficiary, fromUser, paid);
-            // Rank income does NOT trigger Tier Booster (Self ROI only).
+            // Tier Booster on rank income is triggered by IncomeManager after recordIncome.
         }
     }
 
     function _processTierBooster(
         address user,
-        uint256 selfRoiAmount
+        uint256 incomeAmount
     ) internal {
-        if (selfRoiAmount == 0) {
+        if (incomeAmount == 0) {
             return;
         }
         if (address(incomeManager) == address(0) || address(treasury) == address(0)) {
@@ -628,7 +642,7 @@ contract RankReward {
             return;
         }
 
-        uint256 rewardAmount = (selfRoiAmount * TIER_BOOSTER_BPS) / 10000;
+        uint256 rewardAmount = (incomeAmount * TIER_BOOSTER_BPS) / 10000;
         uint256 paid = _payWorkingIncome(
             sponsor,
             rewardAmount,
@@ -642,12 +656,12 @@ contract RankReward {
         }
     }
 
-    /// @dev Legacy name — redirects to Tier Booster (Self ROI only).
+    /// @dev Legacy name — redirects to Tier Booster.
     function _processSameRankIncome(
         address user,
-        uint256 eligibleIncomeAmount
+        uint256 incomeAmount
     ) internal {
-        _processTierBooster(user, eligibleIncomeAmount);
+        _processTierBooster(user, incomeAmount);
     }
 
     function _payWorkingIncome(

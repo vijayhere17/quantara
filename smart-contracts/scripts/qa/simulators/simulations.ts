@@ -470,7 +470,7 @@ export async function simTierBooster(ethers: any): Promise<SimulatorReport> {
   const sameAfter = await sys.rankReward.sameRankIncome(sponsor.address);
   const tierGross = sameAfter - sameBefore;
   r.check(
-    "Tier Booster gross = 10% of Self ROI",
+    "Tier Booster gross = 10% of direct income (Self ROI slice)",
     tierGross === (pending * 1000n) / 10000n,
     `tier=${tierGross} pending=${pending}`,
   );

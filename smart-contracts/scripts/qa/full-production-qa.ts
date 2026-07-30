@@ -1685,7 +1685,7 @@ async function main() {
       row("Current Rank", `${r} (${RANK_NAMES[r] ?? "?"})`);
       row("SAME_RANK_REWARD_BPS", (await rank.SAME_RANK_REWARD_BPS()).toString());
       try {
-        row("TIER_BOOSTER_BPS (Self ROI only)", (await rank.TIER_BOOSTER_BPS()).toString());
+        row("TIER_BOOSTER_BPS (all income types)", (await rank.TIER_BOOSTER_BPS()).toString());
       } catch {
         /* older ABI */
       }
@@ -1720,7 +1720,7 @@ async function main() {
         }
       }
       record("Rank", "PASS", [
-        "Tier Booster = 10% of Self ROI when same rank; achievement bonus separate",
+        "Tier Booster = 10% of every income when same rank; achievement bonus separate",
       ]);
     } catch (e) {
       record("Rank", "FAIL", [(e as Error).message]);
