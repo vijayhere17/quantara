@@ -97,6 +97,8 @@ Route::group(['middleware' => 'auth'], function ()
     {
         Route::get('my-referral', 'myreferral')->name('my-referral');
 
+        Route::get('downline-ranks', 'downlineranks')->name('downline-ranks');
+
         Route::get('downline-report/{leg}', 'downlinerep')->name('downline-report');
 
         Route::get('tree-view', 'treeview')->name('tree-view');

@@ -25,6 +25,7 @@ export type MemberLinks = {
   dashboard: string;
   profile: string;
   referrals: string;
+  downlineRanks: string;
   teamNetwork: string;
   investNow: string;
   myInvestments: string;
@@ -59,6 +60,7 @@ export type MemberPage =
   | 'dashboard'
   | 'profile'
   | 'my-referrals'
+  | 'downline-ranks'
   | 'downline-report'
   | 'invest-now'
   | 'my-investments'
@@ -103,6 +105,19 @@ export type MemberShellData = {
   links: MemberLinks;
 };
 
+export type CapMeter = {
+  progress: number;
+  earned: string | number;
+  remaining: string | number;
+  cap: string | number;
+  isCapped?: boolean;
+};
+
+export type PackageSnapshot = {
+  label: string;
+  amount: string | number | null;
+};
+
 export type DashboardBoot = MemberShellData & {
   page: 'dashboard';
   referral: {
@@ -135,10 +150,15 @@ export type DashboardBoot = MemberShellData & {
     inactive: number;
   };
   rewards: RewardItem[];
-  roi: {
-    progress: number;
-    earned: string | number;
-    remaining: string | number;
+  roi: CapMeter;
+  working: CapMeter;
+  capWarning: {
+    show: boolean;
+    threshold: number;
+  };
+  packagePair: {
+    current: PackageSnapshot;
+    previous: PackageSnapshot;
   };
   rank: {
     current: string;
@@ -194,6 +214,19 @@ export type DownlineRow = {
 export type MyReferralsBoot = MemberShellData & {
   page: 'my-referrals';
   referrals: ReferralRow[];
+};
+
+export type DownlineRankRow = {
+  address: string;
+  rank: string;
+  package: string;
+  status: 'active' | 'inactive';
+  registeredDate: string;
+};
+
+export type DownlineRanksBoot = MemberShellData & {
+  page: 'downline-ranks';
+  downlineRanks: DownlineRankRow[];
 };
 
 export type DownlineReportBoot = MemberShellData & {
@@ -324,6 +357,7 @@ export type MemberBoot =
   | DashboardBoot
   | ProfileBoot
   | MyReferralsBoot
+  | DownlineRanksBoot
   | DownlineReportBoot
   | InvestNowBoot
   | MyInvestmentsBoot

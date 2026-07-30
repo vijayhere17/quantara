@@ -3,6 +3,7 @@ import { AuthLayout } from './components/layout/AuthLayout';
 import { DashboardPage } from './components/dashboard/DashboardPage';
 import { ProfilePage } from './components/profile/ProfilePage';
 import { MyReferralsPage } from './components/network/MyReferralsPage';
+import { DownlineRanksPage } from './components/network/DownlineRanksPage';
 import { DownlineReportPage } from './components/network/DownlineReportPage';
 import { InvestNowPage } from './components/investments/InvestNowPage';
 import { MyInvestmentsPage } from './components/investments/MyInvestmentsPage';
@@ -17,6 +18,7 @@ import {
   mockCreateTicketData,
   mockDashboardData,
   mockDownlineReportData,
+  mockDownlineRanksData,
   mockEarningWalletData,
   mockIncentiveReportData,
   mockInvestNowData,
@@ -31,6 +33,7 @@ import {
 import type {
   AuthBoot,
   DashboardBoot,
+  DownlineRanksBoot,
   DownlineReportBoot,
   EarningWalletBoot,
   IncentiveReportBoot,
@@ -64,6 +67,7 @@ function resolveBoot(): MemberBoot {
   if (path.endsWith('/registration-success')) return mockRegistrationSuccessData;
   if (path.endsWith('/update-profile')) return mockProfileData;
   if (path.endsWith('/my-referral')) return mockMyReferralsData;
+  if (path.endsWith('/downline-ranks')) return mockDownlineRanksData;
   if (path.includes('/downline-report')) return mockDownlineReportData;
   if (path.endsWith('/buy-robo')) return mockInvestNowData;
   if (path.endsWith('/bot-request')) return mockMyInvestmentsData;
@@ -88,6 +92,8 @@ function renderPage(data: MemberBoot) {
       return <ProfilePage data={data as ProfileBoot} />;
     case 'my-referrals':
       return <MyReferralsPage data={data as MyReferralsBoot} />;
+    case 'downline-ranks':
+      return <DownlineRanksPage data={data as DownlineRanksBoot} />;
     case 'downline-report':
       return <DownlineReportPage data={data as DownlineReportBoot} />;
     case 'invest-now':

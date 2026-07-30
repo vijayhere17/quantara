@@ -23,6 +23,15 @@
     @apply relative overflow-hidden rounded-card border border-q-border bg-q-card/80 shadow-card backdrop-blur-xl transition-all duration-300 ease-out;
   }
 
+  .q-glass-card {
+    @apply relative overflow-hidden rounded-card border border-white/[0.08] bg-white/[0.03] shadow-[0_8px_32px_rgba(0,0,0,0.28)];
+    backdrop-filter: blur(12px);
+  }
+
+  .q-glass-card:hover {
+    @apply border-white/[0.12];
+  }
+
   .q-card:hover {
     @apply -translate-y-1 border-q-border-strong;
     box-shadow: 0 22px 48px rgba(0, 0, 0, 0.42), 0 0 0 1px rgba(0, 212, 255, 0.08);

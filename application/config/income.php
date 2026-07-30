@@ -52,6 +52,9 @@ return [
     'working_cap_multiplier' => 3,
     'non_working_cap_multiplier' => 2,
 
+    // Dashboard cap-warning banner (% of ROI 3X or Working 4X cap)
+    'cap_warning_threshold' => 80,
+
     // Withdrawal charge tiers (income withdrawals), days elapsed => charge percent
     'withdrawal_charge_tiers' => [
         60 => 0,

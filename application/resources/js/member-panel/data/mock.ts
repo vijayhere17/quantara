@@ -17,6 +17,7 @@ const sharedLinks = {
   dashboard: '/dashboard',
   profile: '/update-profile',
   referrals: '/my-referral',
+  downlineRanks: '/downline-ranks',
   teamNetwork: '/downline-report/A',
   investNow: '/buy-robo',
   myInvestments: '/bot-request',
@@ -90,9 +91,26 @@ export const mockDashboardData: DashboardBoot = {
     { label: 'Community Builder', value: '0' },
   ],
   roi: {
-    progress: 0,
-    earned: '0.0000',
-    remaining: '0.0000',
+    progress: 42.5,
+    earned: '127.5000',
+    remaining: '172.5000',
+    cap: '300.0000',
+    isCapped: false,
+  },
+  working: {
+    progress: 28.0,
+    earned: '56.0000',
+    remaining: '144.0000',
+    cap: '200.0000',
+    isCapped: false,
+  },
+  capWarning: {
+    show: false,
+    threshold: 80,
+  },
+  packagePair: {
+    current: { label: '$100 Package', amount: '100.0000' },
+    previous: { label: '$50 Package', amount: '50.0000' },
   },
   rank: {
     current: 'Q0',
@@ -110,6 +128,33 @@ export const mockDashboardData: DashboardBoot = {
   selectedPackage: null,
   blockNumber: '42,318,904',
   links: sharedLinks,
+};
+
+export const mockDownlineRanksData = {
+  page: 'downline-ranks' as const,
+  baseUrl: '/',
+  assetsUrl: '/assets',
+  csrfToken: '',
+  currentPath: '/downline-ranks',
+  user: sharedUser,
+  wallet: sharedWallet,
+  links: sharedLinks,
+  downlineRanks: [
+    {
+      address: '0x9F12…B906',
+      rank: 'Seed',
+      package: '$50 Package',
+      status: 'active' as const,
+      registeredDate: '12/03/2026 14:22',
+    },
+    {
+      address: '0x3A44…E201',
+      rank: 'Q0',
+      package: '—',
+      status: 'inactive' as const,
+      registeredDate: '10/03/2026 09:15',
+    },
+  ],
 };
 
 export const mockProfileData: ProfileBoot = {

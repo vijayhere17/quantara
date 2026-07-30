@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\BlockchainPackageActivation;
 use App\Models\EarningWallet;
 use App\Models\LevelReferral;
+use App\Models\SalaryMaster;
 use App\Models\StakeMaster;
 use App\Models\User;
 use App\Models\UserStaked;
@@ -55,6 +56,168 @@ class MemberPanelBootService
         }
 
         return $out;
+    }
+
+    /**
+     * Direct referrals with rank for the Downline Ranks page.
+     *
+     * @return list<array{address:string,rank:string,package:string,status:string,registeredDate:string}>
+     */
+    public function buildDirectDownlineRanks(?User $user = null): array
+    {
+        $user = $user ?? Auth::user();
+        if ($user === null) {
+            return [];
+        }
+
+        $rows = User::where('referral_id', $user->id)
+            ->orderByDesc('created_at')
+            ->get([
+                'id',
+                'username',
+                'salary_id',
+                'kit_id',
+                'package_id',
+                'package_amount',
+                'self_investment',
+                'created_at',
+            ]);
+
+        $rankMap = [];
+        if (Schema::hasTable('salary_master')) {
+            foreach (SalaryMaster::all(['id', 'rank']) as $rankRow) {
+                $rankMap[(int) $rankRow->id] = (string) ($rankRow->rank ?? 'Q0');
+            }
+        }
+
+        $out = [];
+        foreach ($rows as $row) {
+            $wallet = (string) ($row->username ?? '');
+            $short = function_exists('obscureAddress') ? obscureAddress($wallet) : $wallet;
+            $salaryId = (int) ($row->salary_id ?? 0);
+            $rankLabel = $rankMap[$salaryId] ?? 'Q0';
+            $amount = (float) ($row->package_amount ?: $row->package_id ?: $row->self_investment ?: 0);
+            $package = $amount > 0 ? $this->resolveKitName($amount) : '—';
+
+            $out[] = [
+                'address' => $short,
+                'rank' => $rankLabel,
+                'package' => $package,
+                'status' => ((int) ($row->kit_id ?? 0) > 0) ? 'active' : 'inactive',
+                'registeredDate' => $this->formatDate($row->created_at),
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * Current + previous package labels for dashboard cards.
+     *
+     * @return array{current: array{label:string,amount:string|null},previous: array{label:string,amount:string|null}}
+     */
+    public function resolvePackagePair(?User $user = null): array
+    {
+        $user = $user ?? Auth::user();
+        $empty = ['label' => '—', 'amount' => null];
+
+        if ($user === null) {
+            return ['current' => $empty, 'previous' => $empty];
+        }
+
+        $activations = [];
+        if (Schema::hasTable('blockchain_package_activations')) {
+            $activations = BlockchainPackageActivation::where('user_id', $user->id)
+                ->orderByDesc('package_cycle')
+                ->orderByDesc('id')
+                ->get();
+        }
+
+        if ($activations !== []) {
+            $currentRow = $activations[0];
+            $currentAmount = (float) ($currentRow->package_amount ?? 0);
+            $current = [
+                'label' => $this->resolveKitName($currentAmount),
+                'amount' => $currentAmount > 0 ? $this->formatMoney($currentAmount) : null,
+            ];
+
+            $previous = $empty;
+            if (count($activations) > 1) {
+                $prevRow = $activations[1];
+                $prevAmount = (float) ($prevRow->package_amount ?? 0);
+                $previous = [
+                    'label' => $this->resolveKitName($prevAmount),
+                    'amount' => $prevAmount > 0 ? $this->formatMoney($prevAmount) : null,
+                ];
+            }
+
+            return ['current' => $current, 'previous' => $previous];
+        }
+
+        $kit = null;
+        if (Schema::hasColumn('users', 'kit_id') && (int) ($user->kit_id ?? 0) > 0 && Schema::hasTable('stake_masters')) {
+            $kit = StakeMaster::find($user->kit_id);
+        }
+
+        $amount = (float) ($user->package_amount ?: $user->package_id ?: $user->self_investment ?: 0);
+        $current = [
+            'label' => $kit?->name ?: ($amount > 0 ? $this->resolveKitName($amount) : 'No package'),
+            'amount' => $amount > 0 ? $this->formatMoney($amount) : null,
+        ];
+
+        return ['current' => $current, 'previous' => $empty];
+    }
+
+    /**
+     * ROI (3X) and Working (4X) cap progress for dashboard meters.
+     *
+     * @param array<string,mixed> $earningTotals
+     * @return array{
+     *   roi: array{progress:float,earned:string,remaining:string,cap:string,isCapped:bool},
+     *   working: array{progress:float,earned:string,remaining:string,cap:string,isCapped:bool},
+     *   capWarningThreshold:int,
+     *   showCapWarning:bool
+     * }
+     */
+    public function buildCapProgress(?User $user, array $earningTotals, float $stakedPrincipal): array
+    {
+        $threshold = (int) config('income.cap_warning_threshold', 80);
+
+        $roiEarned = (float) ($user?->total_return ?? ($earningTotals['roi'] ?? 0));
+        $workingEarned = (float) ($earningTotals['contribution'] ?? 0)
+            + (float) ($earningTotals['booster'] ?? 0)
+            + (float) ($earningTotals['rank'] ?? 0)
+            + (float) ($earningTotals['sameRank'] ?? 0)
+            + (float) ($earningTotals['community'] ?? 0);
+
+        $roiCap = $stakedPrincipal * 3;
+        $workingCap = $stakedPrincipal * 4;
+
+        $roiPct = $roiCap > 0 ? min(100, round(($roiEarned / $roiCap) * 100, 1)) : 0;
+        $workingPct = $workingCap > 0 ? min(100, round(($workingEarned / $workingCap) * 100, 1)) : 0;
+
+        $roiRemaining = max(0, $roiCap - $roiEarned);
+        $workingRemaining = max(0, $workingCap - $workingEarned);
+
+        return [
+            'roi' => [
+                'progress' => $roiPct,
+                'earned' => $this->formatMoney($roiEarned),
+                'remaining' => $this->formatMoney($roiRemaining),
+                'cap' => $this->formatMoney($roiCap),
+                'isCapped' => $roiCap > 0 && $roiRemaining <= 0,
+            ],
+            'working' => [
+                'progress' => $workingPct,
+                'earned' => $this->formatMoney($workingEarned),
+                'remaining' => $this->formatMoney($workingRemaining),
+                'cap' => $this->formatMoney($workingCap),
+                'isCapped' => $workingCap > 0 && $workingRemaining <= 0,
+            ],
+            'capWarningThreshold' => $threshold,
+            'showCapWarning' => ($roiCap > 0 && $roiPct >= $threshold)
+                || ($workingCap > 0 && $workingPct >= $threshold),
+        ];
     }
 
     /**

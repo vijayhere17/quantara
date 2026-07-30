@@ -35,6 +35,7 @@
             'dashboard' => $base . '/dashboard',
             'profile' => $base . '/update-profile',
             'referrals' => $base . '/my-referral',
+            'downlineRanks' => $base . '/downline-ranks',
             'teamNetwork' => $base . '/downline-report/A',
             'investNow' => $base . '/buy-robo',
             'myInvestments' => $base . '/bot-request',

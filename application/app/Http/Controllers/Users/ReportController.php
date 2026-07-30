@@ -25,6 +25,12 @@ class ReportController extends Controller
         return view('users.my-referral', compact('page_titel', 'referrals'));
     }
 
+    public function downlineranks(){
+        $page_titel = 'Downline Ranks';
+        $downlineRanks = app(MemberPanelBootService::class)->buildDirectDownlineRanks(Auth::user());
+        return view('users.downline-ranks', compact('page_titel', 'downlineRanks'));
+    }
+
     public function downlinerep($leg){
         if ($leg == 'A') { $position = ''; } 
         else if ($leg == 'L') { $position = 'Left '; }

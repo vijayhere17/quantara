@@ -46,6 +46,7 @@ function buildNav(links: MemberShellData['links']): NavItem[] {
       icon: 'network',
       children: [
         { label: 'My Referrals', href: links.referrals },
+        { label: 'Downline Ranks', href: links.downlineRanks },
         { label: 'Team Network', href: links.teamNetwork },
       ],
     },

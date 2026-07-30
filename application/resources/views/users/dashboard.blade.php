@@ -1,11 +1,22 @@
 @php
     use Illuminate\Support\Facades\Auth;
+    use App\Services\MemberPanelBootService;
 
     $base = rtrim(URL::to('/'), '/');
     $user = Auth::user();
+    $bootService = app(MemberPanelBootService::class);
 
-    $gt_effective_cap = $object->total_earning + $object->total_3x_remain;
-    $gt_used_pct = $gt_effective_cap > 0 ? min(100, round(($object->total_earning / $gt_effective_cap) * 100, 1)) : 0;
+    $stakedPrincipal = (float) ($object->total_self_investment ?? 0);
+    $earningTotals = [
+        'roi' => (float) ($object->total_daily_roi_bonus ?? 0),
+        'contribution' => (float) ($object->total_referral_bonus ?? 0),
+        'booster' => (float) ($object->total_daily_level_bonus ?? 0),
+        'rank' => (float) ($object->total_salary_bonus ?? 0),
+        'sameRank' => (float) ($object->total_team_level_bonus ?? 0),
+        'community' => (float) ($object->total_turnover_bonus ?? 0),
+    ];
+    $capProgress = $bootService->buildCapProgress($user, $earningTotals, $stakedPrincipal);
+    $packagePair = $bootService->resolvePackagePair($user);
 
     $gt_next_rank = null;
     if ($object->current_rank && $object->allsalary) {
@@ -93,11 +104,13 @@
             ['label' => 'Same Rank Reward', 'value' => $object->total_team_level_bonus ?? 0],
             ['label' => 'Community Builder', 'value' => $object->total_turnover_bonus ?? 0],
         ],
-        'roi' => [
-            'progress' => $gt_used_pct,
-            'earned' => $object->total_earning,
-            'remaining' => $object->total_3x_remain,
+        'roi' => $capProgress['roi'],
+        'working' => $capProgress['working'],
+        'capWarning' => [
+            'show' => $capProgress['showCapWarning'],
+            'threshold' => $capProgress['capWarningThreshold'],
         ],
+        'packagePair' => $packagePair,
         'rank' => [
             'current' => optional($object->current_rank)->rank ?? 'Q0',
             'next' => optional($gt_next_rank)->rank,
@@ -117,6 +130,7 @@
             'dashboard' => $base . '/dashboard',
             'profile' => $base . '/update-profile',
             'referrals' => $base . '/my-referral',
+            'downlineRanks' => $base . '/downline-ranks',
             'teamNetwork' => $base . '/downline-report/A',
             'investNow' => $base . '/buy-robo',
             'myInvestments' => $base . '/bot-request',
