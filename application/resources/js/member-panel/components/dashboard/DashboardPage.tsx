@@ -43,6 +43,41 @@ function parseAmount(value: string | number | null | undefined): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+/** Ecology Tier ladder (matches on-chain RankReward). */
+const ECOLOGY_RANKS = [
+  'Seed',
+  'Sprout',
+  'Sapling',
+  'Canopy',
+  'Forest',
+  'Biome',
+  'Ecosphere',
+  'Genesis',
+] as const;
+
+function formatEcologyRank(raw: string | null | undefined): string {
+  if (!raw || raw === 'Q0' || raw === 'None') return 'Not Ranked';
+  const hit = ECOLOGY_RANKS.find((n) => n.toLowerCase() === raw.toLowerCase());
+  if (hit) return hit;
+  // Legacy MLM labels → ecology
+  const legacy: Record<string, (typeof ECOLOGY_RANKS)[number]> = {
+    'sales manager': 'Seed',
+    'sales director': 'Sprout',
+  };
+  const key = raw.toLowerCase();
+  for (const [needle, mapped] of Object.entries(legacy)) {
+    if (key.includes(needle)) return mapped;
+  }
+  return raw;
+}
+
+function nextEcologyRank(current: string): string {
+  if (current === 'Not Ranked') return 'Seed';
+  const idx = ECOLOGY_RANKS.findIndex((n) => n === current);
+  if (idx < 0) return 'Seed';
+  return ECOLOGY_RANKS[Math.min(idx + 1, ECOLOGY_RANKS.length - 1)] ?? 'Genesis';
+}
+
 export function DashboardPage({ data }: DashboardPageProps) {
   const [referralCopied, setReferralCopied] = useState(false);
 
@@ -50,13 +85,13 @@ export function DashboardPage({ data }: DashboardPageProps) {
   const referralDisplay = data.referral?.displayUrl || data.referral?.copyUrl || '—';
   const referralCopy = data.referral?.copyUrl || data.referral?.displayUrl || '';
 
-  const rankLabel =
-    data.rank.current && data.rank.current !== 'Q0' ? data.rank.current : 'Not Ranked';
-  const nextRank = data.rank.next || 'Seed';
+  const rankLabel = formatEcologyRank(data.rank.current);
+  const nextRank = formatEcologyRank(data.rank.next) !== 'Not Ranked'
+    ? formatEcologyRank(data.rank.next)
+    : nextEcologyRank(rankLabel);
 
-  const hasPackage = Boolean(data.user.packageName || data.user.packageAmount);
-  const packageName = data.user.packageName || (hasPackage ? 'Starter Package' : '—');
-  const packageAmount = money(data.user.packageAmount ?? (hasPackage ? '50.0000' : null), '—');
+  const hasPackage = Boolean(data.user.packageAmount) || Boolean(data.user.packageName);
+  const packageAmount = money(data.user.packageAmount ?? null, hasPackage ? '$50' : '—');
   const packageActive =
     data.registration?.status?.toLowerCase() === 'active' ||
     data.registration?.walletStatus?.toLowerCase() === 'active' ||
@@ -190,8 +225,8 @@ export function DashboardPage({ data }: DashboardPageProps) {
         </button>
       </section>
 
-      {/* Total Income + Rank */}
-      <div className="grid grid-cols-2 gap-3 sm:gap-4">
+      {/* Stats — 4 equal tiles */}
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 [grid-auto-rows:1fr]">
         <StatHero
           icon={<DollarSign className="h-5 w-5" />}
           iconClass="bg-emerald-500/15 text-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.25)]"
@@ -208,11 +243,10 @@ export function DashboardPage({ data }: DashboardPageProps) {
           sub={`Next: ${nextRank}`}
           subClass="text-amber-300/90"
         />
-      </div>
-
-      {/* Packages */}
-      <div className="grid grid-cols-2 gap-3 sm:gap-4">
-        <a href={data.links.investNow} className="dash-card group relative block px-4 py-4 sm:px-5">
+        <a
+          href={data.links.investNow}
+          className="dash-card group relative flex h-full min-h-[148px] flex-col px-4 py-4 sm:min-h-[160px] sm:px-5"
+        >
           <ChevronRight className="absolute right-3 top-3 h-4 w-4 text-white/30 transition group-hover:text-white/70" />
           <IconBubble className="bg-[#00B5FF]/15 text-[#38D9FF]">
             <Gift className="h-5 w-5" />
@@ -220,11 +254,12 @@ export function DashboardPage({ data }: DashboardPageProps) {
           <p className="mt-3 text-[10px] font-bold uppercase tracking-[0.14em] text-[#8B9BB4]">
             Current Package
           </p>
-          <p className="mt-1 text-base font-semibold text-white sm:text-lg">{packageName}</p>
-          <p className="mt-0.5 text-sm font-semibold text-[#38D9FF]">{packageAmount}</p>
+          <p className="mt-1 text-xl font-bold tracking-tight text-[#38D9FF] sm:text-2xl">
+            {packageAmount}
+          </p>
           <span
             className={[
-              'mt-3 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide',
+              'mt-auto inline-flex w-fit items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide',
               packageActive
                 ? 'bg-emerald-500/15 text-emerald-300'
                 : 'bg-white/5 text-[#8B9BB4]',
@@ -240,7 +275,10 @@ export function DashboardPage({ data }: DashboardPageProps) {
           </span>
         </a>
 
-        <a href={data.links.myInvestments} className="dash-card group relative block px-4 py-4 sm:px-5">
+        <a
+          href={data.links.myInvestments}
+          className="dash-card group relative flex h-full min-h-[148px] flex-col px-4 py-4 sm:min-h-[160px] sm:px-5"
+        >
           <ChevronRight className="absolute right-3 top-3 h-4 w-4 text-white/30 transition group-hover:text-white/70" />
           <IconBubble className="bg-violet-500/15 text-violet-300">
             <Layers className="h-5 w-5" />
@@ -248,8 +286,8 @@ export function DashboardPage({ data }: DashboardPageProps) {
           <p className="mt-3 text-[10px] font-bold uppercase tracking-[0.14em] text-[#8B9BB4]">
             Last Package
           </p>
-          <p className="mt-1 text-base font-semibold text-white sm:text-lg">—</p>
-          <p className="mt-0.5 text-sm text-[#8B9BB4]">No previous cycle</p>
+          <p className="mt-1 text-xl font-bold tracking-tight text-white sm:text-2xl">—</p>
+          <p className="mt-auto text-xs text-[#8B9BB4]">No previous cycle</p>
         </a>
       </div>
 
@@ -351,13 +389,13 @@ function StatHero({
   subClass: string;
 }) {
   return (
-    <div className="dash-card px-4 py-4 sm:px-5">
+    <div className="dash-card flex h-full min-h-[148px] flex-col px-4 py-4 sm:min-h-[160px] sm:px-5">
       <div className={`mb-3 inline-flex h-10 w-10 items-center justify-center rounded-full ${iconClass}`}>
         {icon}
       </div>
       <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#8B9BB4]">{label}</p>
       <p className="mt-1 text-xl font-bold tracking-tight text-white sm:text-2xl">{value}</p>
-      <p className={`mt-1 text-xs font-medium ${subClass}`}>{sub}</p>
+      <p className={`mt-auto pt-2 text-xs font-medium ${subClass}`}>{sub}</p>
     </div>
   );
 }
