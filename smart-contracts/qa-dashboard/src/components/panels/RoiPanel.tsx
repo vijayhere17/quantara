@@ -24,6 +24,7 @@ import {
   useContracts,
   useTxRunner,
   walletFromIndex,
+  resolveUserSigner,
 } from "@/hooks/useContracts";
 import { fmtToken } from "@/lib/format";
 import { shortAddr } from "@/lib/utils";
@@ -107,9 +108,7 @@ export function RoiPanel() {
     }
     await run(`Claim ROI ${shortAddr(selectedUser)}`, async (c) => {
       const signer =
-        tracked?.walletIndex != null
-          ? walletFromIndex(tracked.walletIndex, c.provider)
-          : await getSignerFor(c, selectedUser);
+        await resolveUserSigner(c, selectedUser, tracked?.walletIndex);
       const roi = c.roi.connect(signer) as Contract;
       const tx = await roi.claimRoi();
       const receipt = await tx.wait();
@@ -126,9 +125,7 @@ export function RoiPanel() {
     await run(`+1 day then claim ROI`, async (c) => {
       await increaseTime(c.provider, 24 * 60 * 60);
       const signer =
-        tracked?.walletIndex != null
-          ? walletFromIndex(tracked.walletIndex, c.provider)
-          : await getSignerFor(c, selectedUser);
+        await resolveUserSigner(c, selectedUser, tracked?.walletIndex);
       const roi = c.roi.connect(signer) as Contract;
       const tx = await roi.claimRoi();
       const receipt = await tx.wait();

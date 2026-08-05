@@ -190,7 +190,7 @@ export function mapWalletError(error: unknown): string {
     return 'Install MetaMask, Trust Wallet, or another BEP-20 wallet to continue.';
   }
   if (err?.code === 4902) {
-    return 'Wrong blockchain network. Switch to BNB Smart Chain.';
+    return 'Wrong blockchain network. Switch to BNB Smart Chain Testnet (chain ID 97).';
   }
 
   const raw =

@@ -30,7 +30,7 @@ class BlockchainService
     public function __construct()
     {
         $this->rpc = (string) config('blockchain.rpc_url');
-        $this->chainId = (int) config('blockchain.chain_id', 56);
+        $this->chainId = (int) config('blockchain.chain_id', 97);
 
         $this->core = (string) (config('blockchain.contracts.core') ?: ($this->chainId === 31337 ? config('blockchain.local.core') : ''));
         $this->token = (string) (config('blockchain.contracts.token') ?: ($this->chainId === 31337 ? config('blockchain.local.token') : ''));

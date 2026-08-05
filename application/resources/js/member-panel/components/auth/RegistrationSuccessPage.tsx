@@ -97,7 +97,7 @@ export function RegistrationSuccessPage({ data, details }: RegistrationSuccessPa
     packageLabel: payload?.packageLabel || data.successDefaults?.packageLabel || '$50',
     transactionHash: payload?.transactionHash || data.successDefaults?.transactionHash || 'Pending',
     registrationDate: payload?.registrationDate || data.successDefaults?.registrationDate || new Date().toLocaleString(),
-    network: payload?.network || data.successDefaults?.network || 'BNB Smart Chain',
+    network: payload?.network || data.successDefaults?.network || 'BNB Smart Chain Testnet',
   };
 
   const copy = async (key: string, value: string) => {
@@ -132,7 +132,7 @@ export function RegistrationSuccessPage({ data, details }: RegistrationSuccessPa
           </div>
         }
         title="Registration Successful"
-        subtitle="Your Quantara membership is live on BNB Smart Chain."
+        subtitle="Your Quantara membership is live on BNB Smart Chain Testnet."
         actions={
           <>
             <GradientButton

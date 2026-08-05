@@ -1,0 +1,18 @@
+{
+  "network": "bscTestnet",
+  "chainId": 97,
+  "explorer": "https://testnet.bscscan.com",
+  "Token": "0xe6071B6533C2a6999ebcF8d4662D81f6a4B25127",
+  "MockBTCB": "0xe6071B6533C2a6999ebcF8d4662D81f6a4B25127",
+  "ChainlinkBTCPriceFeed": "0xBf98d89fB7C3034CB9a2a8CB165CD613d2b9C8F3",
+  "PriceFeed": "0xBf98d89fB7C3034CB9a2a8CB165CD613d2b9C8F3",
+  "BTCPlanCore": "0x8E086bFE972D274b937c6fD6f4E66a97e0635986",
+  "TreasuryManager": "0x1330a0977A138A2131cfe1B4250D5aD7b08749A2",
+  "InterdependentReward": "0x2c0bFd6cf25CF3C532cE422b0574eD9845fbA761",
+  "ContributionReward": "0xf869Ded54f1d9Ceb989efea410e5b5DfC3de392d",
+  "ContributionBooster": "0x695cd8F76b3c97f18CE1FB7c380FcF215d31e5dE",
+  "RankReward": "0xA1CAc90cECDbBF80A65c0601Eed04E1A7CB6a73e",
+  "CommunityBuilder": "0x7fe22d14a939a63Da43d4b2184f3608Ad7B6d1BC",
+  "IncomeManager": "0xe406117d12c2B10C5d8E5D92294601967D94eC25",
+  "RootUser": "0x4735BD05669119bffAcB9776e0D7FBAb68eFbCFe"
+}

@@ -41,6 +41,16 @@ const FALLBACK_LOCAL: BlockchainPublicConfig = {
   networkName: 'Hardhat Local',
 };
 
+const FALLBACK_TESTNET: BlockchainPublicConfig = {
+  rpc: 'https://data-seed-prebsc-1-s1.binance.org:8545/',
+  chainId: BSC_TESTNET_CHAIN_ID,
+  core: '',
+  token: '',
+  treasury: '',
+  explorer: 'https://testnet.bscscan.com',
+  networkName: 'BNB Smart Chain Testnet',
+};
+
 const FALLBACK_BSC: BlockchainPublicConfig = {
   rpc: 'https://bsc-dataseed.binance.org/',
   chainId: BSC_CHAIN_ID,
@@ -138,7 +148,7 @@ export async function loadBlockchainConfig(baseUrl?: string): Promise<Blockchain
 }
 
 /** Network params for wallet_addEthereumChain / wallet_switchEthereumChain */
-export function getNetworkParams(chainId = BSC_CHAIN_ID): NetworkParams {
+export function getNetworkParams(chainId = BSC_TESTNET_CHAIN_ID): NetworkParams {
   if (chainId === LOCAL_CHAIN_ID) {
     return {
       chainId: LOCAL_CHAIN_ID,
@@ -175,7 +185,7 @@ export function getNetworkParams(chainId = BSC_CHAIN_ID): NetworkParams {
 }
 
 /** @deprecated Use getNetworkParams — kept for existing imports */
-export function getBscNetworkParams(chainId = BSC_CHAIN_ID) {
+export function getBscNetworkParams(chainId = BSC_TESTNET_CHAIN_ID) {
   const p = getNetworkParams(chainId);
   return {
     chainIdHex: p.chainIdHex,
@@ -186,5 +196,5 @@ export function getBscNetworkParams(chainId = BSC_CHAIN_ID) {
   };
 }
 
-// Keep FALLBACK_BSC referenced for potential test/mock use without caching it blindly
-export { FALLBACK_BSC };
+// Keep fallbacks referenced for potential test/mock use without caching them blindly
+export { FALLBACK_BSC, FALLBACK_TESTNET };

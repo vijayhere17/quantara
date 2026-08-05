@@ -15,6 +15,7 @@ import {
   useContracts,
   useTxRunner,
   walletFromIndex,
+  resolveUserSigner,
 } from "@/hooks/useContracts";
 import { fmtToken, pctBps } from "@/lib/format";
 import { shortAddr } from "@/lib/utils";
@@ -108,8 +109,8 @@ export function GrowthAcceleratorPanel() {
         const tracked = useDashboardStore
           .getState()
           .users.find((u) => u.address.toLowerCase() === addr.toLowerCase());
-        if (tracked?.walletIndex == null) continue;
-        const signer = walletFromIndex(tracked.walletIndex, c.provider);
+        if (!tracked) continue;
+        const signer = await resolveUserSigner(c, tracked.address, tracked.walletIndex);
         // First of each side gets larger package to push 50:50 volume
         const amount =
           i === 0 || i === sideA ? 1000 : 50;

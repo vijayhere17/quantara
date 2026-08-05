@@ -1,26 +1,18 @@
 import { Badge } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { RecyclingFlow } from "@/components/RecyclingFlow";
 import type { ActivationDistribution } from "@/lib/distribution";
 import { fmtUsd } from "@/lib/format";
 import { shortAddr } from "@/lib/utils";
 import { cn } from "@/lib/utils";
-import { useContracts } from "@/hooks/useContracts";
 
 export function DistributionPanel({
   dist,
-  showRecycling = true,
 }: {
   dist?: ActivationDistribution | null;
+  /** @deprecated unused — recycling flowchart removed */
   showRecycling?: boolean;
 }) {
-  const contracts = useContracts();
-
-  if (!dist) {
-    return showRecycling ? (
-      <RecyclingFlow contracts={contracts} exampleUsd={100} />
-    ) : null;
-  }
+  if (!dist) return null;
 
   return (
     <div className="space-y-3">
@@ -112,9 +104,6 @@ export function DistributionPanel({
           </div>
         </CardContent>
       </Card>
-      {showRecycling ? (
-        <RecyclingFlow contracts={contracts} exampleUsd={100} />
-      ) : null}
     </div>
   );
 }

@@ -15,6 +15,7 @@ import {
   useContracts,
   useTxRunner,
   walletFromIndex,
+  resolveUserSigner,
 } from "@/hooks/useContracts";
 import { RANK_NAMES } from "@/lib/constants";
 import { fmtToken, pctBps } from "@/lib/format";
@@ -97,7 +98,7 @@ export function TierBoosterPanel() {
       );
       const signer =
         tracked?.walletIndex != null
-          ? walletFromIndex(tracked.walletIndex, c.provider)
+          ? await resolveUserSigner(c, tracked.address, tracked.walletIndex)
           : await getSignerFor(c, direct);
       const roi = c.roi.connect(signer) as Contract;
       const tx = await roi.claimRoi();

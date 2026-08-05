@@ -14,6 +14,7 @@ import {
   useContracts,
   useTxRunner,
   walletFromIndex,
+  resolveUserSigner,
 } from "@/hooks/useContracts";
 import { sleep } from "@/lib/utils";
 import { useDashboardStore } from "@/store/dashboardStore";
@@ -80,8 +81,8 @@ export function DemoPanel() {
           const tracked = useDashboardStore
             .getState()
             .users.find((u) => u.address.toLowerCase() === addr.toLowerCase());
-          if (tracked?.walletIndex == null) continue;
-          const signer = walletFromIndex(tracked.walletIndex, c.provider);
+          if (!tracked) continue;
+          const signer = await resolveUserSigner(c, tracked.address, tracked.walletIndex);
           try {
             await activatePackage(c, signer, 50);
             await step(`Activated $50 on ${addr.slice(0, 10)}…`);
@@ -102,7 +103,7 @@ export function DemoPanel() {
         try {
           const signer =
             tracked?.walletIndex != null
-              ? walletFromIndex(tracked.walletIndex, c.provider)
+              ? await resolveUserSigner(c, tracked.address, tracked.walletIndex)
               : await getSignerFor(c, claimer);
           const roi = c.roi.connect(signer) as Contract;
           const tx = await roi.claimRoi();

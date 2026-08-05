@@ -34,5 +34,7 @@ php -m | grep gmp
 
 ## Blockchain
 
+- Default client QA network: **BSC Testnet (chain ID 97)**
 - Configured RPC + `CORE_CONTRACT` / `TOKEN_CONTRACT` / `TREASURY_CONTRACT` / `REWARD_CONTRACT`
-- Production: real BTCB + Chainlink — never Mock* contracts
+- See `docs/BSC_TESTNET_SETUP.md` for deploy + MetaMask steps
+- Production: real BTCB + Chainlink — never Mock* contracts on mainnet

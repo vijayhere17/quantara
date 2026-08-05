@@ -13,13 +13,14 @@ import {
   useContracts,
   useTxRunner,
   walletFromIndex,
+  resolveUserSigner,
   type UserRow,
 } from "@/hooks/useContracts";
 import {
   buildActivationDistribution,
   snapshotFunds,
 } from "@/lib/distribution";
-import { RANK_NAMES } from "@/lib/constants";
+import { IS_LOCAL, RANK_NAMES } from "@/lib/constants";
 import { fmtUsd } from "@/lib/format";
 import { cn, shortAddr } from "@/lib/utils";
 import { useDashboardStore } from "@/store/dashboardStore";
@@ -125,7 +126,11 @@ export function UsersPanel() {
     address: string,
     walletIndex?: number,
   ) => {
-    if (walletIndex != null) return walletFromIndex(walletIndex, c.provider);
+    // Prefer address lookup (session PK / deployer / Hardhat index).
+    // walletIndex === -1 means a testnet session wallet.
+    if (walletIndex != null && walletIndex >= 0 && IS_LOCAL) {
+      return walletFromIndex(walletIndex, c.provider);
+    }
     return getSignerFor(c, address);
   };
 
