@@ -449,15 +449,46 @@ export async function fetchEvents(
 ): Promise<ParsedEvent[]> {
   const filter = (contract.filters as Record<string, () => unknown>)[eventName]?.();
   if (!filter) return [];
-  const logs = await contract.queryFilter(filter as never, BigInt(fromBlock), "latest");
+
+  const latest = await ethers.provider.getBlockNumber();
+  // Public BSC RPCs often cap eth_getLogs to ~5k–50k blocks. Chunk + bound lookback.
+  const lookbackEnv = Number(process.env.QA_EVENT_LOOKBACK || 4000);
+  const chunkSize = Math.max(500, Number(process.env.QA_EVENT_CHUNK || 2000));
+  const start = Math.max(fromBlock, Math.max(0, latest - lookbackEnv));
+
+  const logs: Array<{
+    blockNumber: number;
+    transactionHash: string;
+    args?: { [key: string]: unknown; length?: number };
+    fragment?: { inputs: Array<{ name: string }> };
+  }> = [];
+
+  for (let from = start; from <= latest; from += chunkSize) {
+    const to = Math.min(latest, from + chunkSize - 1);
+    try {
+      const part = await contract.queryFilter(filter as never, BigInt(from), BigInt(to));
+      for (const log of part) {
+        logs.push(log as (typeof logs)[number]);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(
+        `  (skipped ${eventName} logs ${from}-${to}: ${msg.slice(0, 80)})`,
+      );
+    }
+  }
+
   const out: ParsedEvent[] = [];
   for (const log of logs) {
-    const block = await ethers.provider.getBlock(log.blockNumber);
+    let timestamp = "—";
+    try {
+      const block = await ethers.provider.getBlock(log.blockNumber);
+      timestamp = tsToIso(block?.timestamp ?? 0);
+    } catch {
+      /* ignore block fetch failures on rate-limited RPCs */
+    }
     const args: Record<string, string> = {};
-    const eventLog = log as {
-      args?: { [key: string]: unknown; length?: number };
-      fragment?: { inputs: Array<{ name: string }> };
-    };
+    const eventLog = log;
     const inputs = eventLog.fragment?.inputs || [];
     if (eventLog.args && inputs.length) {
       for (let i = 0; i < inputs.length; i++) {
@@ -476,7 +507,7 @@ export async function fetchEvents(
       blockNumber: log.blockNumber,
       txHash: log.transactionHash,
       args,
-      timestamp: tsToIso(block?.timestamp ?? 0),
+      timestamp,
     });
   }
   return out;
