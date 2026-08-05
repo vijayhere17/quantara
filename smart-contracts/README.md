@@ -10,30 +10,33 @@ BNB Smart Chain (BEP-20) smart contracts for the Quantara package / reward platf
 
 ## Networks
 
-| Network | Chain ID | Hardhat name |
-|---------|----------|--------------|
-| Hardhat local | 31337 | `localhost` |
-| BSC Testnet | 97 | `bscTestnet` / `bnbTestnet` |
-| BSC Mainnet | 56 | `bsc` / `bscMainnet` |
+| Network | Chain ID | Hardhat name | Default for client QA |
+|---------|----------|--------------|------------------------|
+| **BSC Testnet** | **97** | `bscTestnet` / `bnbTestnet` | **Yes** |
+| BSC Mainnet | 56 | `bsc` / `bscMainnet` | Production only |
+| Hardhat local | 31337 | `localhost` | Dev only |
+
+**Client setup:** see [`../docs/BSC_TESTNET_SETUP.md`](../docs/BSC_TESTNET_SETUP.md).
 
 Environment (see `.env.example`):
 
 ```
-BSC_RPC_URL=
-BSC_TESTNET_RPC_URL=
 PRIVATE_KEY=
-CHAIN_ID=
+CHAIN_ID=97
+BSC_TESTNET_RPC_URL=
+BSC_RPC_URL=
 TOKEN_ADDRESS=
+DEPLOY_MOCKS=
 TREASURY_WALLET=
 PRICE_FEED_ADDRESS=
-CHAINLINK_BTC_USD=
+CHAINLINK_BTC_USD=0x5741306c21795FdCBb9b265Ea0255F499DFe515C
 ```
 
 ## Token (BEP-20)
 
-Production deployments **never** use MockBTCB. Set `TOKEN_ADDRESS` to any BEP-20:
-
-- USDT / USDC / custom Quantara token / Wrapped BTC / Wrapped BNB
+- **BSC Testnet QA:** leave `TOKEN_ADDRESS` empty → deploys **MockBTCB** (mintable). Fund wallets with `npm run fund:testnet`.
+- **Production / real asset:** set `TOKEN_ADDRESS` + `DEPLOY_MOCKS=0`. Never deploy MockBTCB to mainnet.
+- USDT / USDC / custom Quantara token / Wrapped BTC / Wrapped BNB are all supported when set via `TOKEN_ADDRESS`.
 
 `BTCPlanCore.getBTCBAmountFromUSD` reads `decimals()` dynamically — do not hardcode 18.
 
@@ -42,7 +45,8 @@ Local Hardhat still auto-deploys MockBTCB when `TOKEN_ADDRESS` is empty.
 ## Price feed
 
 - Local: MockBTCPriceFeed
-- BSC: set `CHAINLINK_BTC_USD` (aggregator) → deploys `ChainlinkBTCPriceFeed` adapter
+- **BSC Testnet:** defaults to Chainlink BTC/USD `0x5741306c21795FdCBb9b265Ea0255F499DFe515C`
+- BSC Mainnet: set `CHAINLINK_BTC_USD` (aggregator) → deploys `ChainlinkBTCPriceFeed` adapter
   - or set `PRICE_FEED_ADDRESS` to an existing `IBTCPriceFeed`
 
 ## Architecture
@@ -81,16 +85,26 @@ No skip, no downgrade. Next package validated on-chain.
 npm install
 npx hardhat build
 npx hardhat test mocha
+
+# ── BSC Testnet (client QA) ──────────────────────────────────────────
+# 1) copy .env.example → .env and set PRIVATE_KEY (+ tBNB for gas)
+npm run deploy:bsc-testnet
+npm run verify:deployment:bsc-testnet
+npm run sync:laravel:bsc-testnet
+FUND_TO=0xTesterWallet npm run fund:testnet
+
+# ── Local Hardhat (dev only) ─────────────────────────────────────────
 npx hardhat node   # terminal 1
 npm run deploy     # terminal 2 — local MockBTCB + wire + root
-npm run deploy:bsc-testnet   # requires TOKEN_ADDRESS + price feed env
-npm run deploy:bsc
-npm run bootstrap:root   # root + fund Hardhat accounts #1–#3
+npm run bootstrap:root
 npm run bootstrap:demo   # deploy (if needed) → root → fund → sync Laravel .env
 npm run verify:deployment
 npm run sync:laravel
+
+# ── BSC Mainnet (production) ─────────────────────────────────────────
+npm run deploy:bsc   # requires TOKEN_ADDRESS + CHAINLINK_BTC_USD, DEPLOY_MOCKS=0
 npm run qa:full
-npm run qa:phase1          # Phase 1 — $50 registration (chain + treasury)
+npm run qa:phase1
 npx hardhat run scripts/testFlow.ts
 npx hardhat run scripts/testIncomeCap.ts
 ```

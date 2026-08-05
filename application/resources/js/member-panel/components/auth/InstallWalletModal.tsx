@@ -21,7 +21,7 @@ export function InstallWalletModal({ open, onClose }: InstallWalletModalProps) {
         </div>
         <h2 className="text-xl font-bold text-white">Install MetaMask</h2>
         <p className="mt-2 text-sm text-q-muted">
-          A Web3 wallet is required to register and sign in to Quantara on BNB Smart Chain.
+          A Web3 wallet is required to register and sign in to Quantara on BNB Smart Chain Testnet.
         </p>
         <div className="mt-6 flex flex-col gap-3 sm:flex-row">
           <GradientButton

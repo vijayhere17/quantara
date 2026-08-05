@@ -89,7 +89,17 @@ async function main() {
   console.log("=======================================");
   console.log("Root wallet (Laravel sponsor):", deployer.address);
 
-  // ---------- Demo faucet for Hardhat accounts #1–#3 ----------
+  // ---------- Demo faucet for Hardhat accounts #1–#3 (local only) ----------
+  const network = await ethers.provider.getNetwork();
+  const chainId = Number(network.chainId);
+  if (chainId !== 31337) {
+    console.log(
+      "\nNon-local network — skip Hardhat account funding. " +
+        "On BSC Testnet use: FUND_TO=0x… npm run fund:testnet",
+    );
+    return;
+  }
+
   if (!tokenAddress || !ethers.isAddress(tokenAddress)) {
     console.warn(
       "TOKEN_CONTRACT / MockBTCB missing — skip demo funding. Set TOKEN_CONTRACT or run bootstrap:demo.",

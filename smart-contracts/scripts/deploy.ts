@@ -49,6 +49,18 @@ async function main() {
     networkName === "hardhat" ||
     networkName === "hardhatMainnet" ||
     networkName === "hardhatOp";
+  const isTestnet = chainId === 97;
+  const isMainnet = chainId === 56;
+
+  // Testnet defaults to MockBTCB for client QA. Set DEPLOY_MOCKS=0 + TOKEN_ADDRESS for real assets.
+  const deployMocksFlag = (process.env.DEPLOY_MOCKS || "").trim().toLowerCase();
+  const allowMocks =
+    isLocal ||
+    (isTestnet && deployMocksFlag !== "0" && deployMocksFlag !== "false");
+
+  /** Official Chainlink BTC/USD on BSC Testnet */
+  const DEFAULT_TESTNET_CHAINLINK =
+    "0x5741306c21795FdCBb9b265Ea0255F499DFe515C";
 
   const tokenAddressEnv = (process.env.TOKEN_ADDRESS || "").trim();
   const priceFeedEnv = (process.env.PRICE_FEED_ADDRESS || "").trim();
@@ -61,6 +73,9 @@ async function main() {
   console.log("Network:", networkName);
   console.log("Chain ID:", chainId);
   console.log("Deployer:", deployer.address);
+  if (isTestnet && allowMocks && !tokenAddressEnv) {
+    console.log("Mode: BSC Testnet QA (MockBTCB + Chainlink testnet feed)");
+  }
 
   // ------------------------------------------------------------------
   // Token
@@ -89,16 +104,20 @@ async function main() {
     const decimals = Number(await erc20.decimals());
     const symbol = await erc20.symbol().catch(() => "BEP20");
     console.log(`Token (env): ${tokenAddress} (${symbol}, ${decimals} decimals)`);
-  } else if (isLocal) {
+  } else if (allowMocks) {
     const MockBTCB = await ethers.getContractFactory("MockBTCB");
     const token = await MockBTCB.deploy();
     await token.waitForDeployment();
     tokenAddress = await token.getAddress();
     deployedMockToken = true;
-    console.log("MockBTCB (local only):", tokenAddress);
+    console.log(
+      isLocal ? "MockBTCB (local):" : "MockBTCB (testnet QA):",
+      tokenAddress,
+    );
   } else {
     throw new Error(
-      "TOKEN_ADDRESS is required on BSC Testnet/Mainnet. Set TOKEN_ADDRESS to any BEP-20.",
+      "TOKEN_ADDRESS is required on BSC Mainnet (and on testnet when DEPLOY_MOCKS=0). " +
+        "Set TOKEN_ADDRESS to any BEP-20.",
     );
   }
 
@@ -115,18 +134,22 @@ async function main() {
     priceFeedAddress = ethers.getAddress(priceFeedEnv);
     priceFeedLabel = "PriceFeed";
     console.log("PriceFeed (env):", priceFeedAddress);
-  } else if (chainlinkEnv) {
-    if (!ethers.isAddress(chainlinkEnv)) {
-      throw new Error(`Invalid CHAINLINK_BTC_USD: ${chainlinkEnv}`);
+  } else if (chainlinkEnv || (isTestnet && !isLocal)) {
+    const aggregator = chainlinkEnv || DEFAULT_TESTNET_CHAINLINK;
+    if (!ethers.isAddress(aggregator)) {
+      throw new Error(`Invalid CHAINLINK_BTC_USD: ${aggregator}`);
     }
     const Adapter = await ethers.getContractFactory("ChainlinkBTCPriceFeed");
-    const adapter = await Adapter.deploy(ethers.getAddress(chainlinkEnv));
+    const adapter = await Adapter.deploy(ethers.getAddress(aggregator));
     await adapter.waitForDeployment();
     priceFeedAddress = await adapter.getAddress();
     priceFeedLabel = "ChainlinkBTCPriceFeed";
     console.log("ChainlinkBTCPriceFeed:", priceFeedAddress);
-    console.log("  aggregator:", ethers.getAddress(chainlinkEnv));
-  } else if (isLocal) {
+    console.log("  aggregator:", ethers.getAddress(aggregator));
+    if (!chainlinkEnv && isTestnet) {
+      console.log("  (default BSC Testnet Chainlink BTC/USD)");
+    }
+  } else if (isLocal || (allowMocks && !isMainnet)) {
     const MockBTCPriceFeed = await ethers.getContractFactory("MockBTCPriceFeed");
     const priceFeed = await MockBTCPriceFeed.deploy(60000);
     await priceFeed.waitForDeployment();
@@ -135,7 +158,7 @@ async function main() {
     console.log("MockBTCPriceFeed:", priceFeedAddress);
   } else {
     throw new Error(
-      "Set PRICE_FEED_ADDRESS or CHAINLINK_BTC_USD for BSC deployments.",
+      "Set PRICE_FEED_ADDRESS or CHAINLINK_BTC_USD for BSC Mainnet deployments.",
     );
   }
 

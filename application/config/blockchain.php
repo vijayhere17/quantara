@@ -10,15 +10,18 @@ return [
     | BLOCKCHAIN_RPC is the authoritative JSON-RPC endpoint used for all
     | on-chain verification. Never invent transaction hashes or addresses.
     |
-    | Defaults:
-    |   Mainnet 56 → https://bsc-dataseed.binance.org/
-    |   Testnet 97 → set BLOCKCHAIN_RPC to a BSC testnet RPC
+    | Defaults (client testing):
+    |   Testnet 97 → https://data-seed-prebsc-1-s1.binance.org:8545/
+    |   Mainnet 56 → set BLOCKCHAIN_RPC to a BSC mainnet RPC
     |   Local 31337 → http://127.0.0.1:8545
     |
     */
-    'rpc_url' => env('BLOCKCHAIN_RPC', env('BSC_RPC_URL', 'https://bsc-dataseed.binance.org/')),
+    'rpc_url' => env(
+        'BLOCKCHAIN_RPC',
+        env('BSC_TESTNET_RPC_URL', env('BSC_RPC_URL', 'https://data-seed-prebsc-1-s1.binance.org:8545/'))
+    ),
 
-    'chain_id' => (int) env('BLOCKCHAIN_CHAIN_ID', env('CHAIN_ID', 56)),
+    'chain_id' => (int) env('BLOCKCHAIN_CHAIN_ID', env('CHAIN_ID', 97)),
 
     /*
     | Contract addresses — always from environment in production.

@@ -7,14 +7,15 @@ const privateKey = process.env.PRIVATE_KEY;
 const accounts = privateKey ? [privateKey] : [];
 
 const localhostRpc = process.env.BLOCKCHAIN_RPC || "http://127.0.0.1:8545";
+/** Default public BSC Testnet RPC — override with BSC_TESTNET_RPC_URL */
 const bscTestnetRpc =
   process.env.BSC_TESTNET_RPC_URL ||
   process.env.BNB_TESTNET_RPC_URL ||
-  "";
+  "https://data-seed-prebsc-1-s1.binance.org:8545/";
 const bscMainnetRpc =
   process.env.BSC_RPC_URL ||
   process.env.BNB_RPC_URL ||
-  "";
+  "https://bsc-dataseed.binance.org/";
 
 function httpNetwork(url: string) {
   return {
@@ -58,21 +59,13 @@ export default defineConfig({
       type: "edr-simulated",
       chainType: "op",
     },
-    // `npx hardhat node` — local Hardhat JSON-RPC
+    // `npx hardhat node` — local Hardhat JSON-RPC (dev only)
     localhost: httpNetwork(localhostRpc),
-    // BNB Smart Chain Testnet (chainId 97)
-    ...(bscTestnetRpc
-      ? {
-          bscTestnet: httpNetwork(bscTestnetRpc),
-          bnbTestnet: httpNetwork(bscTestnetRpc),
-        }
-      : {}),
+    // BNB Smart Chain Testnet (chainId 97) — default client testing network
+    bscTestnet: httpNetwork(bscTestnetRpc),
+    bnbTestnet: httpNetwork(bscTestnetRpc),
     // BNB Smart Chain Mainnet (chainId 56)
-    ...(bscMainnetRpc
-      ? {
-          bsc: httpNetwork(bscMainnetRpc),
-          bscMainnet: httpNetwork(bscMainnetRpc),
-        }
-      : {}),
+    bsc: httpNetwork(bscMainnetRpc),
+    bscMainnet: httpNetwork(bscMainnetRpc),
   },
 });

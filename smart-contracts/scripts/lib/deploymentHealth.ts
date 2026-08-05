@@ -132,11 +132,27 @@ export function syncLaravelEnvFromAddresses(
     }
   }
 
-  // Keep chain hints for local Hardhat when present in addresses
+  // Keep chain + RPC hints when present in addresses
   if (typeof addresses.chainId === "number" || typeof addresses.chainId === "string") {
     const chainId = String(addresses.chainId);
     if (/^BLOCKCHAIN_CHAIN_ID=/m.test(content)) {
       content = content.replace(/^BLOCKCHAIN_CHAIN_ID=.*$/m, `BLOCKCHAIN_CHAIN_ID=${chainId}`);
+    } else {
+      content = content.trimEnd() + `\nBLOCKCHAIN_CHAIN_ID=${chainId}\n`;
+    }
+
+    const rpcByChain: Record<string, string> = {
+      "97": "https://data-seed-prebsc-1-s1.binance.org:8545/",
+      "56": "https://bsc-dataseed.binance.org/",
+      "31337": "http://127.0.0.1:8545",
+    };
+    const rpc = rpcByChain[chainId];
+    if (rpc) {
+      if (/^BLOCKCHAIN_RPC=/m.test(content)) {
+        content = content.replace(/^BLOCKCHAIN_RPC=.*$/m, `BLOCKCHAIN_RPC=${rpc}`);
+      } else {
+        content = content.trimEnd() + `\nBLOCKCHAIN_RPC=${rpc}\n`;
+      }
     }
   }
 

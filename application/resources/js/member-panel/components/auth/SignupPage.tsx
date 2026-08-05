@@ -200,7 +200,7 @@ export function SignupPage({ data }: SignupPageProps) {
         packageLabel: 'Starter Package · $50',
         transactionHash: onChain.registerTxHash,
         registrationDate: new Date().toLocaleString(),
-        network: 'BNB Smart Chain',
+        network: 'BNB Smart Chain Testnet',
       });
       setSuccess(true);
 
@@ -417,7 +417,7 @@ export function SignupPage({ data }: SignupPageProps) {
               <StepHeader
                 icon={<Wallet className="h-4 w-4" />}
                 title="Payment & Register"
-                subtitle="Confirm each wallet prompt to finish on BNB Smart Chain."
+                subtitle="Confirm each wallet prompt to finish on BNB Smart Chain Testnet."
               />
 
               <NetworkWalletStatus wallet={wallet} />
