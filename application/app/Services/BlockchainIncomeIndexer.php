@@ -73,11 +73,13 @@ class BlockchainIncomeIndexer
         $mirrored = 0;
         $errors = 0;
         $cursor = $fromBlock;
+        $activeChunk = max(50, $chunk);
 
         while ($cursor <= $toBlock) {
-            $end = min($cursor + $chunk - 1, $toBlock);
+            $end = min($cursor + $activeChunk - 1, $toBlock);
             $addresses = $this->contractAddresses();
             $logs = [];
+            $batchFailed = false;
 
             if ($addresses === []) {
                 $batch = $this->blockchain->getLogs([
@@ -86,12 +88,10 @@ class BlockchainIncomeIndexer
                     'topics' => [$topics],
                 ]);
                 if (!is_array($batch)) {
-                    $errors++;
-                    Log::warning('Income indexer getLogs failed', ['from' => $cursor, 'to' => $end]);
-                    $cursor = $end + 1;
-                    continue;
+                    $batchFailed = true;
+                } else {
+                    $logs = $batch;
                 }
-                $logs = $batch;
             } else {
                 foreach ($addresses as $address) {
                     $batch = $this->blockchain->getLogs([
@@ -101,18 +101,34 @@ class BlockchainIncomeIndexer
                         'topics' => [$topics],
                     ]);
                     if (!is_array($batch)) {
-                        $errors++;
-                        Log::warning('Income indexer getLogs failed', [
-                            'from' => $cursor,
-                            'to' => $end,
-                            'address' => $address,
-                        ]);
-                        continue;
+                        $batchFailed = true;
+                        break;
                     }
                     foreach ($batch as $log) {
                         $logs[] = $log;
                     }
                 }
+            }
+
+            if ($batchFailed) {
+                $errors++;
+                if ($activeChunk > 50) {
+                    $activeChunk = max(50, intdiv($activeChunk, 2));
+                    Log::warning('Income indexer shrinking eth_getLogs chunk', [
+                        'from' => $cursor,
+                        'to' => $end,
+                        'nextChunk' => $activeChunk,
+                    ]);
+                    usleep(400_000);
+                    continue; // retry same cursor with smaller range
+                }
+                Log::warning('Income indexer getLogs failed at min chunk — skipping range', [
+                    'from' => $cursor,
+                    'to' => $end,
+                ]);
+                $cursor = $end + 1;
+                usleep(500_000);
+                continue;
             }
 
             foreach ($logs as $index => $log) {
@@ -129,6 +145,8 @@ class BlockchainIncomeIndexer
 
             $this->setCursor($end);
             $cursor = $end + 1;
+            // Gentle pacing for public RPCs
+            usleep(120_000);
         }
 
         return [

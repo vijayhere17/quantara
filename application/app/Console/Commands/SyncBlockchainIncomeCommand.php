@@ -10,7 +10,7 @@ class SyncBlockchainIncomeCommand extends Command
     protected $signature = 'blockchain:sync-income
                             {--from=0 : Start block (0 = resume cursor)}
                             {--to= : End block (default latest)}
-                            {--chunk=2000 : Blocks per eth_getLogs request}';
+                            {--chunk=200 : Blocks per eth_getLogs request (keep small on public RPCs)}';
 
     protected $description = 'Mirror on-chain ROI / working / rank / community income events into Laravel ledgers';
 
