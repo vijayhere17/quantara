@@ -76,7 +76,7 @@ export function AuthSideSlider() {
           transition={{ duration: 0.45 }}
         >
           <div className="flex items-center gap-3">
-            <Logo size="sm" imgClassName="h-9" />
+            <Logo size="lg" imgClassName="h-14 max-w-[220px] sm:h-16" />
             <div>
               <p className="text-[12px] font-bold uppercase tracking-[0.28em] text-white">Quantara</p>
               <p className="mt-0.5 text-[9px] font-semibold uppercase tracking-[0.18em] text-[#7EB6D9]">

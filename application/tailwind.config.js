@@ -53,7 +53,7 @@ export default {
       },
       spacing: {
         sidebar: '260px',
-        header: '72px',
+        header: '80px',
       },
       keyframes: {
         'fade-in': {

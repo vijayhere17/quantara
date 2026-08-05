@@ -81,8 +81,8 @@ export function Header({ data, onToggleSidebar }: HeaderProps) {
         <div className="flex min-w-0 items-center justify-center px-1">
           <Logo
             href={data.links.dashboard}
-            size="sm"
-            imgClassName="max-h-8 max-w-[140px] sm:max-h-9 sm:max-w-[180px]"
+            size="lg"
+            imgClassName="max-h-12 max-w-[200px] sm:max-h-14 sm:max-w-[240px]"
           />
         </div>
 
