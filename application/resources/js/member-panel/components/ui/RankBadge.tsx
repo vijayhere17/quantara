@@ -6,7 +6,7 @@ type RankBadgeProps = {
 };
 
 export function RankBadge({ rank, className = '' }: RankBadgeProps) {
-  const label = !rank || rank === 'Q0' ? 'Not Ranked Yet' : rank;
+  const label = !rank || rank === 'Q0' || rank === 'None' ? 'Not Ranked' : rank;
   return (
     <Badge tone="teal" className={className}>
       {label}
