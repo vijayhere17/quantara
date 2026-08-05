@@ -210,6 +210,47 @@ Then redeploy and fund wallets with that token yourself (no `fund:testnet` mint)
 | `users(address)` / BAD_DATA | `CORE_CONTRACT` points at wrong contract — re-sync from `deployed-addresses.json` |
 | RPC errors | Try alternate RPC: `https://bsc-testnet-rpc.publicnode.com` in both `.env` files |
 | Deploy OOG / fail | Top up deployer tBNB; retry |
+| `isActive is still false` after Root registered | **Do not redeploy.** Contracts are live; the old script mis-read status. See recovery below. |
+
+### Recovery: deploy printed addresses then crashed on root check
+
+Your contracts are already on BSC Testnet. **Do not run `deploy:bsc-testnet` again** (that creates a new set of contracts).
+
+1. Pull latest code (`git pull`)
+2. In `smart-contracts`, create/overwrite `deployed-addresses.json` with the addresses from your deploy console log (see example below)
+3. Sync Laravel and confirm root:
+
+```powershell
+cd C:\xampp\htdocs\quantara\smart-contracts
+npm run sync:laravel:bsc-testnet
+npm run bootstrap:root:bsc-testnet
+npm run verify:deployment:bsc-testnet
+```
+
+Example `deployed-addresses.json` (replace with YOUR printed addresses):
+
+```json
+{
+  "network": "bscTestnet",
+  "chainId": 97,
+  "explorer": "https://testnet.bscscan.com",
+  "Token": "0x...",
+  "MockBTCB": "0x...",
+  "ChainlinkBTCPriceFeed": "0x...",
+  "PriceFeed": "0x...",
+  "BTCPlanCore": "0x...",
+  "TreasuryManager": "0x...",
+  "InterdependentReward": "0x...",
+  "ContributionReward": "0x...",
+  "ContributionBooster": "0x...",
+  "RankReward": "0x...",
+  "CommunityBuilder": "0x...",
+  "IncomeManager": "0x...",
+  "RootUser": "0x..."
+}
+```
+
+Then clear Laravel cache and ensure a DB user exists with `wallet_addr` / `username` = `RootUser`.
 
 ---
 

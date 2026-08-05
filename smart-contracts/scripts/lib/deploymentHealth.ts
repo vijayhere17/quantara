@@ -68,8 +68,8 @@ export async function assertBtcPlanCore(
   try {
     const user = await core.users(probeUser);
     return {
-      isActive: Boolean(user.isActive),
-      sponsor: String(user.sponsor),
+      isActive: readUserIsActive(user),
+      sponsor: String(user.sponsor ?? user[1] ?? ""),
     };
   } catch (err) {
     const raw = err instanceof Error ? err.message : String(err);
@@ -79,6 +79,59 @@ export async function assertBtcPlanCore(
         `Underlying: ${raw}`,
     );
   }
+}
+
+/**
+ * Prefer isRegistered(address). Fall back to users() tuple index 6 when needed.
+ * Public struct getters are flaky across ethers/Hardhat for named .isActive.
+ */
+export function readUserIsActive(user: {
+  isActive?: unknown;
+  [key: number]: unknown;
+}): boolean {
+  if (typeof user?.isActive === "boolean") return user.isActive;
+  if (user?.isActive != null) return Boolean(user.isActive);
+  if (typeof user?.[6] === "boolean") return user[6];
+  if (user?.[6] != null) return Boolean(user[6]);
+  return false;
+}
+
+type CoreRegistrationLike = {
+  isRegistered?: (addr: string) => Promise<boolean>;
+  users: (addr: string) => Promise<{ isActive?: unknown; [key: number]: unknown }>;
+};
+
+/** Reliable registration check — never trust users().isActive alone. */
+export async function isUserRegistered(
+  core: CoreRegistrationLike,
+  address: string,
+): Promise<boolean> {
+  if (typeof core.isRegistered === "function") {
+    try {
+      return Boolean(await core.isRegistered(address));
+    } catch {
+      // fall through to users() decode
+    }
+  }
+  const user = await core.users(address);
+  return readUserIsActive(user);
+}
+
+/** Retry registration read — public RPCs can lag one block after tx.wait(). */
+export async function waitUntilRegistered(
+  core: CoreRegistrationLike,
+  address: string,
+  opts?: { attempts?: number; delayMs?: number },
+): Promise<boolean> {
+  const attempts = opts?.attempts ?? 8;
+  const delayMs = opts?.delayMs ?? 1500;
+  for (let i = 0; i < attempts; i++) {
+    if (await isUserRegistered(core, address)) return true;
+    if (i < attempts - 1) {
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+  }
+  return false;
 }
 
 const LARAVEL_ENV_KEYS: Array<{ env: string; keys: string[] }> = [

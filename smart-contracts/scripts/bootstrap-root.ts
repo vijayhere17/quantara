@@ -7,6 +7,7 @@ import {
   fundDemoAccounts,
   printAccountBalances,
 } from "./lib/fundDemoAccounts";
+import { isUserRegistered, waitUntilRegistered } from "./lib/deploymentHealth";
 
 /**
  * Bootstrap the genesis/root on-chain user for an already-deployed BTCPlanCore,
@@ -53,17 +54,16 @@ async function main() {
     );
   }
 
-  const before = await core.users(deployer.address);
-  if (before.isActive) {
+  const beforeActive = await isUserRegistered(core, deployer.address);
+  if (beforeActive) {
     console.log("Root already active on-chain.");
-    console.log("  sponsor:", before.sponsor);
   } else {
     // If CORE_CONTRACT env points at the wrong contract, fail loudly here
     try {
-      await core.users(deployer.address);
+      await core.isRegistered(deployer.address);
     } catch (err) {
       throw new Error(
-        `BTCPlanCore.users() failed at ${coreAddress}. ` +
+        `BTCPlanCore.isRegistered() failed at ${coreAddress}. ` +
           `Check CORE_CONTRACT is not swapped with IncomeManager. ` +
           `${err instanceof Error ? err.message : err}`,
       );
@@ -73,9 +73,12 @@ async function main() {
     const receipt = await tx.wait();
     console.log("Tx hash:", receipt?.hash || tx.hash);
 
-    const after = await core.users(deployer.address);
-    if (!after.isActive) {
-      throw new Error("Bootstrap failed — users[signer].isActive is still false");
+    const afterActive = await waitUntilRegistered(core, deployer.address);
+    if (!afterActive) {
+      throw new Error(
+        "Bootstrap failed — isRegistered(signer) is still false after retries. " +
+          "Check the tx on the explorer; public RPC may be lagging.",
+      );
     }
   }
 

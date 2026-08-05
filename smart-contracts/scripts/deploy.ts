@@ -5,6 +5,8 @@ import path from "path";
 import {
   syncLaravelEnvFromAddresses,
   syncLaravelLocalConfigFallbacks,
+  isUserRegistered,
+  waitUntilRegistered,
 } from "./lib/deploymentHealth";
 
 /**
@@ -354,22 +356,32 @@ async function main() {
 
   // ------------------------------------------------------------------
   // Genesis / root bootstrap
+  // Prefer isRegistered() — users().isActive named access is unreliable.
   // ------------------------------------------------------------------
-  const rootUser = await core.users(deployer.address);
-  if (!rootUser.isActive) {
+  const alreadyRoot = await isUserRegistered(core, deployer.address);
+  if (!alreadyRoot) {
     console.log("Bootstrapping root user (register address(0))...");
     const tx = await core.register(ethers.ZeroAddress);
-    await tx.wait();
+    const receipt = await tx.wait();
+    if (receipt && Number(receipt.status) === 0) {
+      throw new Error("Root register transaction reverted");
+    }
+    console.log("Root register tx:", receipt?.hash || tx.hash);
     console.log("Root registered:", deployer.address);
   } else {
     console.log("Root already registered:", deployer.address);
   }
 
-  const rootAfter = await core.users(deployer.address);
-  if (!rootAfter.isActive) {
-    throw new Error(
-      "Root bootstrap failed — users[deployer].isActive is still false",
+  const rootOk = await waitUntilRegistered(core, deployer.address);
+  if (!rootOk) {
+    // Still write addresses — contracts are live; avoid forcing a full redeploy.
+    console.warn(
+      "WARNING: could not confirm isRegistered(root) via RPC yet. " +
+        "Saving addresses anyway. Verify on testnet.bscscan.com and run: " +
+        "npm run bootstrap:root:bsc-testnet",
     );
+  } else {
+    console.log("Root isRegistered: true");
   }
 
   const explorerBase =
@@ -408,6 +420,7 @@ async function main() {
   }
 
   fs.writeFileSync("deployed-addresses.json", JSON.stringify(addresses, null, 2));
+  console.log("Wrote deployed-addresses.json");
 
   // Keep Laravel local stack synchronized (best-effort)
   try {
@@ -427,6 +440,14 @@ async function main() {
     console.warn(
       "Laravel env sync skipped:",
       err instanceof Error ? err.message : err,
+    );
+  }
+
+  if (!rootOk) {
+    throw new Error(
+      "Root register was submitted but RPC still reports not registered. " +
+        "Addresses were saved — do NOT redeploy. Wait ~30s then run: " +
+        "npm run bootstrap:root:bsc-testnet",
     );
   }
 
