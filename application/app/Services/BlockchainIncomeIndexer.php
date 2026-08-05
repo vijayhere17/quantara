@@ -73,7 +73,8 @@ class BlockchainIncomeIndexer
         $mirrored = 0;
         $errors = 0;
         $cursor = $fromBlock;
-        $activeChunk = max(50, $chunk);
+        $activeChunk = max(10, min($chunk, 200));
+        $stallRetries = 0;
 
         while ($cursor <= $toBlock) {
             $end = min($cursor + $activeChunk - 1, $toBlock);
@@ -107,29 +108,46 @@ class BlockchainIncomeIndexer
                     foreach ($batch as $log) {
                         $logs[] = $log;
                     }
+                    usleep(80_000);
                 }
             }
 
             if ($batchFailed) {
                 $errors++;
-                if ($activeChunk > 50) {
-                    $activeChunk = max(50, intdiv($activeChunk, 2));
+                if ($activeChunk > 10) {
+                    $activeChunk = max(10, intdiv($activeChunk, 2));
                     Log::warning('Income indexer shrinking eth_getLogs chunk', [
                         'from' => $cursor,
                         'to' => $end,
                         'nextChunk' => $activeChunk,
                     ]);
-                    usleep(400_000);
+                    usleep(800_000);
                     continue; // retry same cursor with smaller range
                 }
-                Log::warning('Income indexer getLogs failed at min chunk — skipping range', [
+
+                $stallRetries++;
+                // Never skip tiny ranges on first failures — wait and retry (skips drop income events).
+                if ($stallRetries <= 8) {
+                    Log::warning('Income indexer waiting on RPC rate limit', [
+                        'from' => $cursor,
+                        'to' => $end,
+                        'attempt' => $stallRetries,
+                    ]);
+                    sleep(min(12, 1 + $stallRetries));
+                    continue;
+                }
+
+                Log::error('Income indexer giving up on range after retries — income may be missing', [
                     'from' => $cursor,
                     'to' => $end,
                 ]);
                 $cursor = $end + 1;
-                usleep(500_000);
+                $stallRetries = 0;
+                sleep(2);
                 continue;
             }
+
+            $stallRetries = 0;
 
             foreach ($logs as $index => $log) {
                 $scanned++;
@@ -145,8 +163,7 @@ class BlockchainIncomeIndexer
 
             $this->setCursor($end);
             $cursor = $end + 1;
-            // Gentle pacing for public RPCs
-            usleep(120_000);
+            usleep(200_000);
         }
 
         return [
