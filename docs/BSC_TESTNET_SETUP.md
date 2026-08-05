@@ -65,13 +65,23 @@ copy .env.example .env
 Edit `smart-contracts\.env`:
 
 ```env
-PRIVATE_KEY=0xyour_testnet_deployer_private_key_here
+PRIVATE_KEY=0xYOUR_64_HEX_PRIVATE_KEY_HERE
 CHAIN_ID=97
 BSC_TESTNET_RPC_URL=https://data-seed-prebsc-1-s1.binance.org:8545/
 # Leave TOKEN_ADDRESS empty for MockBTCB (recommended for client QA)
 TOKEN_ADDRESS=
 CHAINLINK_BTC_USD=0x5741306c21795FdCBb9b265Ea0255F499DFe515C
 ```
+
+**PRIVATE_KEY rules (fixes Hardhat error HHE15):**
+
+- Must be the **private key**, not the wallet address  
+- Format: `0x` + **exactly 64** hex characters  
+- No quotes, no spaces, one line  
+- Export from MetaMask: Account details → Show private key  
+- Use a **testnet-only** wallet funded with tBNB  
+
+If you still see HHE15, your `.env` still has a placeholder or wrong value — open `smart-contracts\.env` and fix `PRIVATE_KEY`.
 
 Ensure the deployer has enough **tBNB** (recommend ≥ 0.2 tBNB).
 
