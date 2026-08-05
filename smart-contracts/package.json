@@ -28,6 +28,7 @@
     "qa:inspect:user": "hardhat run scripts/qa/inspect-user.ts --network localhost",
     "qa:inspect:tx": "hardhat run scripts/qa/inspect-tx.ts --network localhost",
     "qa:inspect:treasury": "hardhat run scripts/qa/inspect-treasury.ts --network localhost",
+    "qa:inspect:treasury:bsc-testnet": "hardhat run scripts/qa/inspect-treasury.ts --network bscTestnet",
     "qa:inspect:tree": "hardhat run scripts/qa/inspect-tree.ts --network localhost",
     "qa:inspect:events": "hardhat run scripts/qa/inspect-events.ts --network localhost",
     "qa:bsc-testnet": "hardhat run scripts/qa/full-production-qa.ts --network bscTestnet",
