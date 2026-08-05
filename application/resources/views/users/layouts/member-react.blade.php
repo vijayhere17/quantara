@@ -39,7 +39,6 @@
             'investNow' => $base . '/buy-robo',
             'myInvestments' => $base . '/bot-request',
             'wallet' => $base . '/earning-wallet',
-            'withdraw' => $base . '/new-withdrawal',
             // 1=Contribution, 2=ROI, 4=Community, 5=Rank, 7=Same Rank, 8=Booster
             'roiHistory' => $base . '/earning/2/ROI History',
             'contributionReward' => $base . '/earning/1/Contribution Reward',
