@@ -4,7 +4,6 @@ import {
   Headset,
   LayoutDashboard,
   LogOut,
-  Settings,
   TrendingUp,
   Wallet,
   Users,
@@ -22,7 +21,6 @@ type SidebarProps = {
 
 const iconMap: Record<string, LucideIcon> = {
   dashboard: LayoutDashboard,
-  account: Settings,
   network: Users,
   investments: Cpu,
   wallet: Wallet,
@@ -34,12 +32,6 @@ const iconMap: Record<string, LucideIcon> = {
 function buildNav(links: MemberShellData['links']): NavItem[] {
   return [
     { id: 'dashboard', label: 'Dashboard', href: links.dashboard, icon: 'dashboard' },
-    {
-      id: 'account',
-      label: 'Account',
-      icon: 'account',
-      children: [{ label: 'Profile', href: links.profile }],
-    },
     {
       id: 'network',
       label: 'Network',
@@ -59,16 +51,6 @@ function buildNav(links: MemberShellData['links']): NavItem[] {
       ],
     },
     { id: 'wallet', label: 'Wallet', href: links.wallet, icon: 'wallet' },
-    ...(links.withdraw
-      ? [
-          {
-            id: 'withdraw',
-            label: 'Withdraw',
-            href: links.withdraw,
-            icon: 'wallet',
-          } as NavItem,
-        ]
-      : []),
     {
       id: 'earnings',
       label: 'Earnings',

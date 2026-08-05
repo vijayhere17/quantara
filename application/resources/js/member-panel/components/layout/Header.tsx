@@ -3,7 +3,6 @@ import {
   Headset,
   LogOut,
   Menu,
-  UserRound,
   Wallet,
 } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
@@ -190,12 +189,6 @@ export function Header({ data, onToggleSidebar }: HeaderProps) {
                 </div>
 
                 <div className="space-y-0.5 px-0.5 pb-0.5">
-                  <a href={data.links.profile} role="menuitem" className={menuItemClass}>
-                    <span className={menuIconClass}>
-                      <UserRound className="h-4 w-4" />
-                    </span>
-                    My Profile
-                  </a>
                   <a href={data.links.wallet} role="menuitem" className={menuItemClass}>
                     <span className={menuIconClass}>
                       <Wallet className="h-4 w-4" />
