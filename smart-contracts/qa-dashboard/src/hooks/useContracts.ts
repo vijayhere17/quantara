@@ -4,14 +4,17 @@ import {
   activatePackage,
   claimSelfRoi,
   connectContracts,
+  createQaWallet,
   forceCompletePackage,
   fundEth,
   getSignerFor,
   increaseTime,
   registerUser,
+  resolveUserSigner,
   type Contracts,
   walletFromIndex,
 } from "@/lib/contracts";
+import { IS_LOCAL, NETWORK_NAME } from "@/lib/constants";
 import { useDashboardStore } from "@/store/dashboardStore";
 import { fmtToken } from "@/lib/format";
 
@@ -33,7 +36,7 @@ export function useBootstrap() {
         setConnecting(false);
         addLog(
           "ok",
-          "Connected to Hardhat node",
+          `Connected to ${NETWORK_NAME}`,
           `Core ${c.addresses.BTCPlanCore}`,
         );
         // Ensure root is tracked
@@ -406,7 +409,17 @@ export async function createUsersBatch(
   const created: string[] = [];
   for (let i = 0; i < count; i++) {
     const idx = startIndex + i;
-    const wallet = walletFromIndex(idx, c.provider);
+    let wallet: Awaited<ReturnType<typeof createQaWallet>>["wallet"];
+    let walletIndex = idx;
+
+    if (IS_LOCAL) {
+      wallet = walletFromIndex(idx, c.provider);
+    } else {
+      const createdWallet = await createQaWallet(c);
+      wallet = createdWallet.wallet;
+      walletIndex = createdWallet.walletIndex;
+    }
+
     await fundEth(c, wallet.address);
     if (autoRegister) {
       const already = await c.core.isRegistered(wallet.address);
@@ -417,7 +430,7 @@ export async function createUsersBatch(
     upsert({
       id: idx,
       address: wallet.address,
-      walletIndex: idx,
+      walletIndex,
       sponsor,
       createdAt: Date.now(),
     });
@@ -429,6 +442,7 @@ export async function createUsersBatch(
 
 export {
   activatePackage,
+  createQaWallet,
   forceCompletePackage,
   fundEth,
   getSignerFor,
@@ -436,4 +450,5 @@ export {
   registerUser,
   walletFromIndex,
   claimSelfRoi,
+  resolveUserSigner,
 };

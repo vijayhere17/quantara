@@ -13,6 +13,7 @@ import {
   useContracts,
   useTxRunner,
   walletFromIndex,
+  resolveUserSigner,
 } from "@/hooks/useContracts";
 import { RANK_NAMES } from "@/lib/constants";
 import { fmtToken } from "@/lib/format";
@@ -81,9 +82,7 @@ export function CommunityPanel() {
     if (!selectedUser) return;
     await run(`Claim community ${shortAddr(selectedUser)}`, async (c) => {
       const signer =
-        tracked?.walletIndex != null
-          ? walletFromIndex(tracked.walletIndex, c.provider)
-          : await getSignerFor(c, selectedUser);
+        await resolveUserSigner(c, selectedUser, tracked?.walletIndex);
       const community = c.community.connect(signer) as Contract;
       const tx = await community.claimCommunityReward();
       const receipt = await tx.wait();

@@ -174,7 +174,38 @@ Also send each tester a little **tBNB** for gas.
 
 ---
 
-## 8. Client test checklist
+## 8. QA Dashboard on BSC Testnet
+
+```powershell
+cd C:\xampp\htdocs\quantara\smart-contracts
+npm run qa:dashboard:sync
+
+cd qa-dashboard
+copy .env.example .env
+notepad .env
+```
+
+In `.env` set (never paste the key into chat):
+
+```env
+VITE_RPC_URL=https://bsc-testnet-rpc.publicnode.com
+VITE_CHAIN_ID=97
+VITE_DEPLOYER_PK=0xYOUR_SAME_DEPLOYER_PRIVATE_KEY
+```
+
+```powershell
+npm install
+npm run dev
+```
+
+Open http://localhost:5173 — badge must show **BNB Smart Chain Testnet**.
+
+Then: **Users → Create 1 → Register → Activate $50** to exercise incomes on-chain.
+Time travel / chain reset remain Hardhat-only.
+
+---
+
+## 9. Client test checklist
 
 1. Open the site (`APP_URL`) → Sign Up  
 2. MetaMask must be on **BNB Smart Chain Testnet (97)** — the app will prompt to switch  

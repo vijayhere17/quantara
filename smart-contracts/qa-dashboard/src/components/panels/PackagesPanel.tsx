@@ -16,6 +16,7 @@ import {
   useContracts,
   useTxRunner,
   walletFromIndex,
+  resolveUserSigner,
 } from "@/hooks/useContracts";
 import { PACKAGE_LADDER } from "@/lib/constants";
 import {
@@ -81,10 +82,7 @@ export function PackagesPanel() {
 
   const signerForSelected = async (c: NonNullable<typeof contracts>) => {
     if (!selectedUser) throw new Error("No selected user");
-    if (tracked?.walletIndex != null) {
-      return walletFromIndex(tracked.walletIndex, c.provider);
-    }
-    return getSignerFor(c, selectedUser);
+    return resolveUserSigner(c, selectedUser, tracked?.walletIndex);
   };
 
   const doActivate = async (amount: number, label?: string) => {

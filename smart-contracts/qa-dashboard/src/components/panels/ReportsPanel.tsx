@@ -16,6 +16,7 @@ import {
   useContracts,
   useTxRunner,
   walletFromIndex,
+  resolveUserSigner,
 } from "@/hooks/useContracts";
 import { PACKAGE_LADDER } from "@/lib/constants";
 import { pctBps, toWei } from "@/lib/format";
@@ -111,8 +112,8 @@ export function ReportsPanel() {
           const tracked = useDashboardStore
             .getState()
             .users.find((u) => u.address.toLowerCase() === fresh.toLowerCase());
-          if (tracked?.walletIndex != null) {
-            const signer = walletFromIndex(tracked.walletIndex, c.provider);
+          if (tracked) {
+            const signer = await resolveUserSigner(c, tracked.address, tracked.walletIndex);
             await registerUser(c, signer, root);
             const after = await c.core.isRegistered(fresh);
             push({
@@ -149,8 +150,8 @@ export function ReportsPanel() {
           const tracked = useDashboardStore
             .getState()
             .users.find((u) => u.address.toLowerCase() === addr.toLowerCase());
-          if (tracked?.walletIndex != null) {
-            const signer = walletFromIndex(tracked.walletIndex, c.provider);
+          if (tracked) {
+            const signer = await resolveUserSigner(c, tracked.address, tracked.walletIndex);
             await activatePackage(c, signer, 50);
             const u = await c.core.users(addr);
             const amt = Number(u.packageAmount ?? u[2]);
@@ -235,8 +236,8 @@ export function ReportsPanel() {
             .getState()
             .users.find((u) => u.address.toLowerCase() === addr.toLowerCase());
           const roiBefore = await c.treasury.interdependentFundBalance();
-          if (tracked?.walletIndex != null) {
-            const signer = walletFromIndex(tracked.walletIndex, c.provider);
+          if (tracked) {
+            const signer = await resolveUserSigner(c, tracked.address, tracked.walletIndex);
             await activatePackage(c, signer, 50);
             await sleep(200);
             const roiAfter = await c.treasury.interdependentFundBalance();

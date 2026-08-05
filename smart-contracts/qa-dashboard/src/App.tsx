@@ -10,6 +10,7 @@ import { DeveloperPanel } from "@/components/panels/DeveloperPanel";
 import { UserDetailsModal } from "@/components/users/UserDetailsModal";
 import { useBootstrap } from "@/hooks/useContracts";
 import { useDashboardStore } from "@/store/dashboardStore";
+import { NETWORK_NAME } from "@/lib/constants";
 
 export default function App() {
   useBootstrap();
@@ -43,7 +44,7 @@ export default function App() {
     <>
       <DashboardShell
         connected={Boolean(contracts)}
-        error={connecting ? "Connecting to Hardhat…" : connectionError}
+        error={connecting ? `Connecting to ${NETWORK_NAME}…` : connectionError}
       >
         <div className="animate-fade-up">{panel}</div>
       </DashboardShell>

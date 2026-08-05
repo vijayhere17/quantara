@@ -19,6 +19,7 @@ import {
   useContracts,
   useTxRunner,
   walletFromIndex,
+  resolveUserSigner,
 } from "@/hooks/useContracts";
 import { dualFromContracts, type DualAmount } from "@/lib/money";
 import {
@@ -233,10 +234,7 @@ export function IncomePanel() {
 
   const signerFor = async (c: NonNullable<typeof contracts>) => {
     if (!selectedUser) throw new Error("Select a user");
-    if (tracked?.walletIndex != null) {
-      return walletFromIndex(tracked.walletIndex, c.provider);
-    }
-    return getSignerFor(c, selectedUser);
+    return resolveUserSigner(c, selectedUser, tracked?.walletIndex);
   };
 
   const onPlusOneDay = async () => {
@@ -275,9 +273,7 @@ export function IncomePanel() {
       const beforeRank = BigInt(beforeInc.rankEarned ?? beforeInc[4] ?? 0);
       await increaseTime(c.provider, 86400);
       const dSigner =
-        downline.walletIndex != null
-          ? walletFromIndex(downline.walletIndex, c.provider)
-          : await getSignerFor(c, downline.address);
+        await resolveUserSigner(c, downline.address, downline.walletIndex);
       const claim = await claimSelfRoi(c, dSigner);
       const afterInc = await c.income.incomes(selectedUser);
       const afterRank = BigInt(afterInc.rankEarned ?? afterInc[4] ?? 0);

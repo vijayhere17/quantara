@@ -9,6 +9,7 @@ import {
   StatCard,
 } from "@/components/ui/card";
 import { increaseTime, useContracts, useTxRunner } from "@/hooks/useContracts";
+import { IS_LOCAL } from "@/lib/constants";
 import { fmtTs } from "@/lib/format";
 import { useDashboardStore } from "@/store/dashboardStore";
 
@@ -49,6 +50,23 @@ export function TimeTravelPanel() {
       return { result: true };
     });
   };
+
+  if (!IS_LOCAL) {
+    return (
+      <div className="space-y-3 rounded-xl border border-line/80 bg-surface-2/50 p-4">
+        <h2 className="text-base font-semibold">Time Travel</h2>
+        <p className="text-sm text-muted">
+          Disabled on BSC Testnet — real chain time cannot be fast-forwarded.
+          Wait for natural block time for ROI / daily windows, or use Hardhat
+          local for simulator jumps.
+        </p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <StatCard label="Block" value={blockNumber} tone="accent" />
+          <StatCard label="Timestamp" value={timestamp} />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

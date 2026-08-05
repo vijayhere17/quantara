@@ -10,7 +10,20 @@ import {
   type TransactionRequest,
   formatEther,
 } from "ethers";
-import { CHAIN_ID, DEPLOYER_PK, RPC_URL } from "./constants";
+import {
+  CHAIN_ID,
+  DEPLOYER_PK,
+  IS_LOCAL,
+  NETWORK_NAME,
+  QA_FUND_MIN_WEI,
+  QA_FUND_WEI,
+  RPC_URL,
+} from "./constants";
+import {
+  createSessionWallet,
+  getSessionPrivateKey,
+  rememberSessionWallet,
+} from "./sessionWallets";
 
 import BTCPlanCoreAbi from "@/abis/BTCPlanCore.json";
 import TreasuryManagerAbi from "@/abis/TreasuryManager.json";
@@ -145,6 +158,12 @@ async function sendUserTx(
 }
 
 export function walletFromIndex(index: number, provider?: Provider): HDNodeWallet {
+  if (!IS_LOCAL) {
+    throw new Error(
+      "Hardhat mnemonic wallets are disabled on BSC Testnet. " +
+        "Use Create User (random funded wallets) or import a session key.",
+    );
+  }
   const mnemonic = Mnemonic.fromPhrase(HARDHAT_MNEMONIC);
   const root = HDNodeWallet.fromMnemonic(mnemonic, `m/44'/60'/0'/0/${index}`);
   return provider ? root.connect(provider) : root;
@@ -154,14 +173,29 @@ export async function loadAddressBook(): Promise<AddressBook> {
   const res = await fetch("/deployed-addresses.json", { cache: "no-store" });
   if (!res.ok) {
     throw new Error(
-      "deployed-addresses.json missing. Run: npm run deploy (Hardhat node must be up).",
+      "deployed-addresses.json missing. On testnet run: npm run qa:dashboard:sync " +
+        "(after deploy:bsc-testnet). On local: npm run deploy && npm run qa:dashboard:sync",
     );
   }
   return (await res.json()) as AddressBook;
 }
 
 export async function connectContracts(): Promise<Contracts> {
+  if (!DEPLOYER_PK || !/^0x[a-fA-F0-9]{64}$/.test(DEPLOYER_PK)) {
+    throw new Error(
+      "Invalid deployer key. Set VITE_DEPLOYER_PK in qa-dashboard/.env " +
+        `(0x + 64 hex chars). Network: ${NETWORK_NAME}`,
+    );
+  }
+
   const addresses = await loadAddressBook();
+  if (addresses.chainId && Number(addresses.chainId) !== CHAIN_ID) {
+    console.warn(
+      `Address book chainId=${addresses.chainId} but dashboard CHAIN_ID=${CHAIN_ID}. ` +
+        "Sync deployed-addresses.json or fix VITE_CHAIN_ID.",
+    );
+  }
+
   const provider = new JsonRpcProvider(RPC_URL, CHAIN_ID, {
     staticNetwork: true,
     batchMaxCount: 1,
@@ -169,18 +203,32 @@ export async function connectContracts(): Promise<Contracts> {
 
   const network = await provider.getNetwork();
   if (Number(network.chainId) !== CHAIN_ID) {
-    console.warn(`Expected chain ${CHAIN_ID}, got ${network.chainId}`);
+    throw new Error(
+      `RPC chain mismatch: expected ${CHAIN_ID} (${NETWORK_NAME}), got ${network.chainId}. ` +
+        `Check VITE_RPC_URL=${RPC_URL}`,
+    );
   }
 
   // Verify core bytecode exists at the address book entry
   const code = await provider.getCode(addresses.BTCPlanCore);
   if (!code || code === "0x") {
     throw new Error(
-      `No contract at BTCPlanCore ${addresses.BTCPlanCore}. Redeploy: npm run deploy && npm run qa:dashboard:sync`,
+      `No contract at BTCPlanCore ${addresses.BTCPlanCore}. ` +
+        "Redeploy on this network and run npm run qa:dashboard:sync",
     );
   }
 
   const deployer = new Wallet(DEPLOYER_PK, provider);
+  if (
+    addresses.RootUser &&
+    deployer.address.toLowerCase() !== addresses.RootUser.toLowerCase()
+  ) {
+    console.warn(
+      `Deployer ${deployer.address} != RootUser ${addresses.RootUser}. ` +
+        "Mint/fund may fail if this key is not the MockBTCB owner.",
+    );
+  }
+
   const tokenAddr = addresses.Token || addresses.MockBTCB;
   if (!tokenAddr) throw new Error("Token address missing in address book");
 
@@ -208,19 +256,71 @@ export async function getSignerFor(
   addressOrIndex: string | number,
 ): Promise<Signer> {
   if (typeof addressOrIndex === "number") {
+    if (!IS_LOCAL) {
+      throw new Error("walletIndex signers only work on Hardhat local");
+    }
     return walletFromIndex(addressOrIndex, contracts.provider);
   }
+
   const addr = addressOrIndex.toLowerCase();
-  for (let i = 0; i < 50; i++) {
-    const w = walletFromIndex(i, contracts.provider);
-    if (w.address.toLowerCase() === addr) return w;
+
+  // Session wallets created on testnet
+  const sessionPk = getSessionPrivateKey(addr);
+  if (sessionPk) {
+    return new Wallet(sessionPk, contracts.provider);
   }
-  await contracts.provider.send("hardhat_impersonateAccount", [addressOrIndex]);
-  await contracts.provider.send("hardhat_setBalance", [
-    addressOrIndex,
-    "0x56BC75E2D63100000",
-  ]);
-  return await contracts.provider.getSigner(addressOrIndex);
+
+  // Deployer
+  if (contracts.deployer.address.toLowerCase() === addr) {
+    return contracts.deployer;
+  }
+
+  // Local Hardhat mnemonic accounts
+  if (IS_LOCAL) {
+    for (let i = 0; i < 50; i++) {
+      const w = walletFromIndex(i, contracts.provider);
+      if (w.address.toLowerCase() === addr) return w;
+    }
+    await contracts.provider.send("hardhat_impersonateAccount", [addressOrIndex]);
+    await contracts.provider.send("hardhat_setBalance", [
+      addressOrIndex,
+      "0x56BC75E2D63100000",
+    ]);
+    return await contracts.provider.getSigner(addressOrIndex);
+  }
+
+  throw new Error(
+    `No private key for ${addressOrIndex}. Create the user from the Users tab ` +
+      "(session wallet) or paste a known test wallet that was funded by this dashboard.",
+  );
+}
+
+/** Resolve signer for a tracked dashboard user (works on Hardhat + Testnet). */
+export async function resolveUserSigner(
+  contracts: Contracts,
+  address: string,
+  walletIndex?: number,
+): Promise<Signer> {
+  if (walletIndex != null && walletIndex >= 0 && IS_LOCAL) {
+    return walletFromIndex(walletIndex, contracts.provider);
+  }
+  return getSignerFor(contracts, address);
+}
+
+/** Create a fresh QA wallet (random on testnet, Hardhat index on local). */
+export async function createQaWallet(
+  contracts: Contracts,
+  hardhatIndex?: number,
+): Promise<{ wallet: Wallet | HDNodeWallet; walletIndex: number }> {
+  if (IS_LOCAL) {
+    const idx = hardhatIndex ?? 1;
+    const wallet = walletFromIndex(idx, contracts.provider);
+    return { wallet, walletIndex: idx };
+  }
+  const raw = createSessionWallet();
+  const wallet = raw.connect(contracts.provider);
+  rememberSessionWallet(wallet.address, raw.privateKey);
+  return { wallet, walletIndex: -1 };
 }
 
 export async function withContractSigner(
@@ -231,25 +331,34 @@ export async function withContractSigner(
 }
 
 export async function increaseTime(provider: JsonRpcProvider, seconds: number) {
+  if (!IS_LOCAL) {
+    throw new Error("Time travel (evm_increaseTime) only works on Hardhat local.");
+  }
   await provider.send("evm_increaseTime", [seconds]);
   await provider.send("evm_mine", []);
 }
 
 export async function snapshot(provider: JsonRpcProvider): Promise<string> {
+  if (!IS_LOCAL) {
+    throw new Error("evm_snapshot only works on Hardhat local.");
+  }
   return provider.send("evm_snapshot", []);
 }
 
 export async function revert(provider: JsonRpcProvider, id: string) {
+  if (!IS_LOCAL) {
+    throw new Error("evm_revert only works on Hardhat local.");
+  }
   await provider.send("evm_revert", [id]);
 }
 
 export async function fundEth(
   contracts: Contracts,
   to: string,
-  amountWei: bigint = 10n ** 18n,
+  amountWei: bigint = QA_FUND_WEI,
 ) {
   const bal = await contracts.provider.getBalance(to);
-  if (bal >= 10n ** 17n) return;
+  if (bal >= QA_FUND_MIN_WEI) return;
   await sendDeployerTx(contracts, async (nonce) => {
     const tx = await contracts.deployer.sendTransaction({
       to,
@@ -264,6 +373,12 @@ export async function forceCompletePackage(
   contracts: Contracts,
   user: string,
 ) {
+  if (!IS_LOCAL) {
+    throw new Error(
+      "Force-complete package uses Hardhat impersonation and is local-only. " +
+        "On testnet, complete packages via real income flow.",
+    );
+  }
   const auth = contracts.addresses.InterdependentReward;
   await contracts.provider.send("hardhat_impersonateAccount", [auth]);
   await contracts.provider.send("hardhat_setBalance", [
