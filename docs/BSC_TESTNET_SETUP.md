@@ -203,6 +203,30 @@ Open http://localhost:5173 — badge must show **BNB Smart Chain Testnet**.
 Then: **Users → Create 1 → Register → Activate $50** to exercise incomes on-chain.
 Time travel / chain reset remain Hardhat-only.
 
+### Unlock all packages for one wallet (QA)
+
+The contract blocks the next package until the current one hits **ROI 3X** or **Working 4X**
+(`Complete current package first`). Member **Invest Now** cannot skip that.
+
+For QA, force-complete + climb the ladder:
+
+```bat
+cd C:\xampp\htdocs\quantara\smart-contracts
+copy /Y deployed-addresses.testnet.example.json deployed-addresses.json
+
+REM Company / root (= deployer) — no UNLOCK_PK needed:
+set UNLOCK_USER=0x4735BD05669119bffAcB9776e0D7FBAb68eFbCFe
+npm run qa:unlock-packages:bsc-testnet
+
+REM First member (different wallet) — needs that wallet's private key:
+set UNLOCK_USER=0xFirstMemberWallet
+set UNLOCK_PK=0xFirstMemberPrivateKey
+npm run qa:unlock-packages:bsc-testnet
+```
+
+Optional: `set TARGET_USD=1000` to stop earlier. Deployer `PRIVATE_KEY` in
+`smart-contracts/.env` must be the IncomeManager owner (same key used to deploy).
+
 ---
 
 ## 9. Client test checklist
