@@ -38,13 +38,16 @@
         } elseif ($currentAmount > $amount || ($currentAmount === 10000 && $amount < 10000)) {
             $buys = 2;
         }
+        // Past tiers (fully bought) must NOT show as "Locked" — only future tiers lock.
+        // Selectable next package stays unlocked; completed ones show Buy 2 of 2.
+        $locked = !$unlocked && $buys < 2;
         $packages[] = [
             'amount' => $amount,
             'label' => '$' . $amount,
             'multiplier' => '4X Max',
             'buys' => $buys,
             'maxBuys' => 2,
-            'locked' => !$unlocked,
+            'locked' => $locked,
             'unlimited' => $amount === 10000,
         ];
     }
