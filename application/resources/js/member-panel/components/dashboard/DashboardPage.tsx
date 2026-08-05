@@ -44,10 +44,9 @@ function parseAmount(value: string | number | null | undefined): number {
 }
 
 export function DashboardPage({ data }: DashboardPageProps) {
-  const [copied, setCopied] = useState<'wallet' | 'referral' | null>(null);
+  const [referralCopied, setReferralCopied] = useState(false);
 
   const walletAddress = data.user.obscuredAddress || data.user.username || '—';
-  const fullWallet = data.user.username || data.user.obscuredAddress || '';
   const referralDisplay = data.referral?.displayUrl || data.referral?.copyUrl || '—';
   const referralCopy = data.referral?.copyUrl || data.referral?.displayUrl || '';
 
@@ -133,12 +132,12 @@ export function DashboardPage({ data }: DashboardPageProps) {
   const workingProgress = workingCap > 0 ? Math.min(100, (workingEarned / workingCap) * 100) : 0;
   const workingRemaining = Math.max(0, workingCap - workingEarned);
 
-  const copyText = async (value: string, kind: 'wallet' | 'referral') => {
-    if (!value) return;
+  const copyReferral = async () => {
+    if (!referralCopy) return;
     try {
-      await navigator.clipboard.writeText(value);
-      setCopied(kind);
-      window.setTimeout(() => setCopied(null), 1600);
+      await navigator.clipboard.writeText(referralCopy);
+      setReferralCopied(true);
+      window.setTimeout(() => setReferralCopied(false), 2000);
     } catch {
       /* ignore */
     }
@@ -146,23 +145,50 @@ export function DashboardPage({ data }: DashboardPageProps) {
 
   return (
     <PageContainer className="!gap-4 sm:!gap-5" maxWidth="narrow">
-      {/* My Wallet */}
-      <CopyRow
-        label="My Wallet"
-        value={walletAddress}
-        icon={<Wallet className="h-5 w-5" />}
-        onCopy={() => void copyText(fullWallet, 'wallet')}
-        copied={copied === 'wallet'}
-      />
+      {/* My Wallet — display only */}
+      <section className="dash-card flex items-center gap-3 px-4 py-4 sm:px-5">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#00B5FF]/15 text-[#38D9FF]">
+          <Wallet className="h-5 w-5" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#38D9FF]">My Wallet</p>
+          <p className="mt-0.5 truncate font-mono text-sm font-semibold tracking-tight text-white sm:text-base">
+            {walletAddress}
+          </p>
+        </div>
+      </section>
 
-      {/* Referral Link */}
-      <CopyRow
-        label="Referral Link"
-        value={referralDisplay}
-        icon={<Link2 className="h-5 w-5" />}
-        onCopy={() => void copyText(referralCopy, 'referral')}
-        copied={copied === 'referral'}
-      />
+      {/* Referral Link + copy */}
+      <section className="dash-card flex items-center gap-3 px-4 py-4 sm:px-5">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#00B5FF]/15 text-[#38D9FF]">
+          <Link2 className="h-5 w-5" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#38D9FF]">
+            Referral Link
+          </p>
+          <p className="mt-0.5 truncate font-mono text-sm font-semibold tracking-tight text-white sm:text-base">
+            {referralDisplay}
+          </p>
+          {referralCopied ? (
+            <p className="mt-1 text-xs font-semibold text-emerald-400">Copied!</p>
+          ) : null}
+        </div>
+        <button
+          type="button"
+          onClick={() => void copyReferral()}
+          className={[
+            'flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-xl border px-3 text-[#38D9FF] transition hover:bg-[#00B5FF]/10',
+            referralCopied
+              ? 'border-emerald-400/50 bg-emerald-400/10 text-emerald-300'
+              : 'border-[#00B5FF]/35',
+          ].join(' ')}
+          aria-label="Copy referral link"
+        >
+          <Copy className="h-4 w-4" />
+          <span className="text-xs font-bold">{referralCopied ? 'Copied' : 'Copy'}</span>
+        </button>
+      </section>
 
       {/* Total Income + Rank */}
       <div className="grid grid-cols-2 gap-3 sm:gap-4">
@@ -287,43 +313,6 @@ export function DashboardPage({ data }: DashboardPageProps) {
         <ChevronRight className="h-4 w-4 text-white/40" />
       </a>
     </PageContainer>
-  );
-}
-
-function CopyRow({
-  label,
-  value,
-  icon,
-  onCopy,
-  copied,
-}: {
-  label: string;
-  value: string;
-  icon: ReactNode;
-  onCopy: () => void;
-  copied: boolean;
-}) {
-  return (
-    <section className="dash-card flex items-center gap-3 px-4 py-4 sm:px-5">
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#00B5FF]/15 text-[#38D9FF]">
-        {icon}
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#38D9FF]">{label}</p>
-        <p className="mt-0.5 truncate font-mono text-sm font-semibold tracking-tight text-white sm:text-base">
-          {value}
-        </p>
-      </div>
-      <button
-        type="button"
-        onClick={onCopy}
-        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#00B5FF]/35 text-[#38D9FF] transition hover:bg-[#00B5FF]/10"
-        aria-label={`Copy ${label}`}
-        title={copied ? 'Copied' : 'Copy'}
-      >
-        <Copy className="h-4 w-4" />
-      </button>
-    </section>
   );
 }
 
