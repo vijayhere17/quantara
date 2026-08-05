@@ -1,14 +1,5 @@
-import { Check, Star } from 'lucide-react';
+import { Star } from 'lucide-react';
 import { motion, useReducedMotion } from 'framer-motion';
-
-const PERKS = [
-  'Daily ROI',
-  'Referral Rewards',
-  'Rank Rewards',
-  'Booster Rewards',
-  'Community Rewards',
-  '4X Income Cap',
-] as const;
 
 type StarterPackageCardProps = {
   selected?: boolean;
@@ -38,20 +29,11 @@ export function StarterPackageCard({ selected = true }: StarterPackageCardProps)
         </div>
         <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#A8B8D0]">Starter Package</p>
         <p className="font-display mt-1 text-4xl font-bold tracking-tight text-white">$50</p>
-        <span className="mt-2 inline-flex rounded-full bg-gradient-to-r from-[#6D5EF9] to-[#9B6CFF] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-white shadow-[0_0_16px_rgba(109,94,249,0.45)]">
-          4X Maximum Income
-        </span>
 
-        <ul className="mt-3.5 grid grid-cols-1 gap-1.5 text-left sm:grid-cols-2">
-          {PERKS.map((perk) => (
-            <li key={perk} className="flex items-center gap-2 text-xs text-white/90">
-              <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[#00B5FF]/15 text-[#38D9FF]">
-                <Check className="h-2.5 w-2.5" aria-hidden />
-              </span>
-              {perk}
-            </li>
-          ))}
-        </ul>
+        <p className="mx-auto mt-3.5 max-w-[22rem] text-sm leading-relaxed text-[#A8B8D0]">
+          Activate your Quantara membership with a secure on-chain registration on BNB Smart Chain.
+          Your starter package establishes your verified place in the network.
+        </p>
       </div>
     </motion.div>
   );
