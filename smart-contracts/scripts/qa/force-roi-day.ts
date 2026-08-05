@@ -80,18 +80,39 @@ async function main() {
   }
 
   const userRow = await core.users(userAddr);
-  const pkg = Number(userRow.packageAmount ?? userRow[2] ?? 0);
-  if (pkg <= 0) {
-    throw new Error(`${userAddr} has no active package`);
-  }
+  // ethers Result: prefer named fields, fall back to tuple indices
+  const pkg = Number(
+    userRow.packageAmount ?? userRow[2] ?? 0,
+  );
+  const cycle = Number(userRow.packageCycle ?? userRow[4] ?? 0);
+  const active = Boolean(userRow.isActive ?? userRow[6]);
+  const completed = Boolean(userRow.packageCompleted ?? userRow[7]);
 
   console.log("=======================================");
   console.log("Force Self ROI day + claim (QA)");
   console.log("=======================================");
   console.log("Network: ", chainId);
-  console.log("User:    ", userAddr);
-  console.log("Package: ", `$${pkg}`);
+  console.log("Core:    ", coreAddr);
   console.log("ROI:     ", roiAddr);
+  console.log("User:    ", userAddr);
+  console.log("On-chain isActive:", active);
+  console.log("On-chain package: ", pkg > 0 ? `$${pkg} cycle ${cycle}` : "NONE ($0)");
+  console.log("On-chain completed:", completed);
+
+  if (pkg <= 0) {
+    throw new Error(
+      `${userAddr} has no active package ON THIS Core (${coreAddr}).\n` +
+        `The website can still show a package from Laravel DB or an older deploy.\n` +
+        `Fix:\n` +
+        `  1) type deployed-addresses.json  → confirm BTCPlanCore is the deploy you used\n` +
+        `  2) If you redeployed for qaBackdateLastClaim, buy/activate again:\n` +
+        `       $env:UNLOCK_USER="${userAddr}"\n` +
+        `       npm run qa:unlock-packages:bsc-testnet\n` +
+        `  3) Re-run npm run qa:force-roi:bsc-testnet`,
+    );
+  }
+
+  console.log("Package: ", `$${pkg}`);
 
   // Detect missing QA hook (old deployment)
   try {
