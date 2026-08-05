@@ -9,9 +9,13 @@ export const RPC_URL =
 export const CHAIN_ID = Number(import.meta.env.VITE_CHAIN_ID || 31337);
 
 /** Deployer / root / MockBTCB minter. On testnet set VITE_DEPLOYER_PK in .env */
-export const DEPLOYER_PK = (
-  import.meta.env.VITE_DEPLOYER_PK || HARDHAT_PK
-).trim();
+function resolveDeployerPk(): string {
+  const raw = (import.meta.env.VITE_DEPLOYER_PK || HARDHAT_PK).trim().replace(/^["']|["']$/g, "");
+  if (!raw) return "";
+  return raw.startsWith("0x") || raw.startsWith("0X") ? `0x${raw.slice(2)}` : `0x${raw}`;
+}
+
+export const DEPLOYER_PK = resolveDeployerPk();
 
 export const IS_LOCAL = CHAIN_ID === 31337;
 export const IS_TESTNET = CHAIN_ID === 97;
