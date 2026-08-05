@@ -38,6 +38,8 @@
     "qa:unlock-packages:bsc-testnet": "hardhat run scripts/qa/unlock-all-packages.ts --network bscTestnet",
     "qa:claim-roi": "hardhat run scripts/qa/claim-roi.ts --network localhost",
     "qa:claim-roi:bsc-testnet": "hardhat run scripts/qa/claim-roi.ts --network bscTestnet",
+    "qa:force-roi": "hardhat run scripts/qa/force-roi-day.ts --network localhost",
+    "qa:force-roi:bsc-testnet": "hardhat run scripts/qa/force-roi-day.ts --network bscTestnet",
     "qa:bsc-testnet": "hardhat run scripts/qa/full-production-qa.ts --network bscTestnet",
     "qa:bsc": "hardhat run scripts/qa/full-production-qa.ts --network bsc",
     "qa:simulators": "node scripts/qa/simulators/launch.mjs",

@@ -227,6 +227,31 @@ npm run qa:unlock-packages:bsc-testnet
 Optional: `set TARGET_USD=1000` to stop earlier. Deployer `PRIVATE_KEY` in
 `smart-contracts/.env` must be the IncomeManager owner (same key used to deploy).
 
+### Force Self ROI right now (client demo)
+
+Self ROI normally waits ~24h on testnet. For immediate QA, contracts include
+owner-only `qaBackdateLastClaim` — **requires a redeploy** if your live
+`InterdependentReward` predates this function.
+
+```bat
+cd C:\xampp\htdocs\quantara\smart-contracts
+npm run deploy:bsc-testnet
+npm run sync:laravel:bsc-testnet
+REM fund + register/activate a $50 test wallet, then:
+
+set CLAIM_USER=0xTestWalletWithPackage
+set CLAIM_PK=0xThatWalletKey
+npm run qa:force-roi:bsc-testnet
+
+cd ..\application
+php artisan blockchain:sync-income
+```
+
+Open **Earnings → ROI History** (not My Referral).
+
+Without redeploy you can still verify **Contribution** income from a direct's
+$50 activation under **Earnings → Contribution Reward** immediately.
+
 ---
 
 ## 9. Client test checklist
