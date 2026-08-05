@@ -9,7 +9,6 @@ import {
 } from "@/components/ui/card";
 import { Badge, Select } from "@/components/ui/input";
 import { DistributionPanel } from "@/components/DistributionPanel";
-import { RecyclingFlow } from "@/components/RecyclingFlow";
 import { IncomeRulesCard } from "@/components/IncomeRulesCard";
 import {
   claimSelfRoi,
@@ -367,7 +366,7 @@ export function IncomePanel() {
       </Card>
 
       {lastDistribution ? (
-        <DistributionPanel dist={lastDistribution} showRecycling={false} />
+        <DistributionPanel dist={lastDistribution} />
       ) : null}
 
       {selectedUser ? <IncomeRulesCard userAddress={selectedUser} /> : null}
@@ -379,7 +378,6 @@ export function IncomePanel() {
               Select a user above (sponsor for Direct, or any activated user for
               Self ROI).
             </p>
-            <RecyclingFlow contracts={contracts} exampleUsd={100} />
           </CardContent>
         </Card>
       ) : (
@@ -674,8 +672,6 @@ export function IncomePanel() {
               </table>
             </CardContent>
           </Card>
-
-          <RecyclingFlow contracts={contracts} exampleUsd={100} />
         </>
       )}
     </div>
