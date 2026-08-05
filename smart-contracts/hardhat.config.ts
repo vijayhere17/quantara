@@ -60,7 +60,7 @@ const localhostRpc = process.env.BLOCKCHAIN_RPC || "http://127.0.0.1:8545";
 const bscTestnetRpc =
   process.env.BSC_TESTNET_RPC_URL ||
   process.env.BNB_TESTNET_RPC_URL ||
-  "https://data-seed-prebsc-1-s1.binance.org:8545/";
+  "https://bsc-testnet-rpc.publicnode.com";
 const bscMainnetRpc =
   process.env.BSC_RPC_URL ||
   process.env.BNB_RPC_URL ||

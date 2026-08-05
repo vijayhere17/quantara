@@ -363,13 +363,27 @@ export async function readTreasury(
   const totalWorkingPaid = BigInt(await c.treasury.totalWorkingIncomePaid());
   const totalRoiPaid = BigInt(await c.treasury.totalSelfRoiPaid());
 
-  // Sum activation inflows from ContributionProcessed
-  const filter = c.treasury.filters.ContributionProcessed();
-  const logs = await c.treasury.queryFilter(filter, 0n, "latest");
+  // Sum activation inflows from ContributionProcessed.
+  // Public BSC RPCs often reject eth_getLogs from block 0 ("limit exceeded") — skip then.
   let totalActivated = 0n;
-  for (const log of logs) {
-    const args = (log as { args?: { amount?: bigint } }).args;
-    if (args?.amount != null) totalActivated += BigInt(args.amount);
+  try {
+    const latest = BigInt(await c.treasury.runner?.provider?.getBlockNumber?.() ?? 0);
+    // Look back a bounded window (or full chain on local Hardhat).
+    const fromBlock =
+      latest > 50_000n ? latest - 50_000n : 0n;
+    const filter = c.treasury.filters.ContributionProcessed();
+    const logs = await c.treasury.queryFilter(filter, fromBlock, "latest");
+    for (const log of logs) {
+      const args = (log as { args?: { amount?: bigint } }).args;
+      if (args?.amount != null) totalActivated += BigInt(args.amount);
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn(
+      `  (skipped ContributionProcessed log scan — RPC limit: ${msg.slice(0, 80)})`,
+    );
+    // Approximate: token still sitting in treasury + already paid out
+    totalActivated = tokenBal + totalWorkingPaid + totalRoiPaid;
   }
 
   return {
