@@ -20,6 +20,7 @@ class Kernel extends ConsoleKernel
         Commands\ReclassifySameRankIncomeCommand::class,
         Commands\SeedDemoQaCommand::class,
         Commands\RepairMigrationsCommand::class,
+        Commands\SyncUserPackageLadderCommand::class,
     ];
 
     /**

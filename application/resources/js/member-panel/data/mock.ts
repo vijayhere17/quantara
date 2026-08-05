@@ -21,7 +21,6 @@ const sharedLinks = {
   investNow: '/buy-robo',
   myInvestments: '/bot-request',
   wallet: '/earning-wallet',
-  withdraw: '/new-withdrawal',
   // Matches BlockchainIncomeIndexer:
   // 1=Contribution, 2=ROI, 4=Community, 5=Rank, 7=Same Rank, 8=Booster
   roiHistory: '/earning/2/ROI History',
@@ -96,7 +95,7 @@ export const mockDashboardData: DashboardBoot = {
   },
   rank: {
     current: 'Q0',
-    next: 'Sales Manager',
+    next: 'Seed',
     progress: 0,
     teamVolume: '0',
     required: '0',
@@ -128,8 +127,8 @@ export const mockProfileData: ProfileBoot = {
     username: '0x68de9d14010385f840ea9f65b132a4fd91d8480f',
     referralCode: '0x68de...480f',
     referralLink: 'https://quantara.app/sign-up?ref=0x68de9d14010385f840ea9f65b132a4fd91d8480f',
-    rank: 'Not Ranked Yet',
-    nextRank: 'Sales Manager',
+    rank: 'Not Ranked',
+    nextRank: 'Seed',
     packageName: 'Not Active',
     packageAmount: null,
     packageStatus: 'Inactive',

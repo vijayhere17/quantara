@@ -188,8 +188,27 @@ class BlockchainService
      */
     public function getLogs(array $filter): ?array
     {
-        $result = $this->rpc('eth_getLogs', [$filter]);
-        return is_array($result) ? $result : null;
+        try {
+            $result = $this->rpc('eth_getLogs', [$filter]);
+            return is_array($result) ? $result : null;
+        } catch (RuntimeException $e) {
+            $msg = strtolower($e->getMessage());
+            // Public RPCs often reject large eth_getLogs with "limit exceeded"
+            if (
+                str_contains($msg, 'limit exceeded') ||
+                str_contains($msg, 'rate limit') ||
+                str_contains($msg, 'too many') ||
+                str_contains($msg, 'query returned more than')
+            ) {
+                Log::warning('eth_getLogs rate/limit — caller should shrink range', [
+                    'error' => $e->getMessage(),
+                    'from' => $filter['fromBlock'] ?? null,
+                    'to' => $filter['toBlock'] ?? null,
+                ]);
+                return null;
+            }
+            throw $e;
+        }
     }
 
     protected function assertSuccessfulReceipt(

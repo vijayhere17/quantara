@@ -100,6 +100,19 @@ contract InterdependentReward is ReentrancyGuard {
         emit IncomeManagerUpdated(_incomeManager);
     }
 
+    /**
+     * @notice QA / testnet only: backdate lastClaimAt so Self ROI can accrue immediately.
+     * @dev Production keepers should never need this. Owner-only. Caps at 30 days.
+     */
+    function qaBackdateLastClaim(address user, uint256 secondsAgo) external onlyOwner {
+        require(user != address(0), "Invalid user");
+        require(secondsAgo > 0 && secondsAgo <= 30 days, "Invalid secondsAgo");
+        RoiAccount storage account = roiAccounts[user];
+        require(account.isActive, "ROI not active");
+        require(secondsAgo <= block.timestamp, "Too far");
+        account.lastClaimAt = block.timestamp - secondsAgo;
+    }
+
     function getActiveRoiUserCount() external view returns (uint256) {
         return activeRoiUsers.length;
     }

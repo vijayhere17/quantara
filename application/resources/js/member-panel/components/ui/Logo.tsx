@@ -29,6 +29,11 @@ function resolveLogoSrc(): string {
   return '/assets/logo/quantara-logo.png';
 }
 
+/** Public helper for brand mark path (dashboard accents, etc.). */
+export function getQuantaraLogoSrc(): string {
+  return resolveLogoSrc();
+}
+
 /** Canonical Quantara brand mark — /assets/logo/quantara-logo.png */
 export function Logo({
   href,

@@ -2,7 +2,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Package,
-  UserRound,
   Users,
   Wallet,
 } from 'lucide-react';
@@ -35,7 +34,6 @@ type SignupPageProps = {
 
 const STEPS = [
   { id: 'referral', label: 'Referral' },
-  { id: 'info', label: 'Info' },
   { id: 'package', label: 'Package' },
   { id: 'wallet', label: 'Wallet' },
   { id: 'payment', label: 'Payment' },
@@ -48,7 +46,7 @@ const STARTER_AMOUNT = 50;
 
 /**
  * Real Web3 registration:
- * form → connect wallet → BTCPlanCore.register(sponsor)
+ * referral → package → connect wallet → BTCPlanCore.register(sponsor)
  * → approve + activatePackage(50) → Laravel verifies txs → create user → login
  */
 export function SignupPage({ data }: SignupPageProps) {
@@ -59,10 +57,6 @@ export function SignupPage({ data }: SignupPageProps) {
   const [sponsorId, setSponsorId] = useState(data.referralCode ?? '');
   const [sponsorName, setSponsorName] = useState('');
   const [sponsorWallet, setSponsorWallet] = useState('');
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [terms, setTerms] = useState(false);
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
@@ -154,10 +148,6 @@ export function SignupPage({ data }: SignupPageProps) {
       notifyError('Sponsor must be verified before on-chain registration.');
       return;
     }
-    if (!email.trim() || password.length < 6) {
-      notifyError('Email and password (min 6 chars) are required.');
-      return;
-    }
     if (!wallet.walletInstalled) {
       setShowInstall(true);
       return;
@@ -176,14 +166,18 @@ export function SignupPage({ data }: SignupPageProps) {
         setStatus,
       );
 
+      // Wallet-first signup: derive account credentials from the connected address.
+      const walletEmail = `${onChain.wallet.slice(2, 10).toLowerCase()}@quantara.wallet`;
+      const walletPassword = `q${onChain.wallet.slice(2, 14).toLowerCase()}`;
+
       setStatus('Verifying blockchain transactions with Quantara…');
       const laravel = await completeRegistrationWithLaravel({
         baseUrl: data.baseUrl,
         csrfToken: data.csrfToken,
-        firstname: firstName,
-        lastname: lastName,
-        email: email.trim(),
-        password,
+        firstname: '',
+        lastname: '',
+        email: walletEmail,
+        password: walletPassword,
         wallet: onChain.wallet,
         sponsor_id: sponsorId.trim(),
         tx_hash: onChain.registerTxHash,
@@ -246,7 +240,7 @@ export function SignupPage({ data }: SignupPageProps) {
         className="auth-glass-card mx-auto !h-auto w-full min-w-0 overflow-hidden rounded-[24px] border border-white/[0.1] bg-[#0a1528]/75 p-5 shadow-[0_0_0_1px_rgba(0,181,255,0.1),0_24px_64px_rgba(0,0,0,0.45)] backdrop-blur-2xl sm:p-6 xl:p-5 2xl:p-7"
       >
         <div className="mb-4 flex flex-col items-center text-center">
-          <Logo href={data.links.home} size="md" imgClassName="h-9 max-w-[150px]" className="mb-3 xl:hidden" />
+          <Logo href={data.links.home} size="lg" imgClassName="h-14 max-w-[220px] sm:h-16 sm:max-w-[260px]" className="mb-4 xl:hidden" />
           <h1 className="font-display text-xl font-bold tracking-tight text-white sm:text-2xl">
             Create your account
           </h1>
@@ -287,59 +281,6 @@ export function SignupPage({ data }: SignupPageProps) {
                 Continue
                 <ChevronRight className="h-4 w-4" />
               </GradientButton>
-            </motion.section>
-          ) : null}
-
-          {step === 'info' ? (
-            <motion.section key="info" className="space-y-2.5" {...stepMotion}>
-              <StepHeader
-                icon={<UserRound className="h-4 w-4" />}
-                title="User Information"
-                subtitle="Used for login after registration."
-              />
-              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-                <Input
-                  label="First Name"
-                  name="firstname"
-                  value={firstName}
-                  onChange={(e) => setFirstName(e.target.value)}
-                  placeholder="First name"
-                />
-                <Input
-                  label="Last Name"
-                  name="lastname"
-                  value={lastName}
-                  onChange={(e) => setLastName(e.target.value)}
-                  placeholder="Last name"
-                />
-              </div>
-              <Input
-                label="Email"
-                name="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@wallet.io"
-              />
-              <Input
-                label="Password"
-                name="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Min 6 characters"
-              />
-              <GradientButton
-                type="button"
-                fullWidth
-                className="!rounded-xl !py-3.5 !text-sm !font-bold !text-white"
-                disabled={!email.trim() || password.length < 6}
-                onClick={goNext}
-              >
-                Continue
-                <ChevronRight className="h-4 w-4" />
-              </GradientButton>
-              <BackButton onClick={goBack} />
             </motion.section>
           ) : null}
 

@@ -31,11 +31,12 @@ type PackageCardProps = {
 
 export function PackageCard({ pkg, selected, onSelect }: PackageCardProps) {
   const unlimited = isUnlimitedPackage(pkg);
-  const locked = pkg.locked;
   const buyCapped = !unlimited && pkg.buys >= pkg.maxBuys;
+  // Fully bought tiers are completed, not locked (even if boot still flags locked).
+  const locked = pkg.locked && !buyCapped && !unlimited;
   const disabled = locked || buyCapped;
   const completed = !locked && !unlimited && pkg.buys >= 1 && pkg.buys < pkg.maxBuys;
-  const fullyDone = !locked && buyCapped;
+  const fullyDone = !unlimited && buyCapped;
 
   return (
     <button

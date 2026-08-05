@@ -1,5 +1,6 @@
 @php
     use Illuminate\Support\Facades\Auth;
+    use App\Support\EcologyRanks;
 
     $base = rtrim(URL::to('/'), '/');
     $user = Auth::user();
@@ -28,10 +29,15 @@
         ? min(100, round(($gt_team_business / $gt_next_rank->business) * 100, 1))
         : 0;
 
+    $ecologyRank = EcologyRanks::fromTier($object->current_rank ?? null, $object->allsalary ?? []);
+
     $displayName = trim(($user->firstname ?? '') . ' ' . ($user->lastname ?? ''));
     if ($displayName === '') {
         $displayName = 'Explorer';
     }
+
+    // Prefer on-chain mirrored package_amount over kit marketing name/range
+    $packageAmount = $user->package_amount ?? optional($user->kit)->amount ?? $user->package_id;
 
     $boot = [
         'page' => 'dashboard',
@@ -47,8 +53,8 @@
             'obscuredAddress' => obscureAddress($user->username ?? ''),
             'email' => $user->email ?: null,
             'avatar' => $base . '/assets/images/user/avatar-1.jpg',
-            'packageName' => optional($user->kit)->name ?: ($user->package_id ? ('$' . $user->package_id) : null),
-            'packageAmount' => optional($user->kit)->amount ?: $user->package_id,
+            'packageName' => null,
+            'packageAmount' => $packageAmount,
             'packageRoi' => optional($user->kit)->percantage,
         ],
         'registration' => [
@@ -99,8 +105,8 @@
             'remaining' => $object->total_3x_remain,
         ],
         'rank' => [
-            'current' => optional($object->current_rank)->rank ?? 'Q0',
-            'next' => optional($gt_next_rank)->rank,
+            'current' => $ecologyRank['current'] === 'Not Ranked' ? 'Q0' : $ecologyRank['current'],
+            'next' => $ecologyRank['next'],
             'progress' => $gt_rank_pct,
             'teamVolume' => $gt_team_business,
             'required' => optional($gt_next_rank)->business,
