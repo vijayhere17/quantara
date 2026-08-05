@@ -17,6 +17,7 @@ import {
 import { useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import type { DashboardBoot, RewardItem } from '../../types';
 import { PageContainer } from '../ui/PageContainer';
+import { getQuantaraLogoSrc } from '../ui/Logo';
 
 type DashboardPageProps = {
   data: DashboardBoot;
@@ -180,17 +181,25 @@ export function DashboardPage({ data }: DashboardPageProps) {
 
   return (
     <PageContainer className="!gap-4 sm:!gap-5" maxWidth="narrow">
-      {/* My Wallet — display only */}
-      <section className="dash-card flex items-center gap-3 px-4 py-4 sm:px-5">
+      {/* My Wallet — display only + floating Quantara mark */}
+      <section className="dash-card relative flex items-center gap-3 overflow-hidden px-4 py-4 sm:px-5">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#00B5FF]/15 text-[#38D9FF]">
           <Wallet className="h-5 w-5" />
         </div>
-        <div className="min-w-0 flex-1">
+        <div className="relative z-10 min-w-0 flex-1 pr-16 sm:pr-20">
           <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#38D9FF]">My Wallet</p>
           <p className="mt-0.5 truncate font-mono text-sm font-semibold tracking-tight text-white sm:text-base">
             {walletAddress}
           </p>
         </div>
+        <img
+          src={getQuantaraLogoSrc()}
+          alt=""
+          aria-hidden
+          className="q-logo-float pointer-events-none absolute -bottom-1 -right-1 z-[1] h-[72px] w-[72px] select-none object-contain opacity-90 drop-shadow-[0_8px_20px_rgba(0,181,255,0.25)] sm:-bottom-2 sm:-right-2 sm:h-[88px] sm:w-[88px]"
+          loading="eager"
+          decoding="async"
+        />
       </section>
 
       {/* Referral Link + copy */}
